@@ -8,7 +8,9 @@
     "check": "tsx src/check.ts",
     "mcp": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "check-ai": "tsx src/check-ai.ts"
+    "check-ai": "tsx src/check-ai.ts",
+    "holds": "tsx src/holds.ts",
+    "check-gate": "tsx src/check-gate.ts"
   },
   "keywords": [],
   "author": "",

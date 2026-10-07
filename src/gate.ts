@@ -1,0 +1,70 @@
+// Approval gate: every tool call on the MCP server (stock PayPal tools and JUNCO's) is allowed, held for the owner, or denied by policy.json.
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+
+export type Verdict = 'allow' | 'hold' | 'deny';
+export type Rule = Verdict | { max_amount: number; over: Verdict };
+export type Policy = { default: Verdict; tools: Record<string, Rule> };
+export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected'; result?: string };
+
+export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
+
+// Money a call would move, if the tool has an amount field.
+const amountOf = (args: any): number | null => {
+  const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount;
+  return v == null ? null : Number(v);
+};
+
+export function decide(policy: Policy, method: string, args: any): { verdict: Verdict; reason: string } {
+  const rule = policy.tools[method];
+  if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };
+  if (typeof rule === 'string') return { verdict: rule, reason: `policy: ${method} = ${rule}` };
+  const amt = amountOf(args);
+  if (amt === null || Number.isNaN(amt)) return { verdict: 'hold', reason: `${method} has an amount limit but no readable amount` };
+  return amt <= rule.max_amount
+    ? { verdict: 'allow', reason: `${amt} is within the ${rule.max_amount} limit for ${method}` }
+    : { verdict: rule.over, reason: `${amt} is over the ${rule.max_amount} limit for ${method}` };
+}
+
+// ponytail: holds live in one JSON file; move to a DB when more than one process writes them
+const HOLDS = '.junco/holds.json';
+export const readHolds = (): Hold[] => { try { return JSON.parse(readFileSync(HOLDS, 'utf8')); } catch { return []; } };
+const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(HOLDS, JSON.stringify(h, null, 2)); };
+
+type Handler = (args: any, extra: any) => Promise<any>;
+const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
+
+export function gate(server: any, policy: Policy) {
+  // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
+  const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void }> = server._registeredTools;
+  const originals: Record<string, Handler> = {};
+  for (const [name, tool] of Object.entries(tools)) {
+    originals[name] = tool.handler;
+    tool.update({
+      callback: async (args, extra) => {
+        const { verdict, reason } = decide(policy, name, args);
+        if (verdict === 'allow') return originals[name](args, extra);
+        if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
+        const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending' };
+        writeHolds([...readHolds(), hold]);
+        return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action.' });
+      },
+    });
+  }
+
+  async function resolve(id: string, approve: boolean): Promise<Hold> {
+    const holds = readHolds();
+    const h = holds.find((x) => x.id === id);
+    if (!h) throw new Error(`No hold ${id}`);
+    if (h.status !== 'pending') throw new Error(`Hold ${id} is already ${h.status}`);
+    h.status = approve ? 'approved' : 'rejected';
+    writeHolds(holds); // mark first so a crash mid-call can't run it twice
+    if (approve) {
+      const r = await originals[h.method](h.args, {});
+      h.result = r.content?.[0]?.text;
+      writeHolds(holds);
+    }
+    return h;
+  }
+  return { approve: (id: string) => resolve(id, true), reject: (id: string) => resolve(id, false) };
+}

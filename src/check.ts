@@ -7,7 +7,8 @@ import { createServer, sandboxCtx } from './server.js';
 
 const ERP = 'PP-R-ERP-10190210', PBO = 'PP-R-PBO-10190474';
 const [a, b] = InMemoryTransport.createLinkedPair();
-await (await createServer(await sandboxCtx())).connect(a);
+const { server } = await createServer(await sandboxCtx(), { default: 'allow', tools: {} }); // gate tested in check-gate.ts
+await server.connect(a);
 const client = new Client({ name: 'check', version: '0' });
 await client.connect(b);
 

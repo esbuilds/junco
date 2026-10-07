@@ -2,6 +2,7 @@
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { tools, run, type Ctx } from './disputes.js';
+import { gate, loadPolicy, type Policy } from './gate.js';
 
 export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   try { process.loadEnvFile(); } catch {} // ponytail: .env optional, real env vars win
@@ -20,7 +21,7 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   return { baseUrl, accessToken, token: async () => accessToken };
 }
 
-export async function createServer(ctx: Ctx & { accessToken: string }) {
+export async function createServer(ctx: Ctx & { accessToken: string }, policy: Policy = loadPolicy()) {
   const server = new PayPalAgentToolkit({
     accessToken: ctx.accessToken,
     configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true } } },
@@ -30,9 +31,9 @@ export async function createServer(ctx: Ctx & { accessToken: string }) {
       content: [{ type: 'text' as const, text: await run(ctx, t.method, arg) }],
     }));
   }
-  return server;
+  return { server, holds: gate(server, policy) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {
-  createServer(await sandboxCtx()).then((s) => s.connect(new StdioServerTransport()));
+  createServer(await sandboxCtx()).then(({ server }) => server.connect(new StdioServerTransport()));
 }

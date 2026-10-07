@@ -1,0 +1,12 @@
+{
+  "default": "hold",
+  "tools": {
+    "list_disputes": "allow",
+    "get_dispute": "allow",
+    "send_dispute_message": "allow",
+    "provide_dispute_evidence": "allow",
+    "make_dispute_offer": { "max_amount": 25, "over": "hold" },
+    "accept_dispute_claim": "hold",
+    "create_refund": "hold"
+  }
+}
