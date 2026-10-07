@@ -7,13 +7,15 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "tsx src/check.ts",
     "mcp": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-ai": "tsx src/check-ai.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@paypal/agent-toolkit": "^1.11.0",
     "zod": "^3.25.76"
