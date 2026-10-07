@@ -69,6 +69,7 @@ const STATIC: Record<string, [string, string]> = {
 
 // Hosted desks must set DESK_PASSWORD: the desk can approve actions that move money.
 const PASSWORD = process.env.DESK_PASSWORD;
+if (process.env.RENDER && !PASSWORD) throw new Error('DESK_PASSWORD must be set on a hosted desk');
 const authorized = (req: IncomingMessage) => {
   if (!PASSWORD) return true; // ponytail: local dev only; any non-local deploy sets DESK_PASSWORD
   const [scheme, value] = (req.headers.authorization ?? '').split(' ');
