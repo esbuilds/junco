@@ -32,8 +32,10 @@ assert.equal(r.error?.type, 'action_not_allowed'); console.log('evidence twice -
 r = await call('make_dispute_offer', { dispute_id: PBO, offer_type: 'REFUND', offer_amount: { currency_code: 'USD', value: '5' }, note: 'x' });
 assert.equal(r.error?.type, 'action_not_allowed'); console.log('offer on closed-out case -> blocked, status:', r.status);
 
-r = await call('send_dispute_message', { dispute_id: ERP, message: 'JUNCO check: tracking shows delivered.' });
-assert.equal(r.ok, true, JSON.stringify(r)); console.log('send message -> PayPal', r.status);
+if (process.argv.includes('--write')) { // posts a real message to the buyer; off by default so the demo dispute stays clean
+  r = await call('send_dispute_message', { dispute_id: ERP, message: 'JUNCO check: tracking shows delivered.' });
+  assert.equal(r.ok, true, JSON.stringify(r)); console.log('send message -> PayPal', r.status);
+} else console.log('send message -> skipped (run with -- --write)');
 
 r = await call('accept_dispute_claim', { dispute_id: PBO, note: 'Item lost in transit' });
 console.log('stock accept_dispute_claim with a normal note ->', JSON.stringify(r).slice(0, 240));

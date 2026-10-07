@@ -67,7 +67,7 @@ export function checkArgs(method: string, a: any): string | null {
   return null;
 }
 
-async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown } = {}) {
+export async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown } = {}) {
   const headers: Record<string, string> = { Authorization: `Bearer ${await ctx.token()}` };
   let body: BodyInit | undefined;
   if (init.form !== undefined) {

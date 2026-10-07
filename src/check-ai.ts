@@ -20,10 +20,10 @@ console.log('validator: fabricated citation, uncited claim, oversized offer, dis
 
 const ctx = await sandboxCtx();
 const out = await recommend(ctx, 'PP-R-ERP-10190210', [
-  { source: 'merchant order system', text: 'Order #1042, Canvas tote, $48.00, shipped Oct 2 2026 via USPS to San Jose, CA 95131.' },
   { source: 'USPS tracking 9400100000000000000000', text: 'Delivered, front door, San Jose CA 95131, Oct 4 2026 2:14pm.' },
 ]);
 console.log(JSON.stringify({ recommendation: out.recommendation, problems: out.problems }, null, 2));
+assert(out.evidence.some((e) => e.source.startsWith('paypal order')), 'order facts should come from PayPal');
 assert(out.recommendation, 'no recommendation');
 assert.deepEqual(out.problems, [], 'recommendation should be actionable');
 console.log('ok');
