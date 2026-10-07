@@ -76,6 +76,7 @@ const authorized = (req: IncomingMessage) => {
 };
 
 httpServer(async (req, res) => {
+  if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); } // for the host's health check, no data
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
   const p = url.pathname.split('/').filter(Boolean);
