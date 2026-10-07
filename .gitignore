@@ -4,3 +4,4 @@ dist/
 __pycache__/
 perplexity-prompt-*.md
 .junco/
+.playwright-mcp/

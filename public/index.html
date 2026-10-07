@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUNCO Dispute Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #ffffff; --surface-2: #f0eee8; --ink: #1d1d1b; --muted: #6b6a64; --line: #e3e0d8;
+    --accent: #1f5c4a; --accent-ink: #ffffff; --warn: #a15c07; --warn-bg: #fdf1dc; --danger: #a8322a; --danger-bg: #fbe7e5;
+    --ok: #1f6b3a; --ok-bg: #e2f2e7; --info: #2b4f8a; --info-bg: #e5ecf8; --focus: #2b6fd6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1d1d1b; --surface-2: #262623; --ink: #ecebe6; --muted: #a09f98; --line: #34332f;
+      --accent: #5fb497; --accent-ink: #0d1f19; --warn: #e5a54a; --warn-bg: #3a2a12; --danger: #ef8a80; --danger-bg: #3d1d1a;
+      --ok: #7fcf9b; --ok-bg: #18301f; --info: #8fb2ee; --info-bg: #1b2740; --focus: #7aa7f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 20px 24px 8px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info); font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 8px 24px 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat .k { color: var(--muted); font-size: 13px; }
+  .stat .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 0 24px 32px; align-items: start; }
+  .card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  #grid { min-height: 120px; }
+  .panel { padding: 18px 20px; }
+  .panel h2 { margin: 0 0 2px; font-size: 17px; }
+  .panel h3 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 40px 8px; text-align: center; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+  .b-message { background: var(--info-bg); color: var(--info); }
+  .b-offer { background: var(--warn-bg); color: var(--warn); }
+  .b-contest { background: var(--ok-bg); color: var(--ok); }
+  .b-accept { background: var(--danger-bg); color: var(--danger); }
+  .b-held { background: var(--warn-bg); color: var(--warn); }
+  ol.evidence { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  ol.evidence li { display: grid; grid-template-columns: 36px minmax(0, 1fr); overflow-wrap: anywhere; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid transparent; transition: border-color .15s, background .15s; }
+  ol.evidence li.hl { border-color: var(--accent); background: var(--surface); }
+  ol.evidence .id { font-weight: 600; font-variant-numeric: tabular-nums; }
+  ol.evidence .src { font-size: 12px; color: var(--muted); }
+  .rec { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .rec p { margin: 8px 0 0; }
+  ul.claims { margin: 10px 0 0; padding-left: 18px; }
+  ul.claims li { margin: 4px 0; }
+  .cite { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); cursor: default; margin-left: 4px; }
+  .problems { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--danger-bg); color: var(--danger); }
+  .problems ul { margin: 4px 0 0; padding-left: 18px; }
+  textarea, input[type=text] { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; }
+  textarea { min-height: 84px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.danger { color: var(--danger); }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  .result { margin-top: 10px; padding: 10px 12px; border-radius: 8px; }
+  .result.ok { background: var(--ok-bg); color: var(--ok); }
+  .result.held { background: var(--warn-bg); color: var(--warn); }
+  .result.err { background: var(--danger-bg); color: var(--danger); }
+  .holds { padding: 0 24px 12px; }
+  .hold { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 14px; margin-top: 8px; border-radius: 10px; background: var(--warn-bg); color: var(--ink); border: 1px solid var(--line); }
+  .hold .why { color: var(--warn); font-size: 13px; }
+  .due-soon { color: var(--danger); font-weight: 600; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { header, .stats, main, .holds { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>JUNCO</h1><span class="sub">Dispute desk</span><span class="tag">PayPal sandbox</span>
+</header>
+
+<section class="stats" aria-label="Summary">
+  <div class="stat"><div class="k">Open cases</div><div class="v" id="s-open">-</div></div>
+  <div class="stat"><div class="k">Money in dispute</div><div class="v" id="s-money">-</div></div>
+  <div class="stat"><div class="k">Next deadline</div><div class="v" id="s-due">-</div></div>
+  <div class="stat"><div class="k">Waiting for you</div><div class="v" id="s-holds">-</div></div>
+</section>
+
+<section class="holds" id="holds" aria-live="polite"></section>
+
+<main>
+  <div class="card"><div id="grid" aria-label="Dispute queue"></div></div>
+  <div class="card panel" id="panel" aria-live="polite"><div class="empty">Pick a case to see its evidence and what JUNCO recommends.</div></div>
+</main>
+
+<script src="/vendor/ag-grid.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n, c = 'USD') => new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(n);
+const REASONS = { MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Item not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described', UNAUTHORISED: 'Unauthorized', CREDIT_NOT_PROCESSED: 'Credit not processed', DUPLICATE_TRANSACTION: 'Duplicate', INCORRECT_AMOUNT: 'Incorrect amount' };
+const STATUS = { WAITING_FOR_BUYER_RESPONSE: "Buyer's turn", WAITING_FOR_SELLER_RESPONSE: 'Your turn', UNDER_REVIEW: 'PayPal reviewing', OPEN: 'Open', RESOLVED: 'Resolved', OTHER: 'Other' };
+const LABEL = { message: 'Message buyer', offer: 'Offer refund', contest: 'Contest', accept: 'Accept' };
+const ACTION = { message: 'Send message', offer: 'Make offer', contest: 'Submit evidence', accept: 'Accept and refund' };
+const human = (s) => esc(String(s ?? '').toLowerCase().replace(/_/g, ' '));
+const daysLeft = (iso) => iso ? Math.ceil((new Date(iso) - Date.now()) / 864e5) : null;
+const dueText = (r) => {
+  if (r.due) { const d = daysLeft(r.due); return d < 0 ? 'Overdue' : d === 0 ? 'Due today' : `${d} day${d === 1 ? '' : 's'}`; }
+  return 'Not yet';
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json' } });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(body.error?.message ?? r.statusText), { body });
+  return body;
+}
+
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+agGrid.ModuleRegistry.registerModules([agGrid.AllCommunityModule]);
+const grid = agGrid.createGrid($('#grid'), {
+  theme: agGrid.themeQuartz.withParams(dark
+    ? { backgroundColor: '#1d1d1b', foregroundColor: '#ecebe6', headerBackgroundColor: '#262623', borderColor: '#34332f', accentColor: '#5fb497', fontFamily: 'Inter, system-ui, sans-serif' }
+    : { backgroundColor: '#ffffff', foregroundColor: '#1d1d1b', headerBackgroundColor: '#f0eee8', borderColor: '#e3e0d8', accentColor: '#1f5c4a', fontFamily: 'Inter, system-ui, sans-serif' }),
+  rowSelection: { mode: 'singleRow', checkboxes: false, enableClickSelection: true },
+  getRowId: (p) => p.data.id,
+  domLayout: 'autoHeight',
+  rowHeight: 48,
+  columnDefs: [
+    { field: 'reason', headerName: 'Reason', flex: 1.3, minWidth: 150, valueFormatter: (p) => REASONS[p.value] ?? human(p.value) },
+    { field: 'amount', headerName: 'Amount', width: 110, type: 'rightAligned', valueFormatter: (p) => money(p.value, p.data.currency) },
+    { field: 'due', headerName: 'You respond in', width: 135, comparator: (a, b) => (a ? Date.parse(a) : Infinity) - (b ? Date.parse(b) : Infinity),
+      cellRenderer: (p) => { const d = daysLeft(p.data.due); return `<span class="${d !== null && d <= 3 ? 'due-soon' : ''}">${esc(dueText(p.data))}</span>`; } },
+    { field: 'status', headerName: 'Status', flex: 1, minWidth: 130, valueFormatter: (p) => STATUS[p.value] ?? human(p.value) },
+    { field: 'decision', headerName: 'JUNCO says', width: 145,
+      cellRenderer: (p) => p.value ? `<span class="badge b-${esc(p.value)}">${esc(LABEL[p.value])}</span>` : '<span class="muted">Not reviewed</span>' },
+    { field: 'pending_holds', headerName: 'Approvals', width: 115,
+      cellRenderer: (p) => p.value ? `<span class="badge b-held">${p.value} waiting</span>` : '' },
+  ],
+  onRowClicked: (e) => openCase(e.data.id),
+  overlayNoRowsTemplate: '<span class="muted">No disputes in this sandbox account.</span>',
+});
+
+let rows = [];
+async function loadCases() {
+  rows = await api('/api/cases');
+  grid.setGridOption('rowData', rows);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const dues = rows.map((r) => daysLeft(r.due)).filter((d) => d !== null).sort((a, b) => a - b);
+  $('#s-open').textContent = rows.length;
+  $('#s-money').textContent = money(total);
+  $('#s-due').textContent = dues.length ? (dues[0] <= 0 ? 'Today' : `${dues[0]} days`) : 'None';
+}
+
+async function loadHolds() {
+  const holds = await api('/api/holds');
+  $('#s-holds').textContent = holds.length;
+  $('#holds').innerHTML = holds.map((h) => `
+    <div class="hold">
+      <div><strong>${esc(h.method.replace(/_/g, ' '))}</strong> on ${esc(h.args?.dispute_id)}
+        ${h.args?.offer_amount ? ` for ${esc(money(h.args.offer_amount.value, h.args.offer_amount.currency_code))}` : ''}
+        <div class="why">Held: ${esc(h.reason)}</div></div>
+      <div class="row" style="margin:0"><button class="btn primary" data-approve="${esc(h.id)}">Approve</button><button class="btn danger" data-reject="${esc(h.id)}">Reject</button></div>
+    </div>`).join('');
+}
+$('#holds').addEventListener('click', async (e) => {
+  const id = e.target.dataset.approve ?? e.target.dataset.reject;
+  if (!id) return;
+  e.target.disabled = true;
+  try { await api(`/api/holds/${encodeURIComponent(id)}/${e.target.dataset.approve ? 'approve' : 'reject'}`, { method: 'POST' }); }
+  catch (err) { alert(err.message); }
+  await refresh();
+});
+
+let current = null;
+async function openCase(id) {
+  current = id;
+  $('#panel').innerHTML = '<div class="empty">Loading case...</div>';
+  try { render(await api(`/api/cases/${encodeURIComponent(id)}`)); }
+  catch (err) { $('#panel').innerHTML = `<div class="result err">${esc(err.message)}</div>`; }
+}
+
+function render(c, flash) {
+  const rec = c.saved?.recommendation;
+  const problems = c.saved?.problems ?? [];
+  $('#panel').innerHTML = `
+    <h2>${esc(REASONS[c.reason] ?? human(c.reason))}, ${esc(money(c.amount, c.currency))}</h2>
+    <div class="muted">${esc(c.id)} &middot; ${human(c.stage)} &middot; ${esc(STATUS[c.status] ?? human(c.status))}${c.due ? ` &middot; respond in ${esc(dueText(c))}` : ''}</div>
+    <h3>PayPal allows now</h3>
+    <div class="chips">${c.allowed.length ? c.allowed.map((a) => `<span class="chip">${human(a)}</span>`).join('') : '<span class="muted">No merchant actions right now</span>'}</div>
+
+    <h3>Recommendation</h3>
+    ${rec ? `<div class="rec">
+      <span class="badge b-${esc(rec.decision)}">${esc(LABEL[rec.decision])}</span>
+      ${rec.offer_amount ? `<strong> ${esc(money(rec.offer_amount, c.currency))}</strong>` : ''}
+      <p>${esc(rec.summary)}</p>
+      <ul class="claims">${rec.claims.map((cl) => `<li>${esc(cl.text)}${cl.evidence_ids.map((i) => `<span class="cite" data-ev="${esc(i)}" tabindex="0">${esc(i)}</span>`).join('')}</li>`).join('')}</ul>
+      ${problems.length ? `<div class="problems"><strong>Blocked by checks</strong><ul>${problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>` : ''}
+      ${!problems.length && (rec.decision === 'message' || rec.decision === 'offer') ? `<h3>Message to buyer</h3><textarea id="msg" maxlength="2000" aria-label="Message to buyer">${esc(rec.message_to_buyer ?? '')}</textarea>` : ''}
+      <div class="row">
+        ${!problems.length ? `<button class="btn primary" id="act">${esc(ACTION[rec.decision])}</button>` : ''}
+        <button class="btn" id="rerun">Re-check</button>
+      </div>
+    </div>` : `<p class="muted">Not reviewed yet. JUNCO reads the dispute, the PayPal order and tracking, and recommends one action with every claim cited.</p>
+      <label class="muted" for="scan">Carrier delivery scan (optional)</label>
+      <input type="text" id="scan" placeholder="e.g. Delivered, front door, San Jose CA 95131, Oct 4 2:14pm">
+      <div class="row"><button class="btn primary" id="rerun">Get recommendation</button></div>`}
+    <div id="flash">${flash ?? ''}</div>
+
+    <h3>Evidence</h3>
+    <ol class="evidence">${c.evidence.map((e) => `<li data-id="${esc(e.id)}"><span class="id">${esc(e.id)}</span><div>${esc(e.text)}<div class="src">${esc(e.source)}</div></div></li>`).join('')}</ol>
+    ${c.holds?.length ? `<h3>Gate history</h3>${c.holds.map((h) => `<div class="muted">${esc(h.method.replace(/_/g, ' '))}: held because ${esc(h.reason)}, then ${esc(h.status === 'pending' ? 'waiting for you' : h.status + ' by owner')}</div>`).join('')}` : ''}
+  `;
+  const hl = (id, on) => document.querySelectorAll(`ol.evidence li[data-id="${CSS.escape(id)}"]`).forEach((li) => li.classList.toggle('hl', on));
+  document.querySelectorAll('.cite').forEach((el) => {
+    for (const [ev, on] of [['mouseenter', 1], ['focus', 1], ['mouseleave', 0], ['blur', 0]]) el.addEventListener(ev, () => hl(el.dataset.ev, !!on));
+  });
+  $('#rerun')?.addEventListener('click', async (e) => {
+    e.target.disabled = true; e.target.textContent = 'Reading the case...';
+    try {
+      const out = await api(`/api/cases/${encodeURIComponent(c.id)}/recommend`, { method: 'POST', body: JSON.stringify({ delivery_scan: $('#scan')?.value || undefined }) });
+      render({ ...c, saved: out, evidence: out.evidence });
+      loadCases();
+    } catch (err) { $('#flash').innerHTML = `<div class="result err">${esc(err.message)}</div>`; e.target.disabled = false; }
+  });
+  $('#act')?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    let html;
+    try {
+      const r = await api(`/api/cases/${encodeURIComponent(c.id)}/act`, { method: 'POST', body: JSON.stringify({ message: $('#msg')?.value }) });
+      html = r.held ? `<div class="result held"><strong>Waiting for your approval.</strong> ${esc(r.reason)}</div>`
+        : r.ok ? `<div class="result ok"><strong>Done.</strong> PayPal accepted it (${esc(r.status)}).</div>`
+        : `<div class="result err"><strong>Not done.</strong> ${esc(r.error?.message ?? JSON.stringify(r))}</div>`;
+    } catch (err) { html = `<div class="result err">${esc(err.message)}</div>`; }
+    await refresh();
+    render(await api(`/api/cases/${encodeURIComponent(c.id)}`), html);
+  });
+}
+
+async function refresh() { await Promise.all([loadCases(), loadHolds()]); }
+refresh().catch((err) => { $('#panel').innerHTML = `<div class="result err">Could not load disputes: ${esc(err.message)}</div>`; });
+</script>
+</body>
+</html>

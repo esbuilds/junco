@@ -57,13 +57,24 @@ export async function gatherFromPayPal(ctx: Ctx, dispute: any): Promise<Omit<Evi
   return out;
 }
 
+const amt = (m: any) => (m ? `${m.value} ${m.currency_code}` : 'n/a');
+function describeEvidence(e: any) {
+  const kind = e.evidence_type === 'CREATE' ? 'Buyer filed the case' : `Submitted ${String(e.evidence_type).toLowerCase().replace(/_/g, ' ')}`;
+  const tracking = (e.evidence_info?.tracking_info ?? []).map((t: any) => `${t.carrier_name ?? ''} ${t.tracking_number}`.trim());
+  return [kind, tracking.length && `tracking ${tracking.join(', ')}`, e.notes?.trim() && `note: "${e.notes.trim()}"`].filter(Boolean).join('; ') + '.';
+}
+function describeOffer(o: any) {
+  const hist = (o.history ?? []).map((h: any) => `${h.actor} ${String(h.event_type).toLowerCase()} ${amt(h.offer_amount)} on ${String(h.offer_time).slice(0, 10)}`);
+  return `Buyer asked for ${amt(o.buyer_requested_amount)}; seller offered ${amt(o.seller_offered_amount)} (${o.offer_type ?? 'n/a'}).${hist.length ? ` History: ${hist.join('; ')}.` : ''}`;
+}
+
 // Turn the PayPal dispute plus merchant-supplied records into numbered evidence the model can cite.
 export function collectEvidence(dispute: any, merchantRecords: Omit<Evidence, 'id'>[] = []): Evidence[] {
   const items: Omit<Evidence, 'id'>[] = [
     { source: 'paypal', text: `Reason: ${dispute.reason}. Amount: ${dispute.dispute_amount?.value} ${dispute.dispute_amount?.currency_code}. Stage: ${dispute.dispute_life_cycle_stage}. Status: ${dispute.status}. Seller response due: ${dispute.seller_response_due_date ?? 'not set'}. PayPal currently allows: ${(dispute.links ?? []).map((l: any) => l.rel).filter((r: string) => r !== 'self').join(', ') || 'nothing'}.` },
-    ...(dispute.messages ?? []).map((m: any) => ({ source: `paypal message from ${m.posted_by}`, text: `${m.time_posted}: ${m.content}` })),
-    ...(dispute.evidences ?? []).map((e: any) => ({ source: 'paypal evidence already submitted', text: JSON.stringify({ type: e.evidence_type, info: e.evidence_info, notes: e.notes }) })),
-    ...(dispute.offer ? [{ source: 'paypal offer history', text: JSON.stringify(dispute.offer) }] : []),
+    ...(dispute.messages ?? []).map((m: any) => ({ source: `paypal message from ${String(m.posted_by).toLowerCase()}`, text: `${String(m.time_posted).slice(0, 16).replace('T', ' ')} UTC: "${m.content}"` })),
+    ...(dispute.evidences ?? []).map((e: any) => ({ source: 'paypal evidence on file', text: describeEvidence(e) })),
+    ...(dispute.offer ? [{ source: 'paypal offer history', text: describeOffer(dispute.offer) }] : []),
     ...merchantRecords,
   ];
   return items.map((e, i) => ({ id: `E${i + 1}`, ...e }));
