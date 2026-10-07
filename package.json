@@ -1,10 +1,10 @@
 {
   "name": "junco",
   "version": "1.0.0",
-  "description": "",
+  "description": "Dispute contest tools, AI recommendations and an approval gate for PayPal's Agent Toolkit",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsc --noEmit",
     "check": "tsx src/check.ts",
     "mcp": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
@@ -12,11 +12,12 @@
     "holds": "tsx src/holds.ts",
     "check-gate": "tsx src/check-gate.ts",
     "desk": "tsx src/desk.ts",
-    "start": "tsx src/desk.ts"
+    "start": "tsx src/desk.ts",
+    "seed": "tsx src/seed.ts"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

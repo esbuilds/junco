@@ -16,8 +16,11 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
     body: new URLSearchParams({ grant_type: 'client_credentials' }),
   });
   if (!r.ok) throw new Error(`PayPal token request failed: ${r.status}`);
-  const accessToken = (await r.json()).access_token as string;
-  // ponytail: one token per process; refresh when servers run longer than its ~9h lifetime
+  const { access_token: accessToken, expires_in } = (await r.json()) as { access_token: string; expires_in: number };
+  // The stock toolkit server only takes a fixed token, so long-running processes exit 10 min before it
+  // expires and the host (Render, or the agent that spawned the MCP server) starts a fresh one.
+  // ponytail: ~30s of downtime every ~9h; swap in per-call tokens if the toolkit ever accepts a token provider
+  setTimeout(() => { console.error('PayPal token expiring, exiting for restart'); process.exit(75); }, Math.max(60, expires_in - 600) * 1000).unref();
   return { baseUrl, accessToken, token: async () => accessToken };
 }
 
