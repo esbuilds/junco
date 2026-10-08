@@ -106,7 +106,11 @@ export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Om
   if (!r.ok) throw new Error(`Could not load dispute ${disputeId}: ${r.status}`);
   const dispute = await r.json();
   const evidence = collectEvidence(dispute, [...(await gatherFromPayPal(ctx, dispute)), ...merchantRecords]);
+  return { dispute, evidence, ...(await decide(dispute, evidence, client)) };
+}
 
+// The model call plus validation, separate from PayPal so evals can feed it synthetic disputes.
+export async function decide(dispute: any, evidence: Evidence[], client = new Anthropic()) {
   const res = await client.beta.messages.parse({
     model: 'claude-opus-5-5',
     max_tokens: 16000,
@@ -116,8 +120,9 @@ export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Om
     system: SYSTEM,
     messages: [{ role: 'user', content: `Evidence:\n${evidence.map((e) => `${e.id} [${e.source}] ${e.text}`).join('\n')}` }],
   });
+  const usage = { input: res.usage.input_tokens, output: res.usage.output_tokens };
   if (res.stop_reason === 'refusal' || !res.parsed_output)
-    return { dispute, evidence, recommendation: null, problems: [`Model returned no recommendation (${res.stop_reason})`] };
+    return { recommendation: null, problems: [`Model returned no recommendation (${res.stop_reason})`], usage };
   const recommendation = res.parsed_output;
-  return { dispute, evidence, recommendation, problems: validate(recommendation, evidence, dispute) };
+  return { recommendation, problems: validate(recommendation, evidence, dispute), usage };
 }

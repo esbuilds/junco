@@ -15,7 +15,8 @@
     "start": "tsx src/desk.ts",
     "seed": "tsx src/seed.ts",
     "check-agent": "tsx src/check-agent.ts",
-    "webhook": "tsx src/webhook.ts"
+    "webhook": "tsx src/webhook.ts",
+    "eval": "tsx evals/run.ts"
   },
   "keywords": [],
   "author": "",
