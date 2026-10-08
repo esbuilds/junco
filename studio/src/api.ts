@@ -32,6 +32,7 @@ export interface Activity {
 export interface CaseDetail extends CaseRow {
   evidence: Evidence[];
   saved: SavedRec | null;
+  budget: { limit: number; amount: number; currency: string; set_at: string } | null;
   holds: Hold[];
   activity: Activity[];
 }
@@ -50,6 +51,7 @@ export async function api<T = any>(path: string, opts: RequestInit & { json?: un
 
 export const TRIGGER: Record<string, string> = {
   sweep: 'scheduled check',
+  owner: 'you',
   check: 'manual check', // rows written by older local runs
   'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute',
   'CUSTOMER.DISPUTE.UPDATED': 'PayPal: dispute updated',

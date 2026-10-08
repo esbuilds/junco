@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds, savePolicy, type Hold, type Policy } from './gate.js';
+import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 
 const ctx = await sandboxCtx();
@@ -141,7 +141,7 @@ httpServer(async (req, res) => {
       if (req.method === 'GET' && !p[3]) {
         const d = await agent.getDispute(id);
         const evidence = collectEvidence(d, await gatherFromPayPal(ctx, d));
-        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
+        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, budget: readBudgets()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -152,6 +152,25 @@ httpServer(async (req, res) => {
         const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev };
         saveRec(id, saved);
         return json(res, 200, { ...saved, evidence: out.evidence });
+      }
+      if (p[3] === 'budget' && (req.method === 'PUT' || req.method === 'DELETE')) {
+        // "Handle it, up to $N": a standing approval for this dispute only. Pending holds within it run now.
+        if (req.method === 'DELETE') { setBudget(id, null); agent.log(id, 'owner', 'approval revoked', 'Standing approval removed; actions go back to the normal policy'); return json(res, 200, { budget: null }); }
+        const d = await agent.getDispute(id);
+        if (d.status === 'RESOLVED') return json(res, 400, { error: { message: 'This dispute is already resolved' } });
+        const amount = Number(d.dispute_amount?.value), limit = Number((await readBody(req)).limit);
+        if (!(limit > 0 && limit <= amount)) return json(res, 400, { error: { message: `Limit must be above 0 and at most the disputed ${amount}` } });
+        const budget = { limit: Math.round(limit * 100) / 100, amount, currency: d.dispute_amount.currency_code, set_at: new Date().toISOString() };
+        setBudget(id, budget);
+        agent.log(id, 'owner', 'standing approval', `Owner lets JUNCO handle this dispute on its own up to ${budget.limit} ${budget.currency}`);
+        const ran = [];
+        for (const h of holdsFor(id).filter((x) => x.status === 'pending' && movesMoney(x.method, x.args, budget) <= budget.limit)) {
+          const r = await holds.approve(h.id);
+          const failed = /"error"/.test(r.result ?? ''); // tool results are JSON text; PayPal failures carry an error object
+          agent.log(id, 'owner', failed ? 'failed' : 'done', `${h.method.replace(/_/g, ' ')} ${failed ? 'failed' : 'ran'} under the standing approval${failed ? `: ${(r.result ?? '').slice(0, 200)}` : ''}`);
+          ran.push(r);
+        }
+        return json(res, 200, { budget, ran });
       }
       if (req.method === 'POST' && p[3] === 'act') {
         const saved = readRecs()[id];

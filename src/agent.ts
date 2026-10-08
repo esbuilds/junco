@@ -121,5 +121,5 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
     return r.body.verification_status === 'SUCCESS';
   }
 
-  return { act, triage, sweep, verifyWebhook, getDispute };
+  return { act, triage, sweep, verifyWebhook, getDispute, log };
 }

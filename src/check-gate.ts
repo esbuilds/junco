@@ -16,6 +16,15 @@ assert.equal(decide(policy, 'some_new_tool', {}).verdict, 'hold');
 assert.equal(decide({ default: 'hold', tools: { create_refund: 'deny' } }, 'create_refund', {}).verdict, 'deny');
 console.log('policy: limit edge, missing amount, unknown tool, deny all decided correctly');
 
+// Standing approval: one dispute, capped at `limit`; accept counts as the full disputed amount.
+const budgets = { 'PP-R-PBO-10190474': { limit: 40, amount: 48, currency: 'USD', set_at: '' } };
+assert.equal(decide(policy, 'make_dispute_offer', offer('40'), budgets).verdict, 'allow');
+assert.equal(decide(policy, 'make_dispute_offer', offer('40.01'), budgets).verdict, 'hold');
+assert.equal(decide(policy, 'accept_dispute_claim', { dispute_id: 'PP-R-PBO-10190474' }, budgets).verdict, 'hold'); // 48 > 40
+assert.equal(decide(policy, 'accept_dispute_claim', { dispute_id: 'PP-R-PBO-10190474' }, { 'PP-R-PBO-10190474': { ...budgets['PP-R-PBO-10190474'], limit: 48 } }).verdict, 'allow');
+assert.equal(decide(policy, 'accept_dispute_claim', { dispute_id: 'PP-R-OTHER' }, budgets).verdict, 'hold'); // other disputes untouched
+console.log('standing approval: cap edge, full-amount accept, scoped to one dispute');
+
 const [a, b] = InMemoryTransport.createLinkedPair();
 const { server, holds } = await createServer(await sandboxCtx(), policy);
 await server.connect(a);

@@ -14,7 +14,8 @@ export function CaseWidget() {
   const [hl, setHl] = useState<string | null>(null); // evidence id lit by a hovered or focused citation
   const [draft, setDraft] = useState('');
   const [scan, setScan] = useState('');
-  const [busy, setBusy] = useState<'recheck' | 'act' | null>(null);
+  const [busy, setBusy] = useState<'recheck' | 'act' | 'budget' | null>(null);
+  const [limit, setLimit] = useState('');
   const [flash, setFlash] = useState<Flash | null>(null);
 
   // Reset local UI when the case changes.
@@ -58,6 +59,20 @@ export function CaseWidget() {
         ? { kind: 'held', text: 'Waiting for your approval.', detail: r.reason }
         : r.ok ? { kind: 'ok', text: `Done. PayPal accepted it (${r.status}).` }
         : { kind: 'err', text: 'Not done.', detail: r.error?.message ?? JSON.stringify(r) });
+    } catch (e: any) {
+      setFlash({ kind: 'err', text: 'Not done.', detail: e.message });
+    } finally { setBusy(null); reload(); }
+  };
+
+  // "Handle it, up to $N": a standing approval for this dispute only. Held actions within it run right away.
+  const handleIt = async (on: boolean) => {
+    setBusy('budget'); setFlash(null);
+    try {
+      const r = await api<{ budget: any; ran?: { method: string }[] }>(`/api/cases/${encodeURIComponent(id)}/budget`,
+        on ? { method: 'PUT', json: { limit: Number(limit || c?.amount) } } : { method: 'DELETE' });
+      setFlash(on
+        ? { kind: 'ok', text: `JUNCO handles this one up to ${money(r.budget.limit, c!.currency)}.`, detail: r.ran?.length ? `${r.ran.length} held action${r.ran.length === 1 ? '' : 's'} ran now.` : 'It acts on its own from the next PayPal update.' }
+        : { kind: 'ok', text: 'Standing approval removed.' });
     } catch (e: any) {
       setFlash({ kind: 'err', text: 'Not done.', detail: e.message });
     } finally { setBusy(null); reload(); }
@@ -135,6 +150,18 @@ export function CaseWidget() {
         {canAct && <button type="button" className="jd-btn jd-primary" onClick={act} disabled={!!busy}>{busy === 'act' ? 'Working...' : ACTION_LABEL[rec!.decision as Decision]}</button>}
         <button type="button" className="jd-btn" onClick={recheck} disabled={!!busy}>{busy === 'recheck' ? 'Reading the case...' : rec ? 'Re-check' : 'Get recommendation'}</button>
       </div>
+      {c.status !== 'RESOLVED' && (c.budget ? (
+        <div className="jd-handle">
+          <span><strong>JUNCO is handling this one</strong> on its own, up to {money(c.budget.limit, c.budget.currency)}.</span>
+          <button type="button" className="jd-btn" onClick={() => handleIt(false)} disabled={!!busy}>Take it back</button>
+        </div>
+      ) : (
+        <div className="jd-handle">
+          <span className="jd-money-input">Handle it, up to $<input type="number" min={1} max={c.amount} step={1} placeholder={String(c.amount)}
+            value={limit} onChange={(e) => setLimit(e.target.value)} aria-label="Most JUNCO may move on this dispute without asking" /></span>
+          <button type="button" className="jd-btn" onClick={() => handleIt(true)} disabled={!!busy}>{busy === 'budget' ? 'Working...' : 'Let JUNCO handle it'}</button>
+        </div>
+      ))}
       {flash && (
         <div className={`jd-result jd-${flash.kind === 'ok' ? 'ok' : flash.kind === 'held' ? 'held' : 'err'}`} role="status">
           <strong>{flash.text}</strong> {flash.detail}

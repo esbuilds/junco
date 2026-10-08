@@ -26,7 +26,23 @@ const amountOf = (args: any): number | null => {
   return v == null ? null : Number(v);
 };
 
-export function decide(policy: Policy, method: string, args: any): { verdict: Verdict; reason: string } {
+// Standing approvals: the owner lets JUNCO handle one dispute on its own, as long as an action moves at most `limit`.
+// Accepting a claim refunds the whole disputed amount, so it counts as `amount`.
+export type Budget = { limit: number; amount: number; currency: string; set_at: string };
+const BUDGETS = '.junco/budgets.json';
+export const readBudgets = (): Record<string, Budget> => { try { return JSON.parse(readFileSync(BUDGETS, 'utf8')); } catch { return {}; } };
+export function setBudget(id: string, b: Budget | null) {
+  const all = readBudgets();
+  if (b) all[id] = b; else delete all[id];
+  mkdirSync('.junco', { recursive: true }); writeFileSync(BUDGETS, JSON.stringify(all, null, 2)); mirror(BUDGETS, all);
+}
+export const movesMoney = (method: string, args: any, b: Budget): number =>
+  method === 'accept_dispute_claim' ? b.amount : amountOf(args) ?? 0;
+
+export function decide(policy: Policy, method: string, args: any, budgets: Record<string, Budget> = {}): { verdict: Verdict; reason: string } {
+  const b = args?.dispute_id ? budgets[args.dispute_id] : undefined;
+  if (b && movesMoney(method, args, b) <= b.limit)
+    return { verdict: 'allow', reason: `within the ${b.limit} ${b.currency} standing approval for ${args.dispute_id}` };
   const rule = policy.tools[method];
   if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };
   if (typeof rule === 'string') return { verdict: rule, reason: `policy: ${method} = ${rule}` };
@@ -53,7 +69,7 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void) {
     originals[name] = tool.handler;
     tool.update({
       callback: async (args, extra) => {
-        const { verdict, reason } = decide(policy, name, args);
+        const { verdict, reason } = decide(policy, name, args, readBudgets());
         if (verdict === 'allow') return originals[name](args, extra);
         if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
         const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending' };
