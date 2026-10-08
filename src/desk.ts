@@ -44,6 +44,7 @@ function row(d: any) {
 
 // Recommendation -> one gated tool call. Contest uses the tracking PayPal already has on the order.
 async function act(id: string, rec: Recommendation, message?: string) {
+  if (rec.decision === 'wait') return { error: { message: 'JUNCO recommends no PayPal action right now' } };
   if (rec.decision === 'message') return callTool('send_dispute_message', { dispute_id: id, message: message ?? rec.message_to_buyer });
   if (rec.decision === 'offer') {
     const d = await getDispute(id);
@@ -52,6 +53,8 @@ async function act(id: string, rec: Recommendation, message?: string) {
   // ponytail: stock accept_dispute_claim rejects notes with spaces (toolkit 1.11 bug, see PLAN.md), so the note is one token
   if (rec.decision === 'accept') return callTool('accept_dispute_claim', { dispute_id: id, note: 'accepted_by_owner_via_junco' });
   const d = await getDispute(id);
+  if (!allowedOf(d).includes('provide_evidence')) // under PayPal review: supporting info is the only way to make the case
+    return callTool('provide_dispute_supporting_info', { dispute_id: id, notes: [rec.summary, ...rec.claims.map((c) => c.text)].join(' ').slice(0, 2000) });
   const tracker = (await gatherFromPayPal(ctx, d)).map((e) => e.text.match(/^Tracking (\S+)/)?.[1]).find(Boolean);
   if (rec.evidence_type === 'PROOF_OF_FULFILLMENT' && !tracker) return { error: { message: 'No tracking on the PayPal order to submit as proof of fulfillment' } };
   return callTool('provide_dispute_evidence', {

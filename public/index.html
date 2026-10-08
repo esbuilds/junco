@@ -47,6 +47,7 @@
   .b-contest { background: var(--ok-bg); color: var(--ok); }
   .b-accept { background: var(--danger-bg); color: var(--danger); }
   .b-held { background: var(--warn-bg); color: var(--warn); }
+  .b-wait { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
   ol.evidence { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   ol.evidence li { display: grid; grid-template-columns: 36px minmax(0, 1fr); overflow-wrap: anywhere; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid transparent; transition: border-color .15s, background .15s; }
   ol.evidence li.hl { border-color: var(--accent); background: var(--surface); }
@@ -106,8 +107,8 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const money = (n, c = 'USD') => new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(n);
 const REASONS = { MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Item not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described', UNAUTHORISED: 'Unauthorized', CREDIT_NOT_PROCESSED: 'Credit not processed', DUPLICATE_TRANSACTION: 'Duplicate', INCORRECT_AMOUNT: 'Incorrect amount' };
 const STATUS = { WAITING_FOR_BUYER_RESPONSE: "Buyer's turn", WAITING_FOR_SELLER_RESPONSE: 'Your turn', UNDER_REVIEW: 'PayPal reviewing', OPEN: 'Open', RESOLVED: 'Resolved', OTHER: 'Other' };
-const LABEL = { message: 'Message buyer', offer: 'Offer refund', contest: 'Contest', accept: 'Accept' };
-const ACTION = { message: 'Send message', offer: 'Make offer', contest: 'Submit evidence', accept: 'Accept and refund' };
+const LABEL = { message: 'Message buyer', offer: 'Offer refund', contest: 'Contest', accept: 'Accept', wait: 'Wait' };
+const ACTION = { message: 'Send message', offer: 'Make offer', contest: 'Submit to PayPal', accept: 'Accept and refund' };
 const human = (s) => esc(String(s ?? '').toLowerCase().replace(/_/g, ' '));
 const daysLeft = (iso) => iso ? Math.ceil((new Date(iso) - Date.now()) / 864e5) : null;
 const dueText = (r) => {
@@ -204,7 +205,7 @@ function render(c, flash) {
       ${problems.length ? `<div class="problems"><strong>Blocked by checks</strong><ul>${problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>` : ''}
       ${!problems.length && (rec.decision === 'message' || rec.decision === 'offer') ? `<h3>Message to buyer</h3><textarea id="msg" maxlength="2000" aria-label="Message to buyer">${esc(rec.message_to_buyer ?? '')}</textarea>` : ''}
       <div class="row">
-        ${!problems.length ? `<button class="btn primary" id="act">${esc(ACTION[rec.decision])}</button>` : ''}
+        ${!problems.length && rec.decision !== 'wait' ? `<button class="btn primary" id="act">${esc(ACTION[rec.decision])}</button>` : ''}
         <button class="btn" id="rerun">Re-check</button>
       </div>
     </div>` : `<p class="muted">Not reviewed yet. JUNCO reads the dispute, the PayPal order and tracking, and recommends one action with every claim cited.</p>

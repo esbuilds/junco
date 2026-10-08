@@ -5,6 +5,7 @@
     "get_dispute": "allow",
     "send_dispute_message": "allow",
     "provide_dispute_evidence": "allow",
+    "provide_dispute_supporting_info": "allow",
     "make_dispute_offer": { "max_amount": 25, "over": "hold" },
     "accept_dispute_claim": "hold",
     "create_refund": "hold"

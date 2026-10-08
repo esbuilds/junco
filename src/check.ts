@@ -19,7 +19,7 @@ const call = async (name: string, args: any) => {
 };
 
 const names = (await client.listTools()).tools.map((t) => t.name);
-for (const n of ['get_dispute', 'accept_dispute_claim', 'provide_dispute_evidence', 'make_dispute_offer', 'send_dispute_message'])
+for (const n of ['get_dispute', 'accept_dispute_claim', 'provide_dispute_evidence', 'make_dispute_offer', 'send_dispute_message', 'provide_dispute_supporting_info'])
   assert(names.includes(n), `missing tool ${n}`);
 console.log('tools:', names.length, 'registered, stock + JUNCO');
 

@@ -51,6 +51,17 @@ Use PROOF_OF_FULFILLMENT with carrier and tracking number when the item shipped.
     }),
     actions: { disputes: { update: true } },
   },
+  {
+    method: 'provide_dispute_supporting_info',
+    name: 'Provide dispute supporting info',
+    rel: 'provide_supporting_info',
+    description: `Give PayPal the merchant's side while a dispute or chargeback is under PayPal review. Only works when PayPal currently allows provide_supporting_info.`,
+    parameters: z.object({
+      dispute_id: DISPUTE_ID,
+      notes: z.string().min(1).max(2000).describe('The merchant\'s explanation, citing order and shipping facts'),
+    }),
+    actions: { disputes: { update: true } },
+  },
 ] as const;
 
 type Tool = (typeof tools)[number];
@@ -116,8 +127,10 @@ export async function run(ctx: Ctx, method: string, a: any): Promise<string> {
     res = await paypal(ctx, 'POST', `${base}/make-offer`, {
       json: { note: a.note, offer_type: a.offer_type, ...(a.offer_amount && { offer_amount: a.offer_amount }) },
     });
-  } else {
+  } else if (method === 'send_dispute_message') {
     res = await paypal(ctx, 'POST', `${base}/send-message`, { form: { message: a.message } });
+  } else {
+    res = await paypal(ctx, 'POST', `${base}/provide-supporting-info`, { form: { notes: a.notes } });
   }
   return JSON.stringify(res.status < 300 ? { ok: true, status: res.status } : { error: { message: `PayPal ${res.status}`, details: res.body } });
 }

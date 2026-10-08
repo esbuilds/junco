@@ -1,4 +1,4 @@
-// AI layer: Claude reads a dispute plus the merchant's evidence and recommends accept, offer, or contest.
+// AI layer: Claude reads a dispute plus the merchant's evidence and recommends one action (or waiting).
 // Code, not the model, decides whether the recommendation is usable (citations exist, PayPal allows it).
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
@@ -8,7 +8,7 @@ import { paypal, type Ctx } from './disputes.js';
 export type Evidence = { id: string; source: string; text: string };
 
 export const Recommendation = z.object({
-  decision: z.enum(['accept', 'offer', 'contest', 'message']),
+  decision: z.enum(['accept', 'offer', 'contest', 'message', 'wait']),
   summary: z.string().describe('One or two sentences for the merchant: what to do and why'),
   claims: z.array(z.object({
     text: z.string().describe('A factual statement the decision relies on'),
@@ -20,13 +20,14 @@ export const Recommendation = z.object({
 });
 export type Recommendation = z.infer<typeof Recommendation>;
 
-const NEEDS: Record<Recommendation['decision'], string> = {
-  accept: 'accept_claim', offer: 'make_offer', contest: 'provide_evidence', message: 'send_message',
+// PayPal actions that can carry out each decision; wait needs none.
+const NEEDS: Record<Recommendation['decision'], string[]> = {
+  accept: ['accept_claim'], offer: ['make_offer'], contest: ['provide_evidence', 'provide_supporting_info'], message: ['send_message'], wait: [],
 };
 
 const SYSTEM = `You help a small online merchant respond to PayPal disputes.
-Recommend exactly one of: accept (refund in full), offer (partial refund to settle early), contest (submit evidence), or message (write to the buyer and wait).
-Only recommend an action PayPal currently allows on the dispute (listed in E1). If the merchant has already submitted evidence or made an offer and is waiting on the buyer, recommend message.
+Recommend exactly one of: accept (refund in full), offer (partial refund to settle early), contest (submit evidence, or supporting info while PayPal reviews), message (write to the buyer and wait), or wait (take no action on PayPal now).
+Only recommend an action PayPal currently allows on the dispute (listed in E1). If the merchant has already submitted evidence or made an offer and is waiting on the buyer, recommend message. If none of the allowed actions would help the merchant, recommend wait and say what to do outside PayPal, if anything.
 Rules:
 - Every claim must cite evidence IDs from the list you are given. Never cite an ID that is not in the list, and never state a fact that is not in the evidence.
 - Contest only when the evidence would actually persuade PayPal (for item not received: carrier tracking showing delivery). If the evidence is weak or missing, say so and prefer offer or accept.
@@ -89,7 +90,8 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
     if (c.evidence_ids.length === 0) problems.push(`Uncited claim: "${c.text}"`);
     for (const id of c.evidence_ids) if (!ids.has(id)) problems.push(`Cites missing evidence ${id}: "${c.text}"`);
   }
-  if (!allowed.includes(NEEDS[rec.decision])) problems.push(`PayPal does not allow ${NEEDS[rec.decision]} on this dispute now`);
+  const needs = NEEDS[rec.decision];
+  if (needs.length && !needs.some((a) => allowed.includes(a))) problems.push(`PayPal does not allow ${needs.join(' or ')} on this dispute now`);
   if (rec.decision === 'offer') {
     const amt = Number(rec.offer_amount), max = Number(dispute.dispute_amount?.value);
     if (!(amt > 0 && amt <= max)) problems.push(`Offer ${rec.offer_amount} must be above 0 and at most the disputed ${max}`);

@@ -16,6 +16,8 @@ assert.match(validate({ ...base, claims: [{ text: 'x', evidence_ids: [] }] }, ev
 assert.match(validate({ ...base, offer_amount: '60.00' }, ev, dispute)[0], /at most the disputed 48/);
 assert.match(validate({ ...base, decision: 'contest', evidence_type: 'PROOF_OF_FULFILLMENT' }, ev, dispute)[0], /does not allow provide_evidence/);
 assert.match(validate({ ...base, decision: 'message' }, ev, dispute).join(), /without message_to_buyer/);
+assert.deepEqual(validate({ ...base, decision: 'wait' }, ev, { ...dispute, links: [{ rel: 'self' }] }), []);
+assert.deepEqual(validate({ ...base, decision: 'contest', evidence_type: 'OTHER' }, ev, { ...dispute, links: [{ rel: 'provide_supporting_info' }] }), []);
 console.log('validator: fabricated citation, uncited claim, oversized offer, disallowed action all caught');
 
 const ctx = await sandboxCtx();
