@@ -72,11 +72,12 @@ ol.jd-evidence li.jd-hl { border-color: var(--jd-accent); background: var(--jd-s
 .jd-held-why { color: var(--jd-warn); font-size: 13px; }
 
 ol.jd-activity { margin: 0; padding: 0; list-style: none; }
-ol.jd-activity li { display: grid; grid-template-columns: 84px 132px 128px minmax(0, 1fr); gap: 10px; padding: 6px 8px; border-top: 1px solid var(--jd-line); font-size: 13px; overflow-wrap: anywhere; border-radius: 6px; }
+ol.jd-activity li { display: grid; grid-template-columns: 84px 164px 128px minmax(0, 1fr); gap: 10px; padding: 6px 8px; border-top: 1px solid var(--jd-line); font-size: 13px; overflow-wrap: anywhere; border-radius: 6px; }
 ol.jd-activity li:first-child { border-top: 0; }
 ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 @keyframes jd-flash { from { background: var(--jd-ok-bg); } to { background: transparent; } }
 .jd-time { color: var(--jd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+ol.jd-activity .jd-mono { white-space: nowrap; }
 
 /* Studio sets .ag-studio-root to a fixed 600px; the host has to pass the full height down through its wrappers. */
 .jd-host { height: 100vh; width: 100%; }
@@ -100,7 +101,7 @@ ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 .jd-stats { height: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 .jd-stat { background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 12px; padding: 10px 14px; box-sizing: border-box; min-width: 0; }
 .jd-stat > div:first-child { font-size: 13px; }
-.jd-stat-v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jd-stat-v { font-size: 22px; font-weight: 600; line-height: 1.3; margin-top: 2px; padding-bottom: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Holds with nothing waiting: one line, no card. */
 .jd-holds-empty { height: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 18px; }
@@ -110,4 +111,11 @@ ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
    so the cell goes transparent and takes the desk ink colour (fixes dark text on the dark theme). */
 .ag-studio-layout-widget-container { background: transparent; color: var(--jd-ink); box-shadow: none; }
 .jd-host .ag-studio-layout-widget-body { background: transparent; }
+/* Studio paints its frame light grey in both themes; the desk canvas follows the palette instead. */
+.jd-host .ag-studio-root-inner, .jd-host .ag-studio-layout-canvas { background: var(--jd-bg) !important; }
+/* View-only desk: no selection or focus outline on widget cells (judge-facing, read-only). */
+.jd-host .ag-studio-layout-widget, .jd-host .ag-studio-layout-widget:hover, .jd-host .ag-studio-layout-widget:focus,
+.jd-host .ag-studio-layout-widget:focus-within, .jd-host .ag-studio-layout-widget.ag-focus-managed {
+  outline: none !important; box-shadow: none !important;
+}
 .ag-studio-layout-widget:has(.jd-holds-empty) { border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; }
