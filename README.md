@@ -1,6 +1,6 @@
 # JUNCO
 
-Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates can also cost a $15 dispute fee, which PayPal waives when it's settled early.
+Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates to a claim can also cost a [$15 dispute fee](https://www.paypal.com/us/webapps/mpp/merchant-fees#statement-19), which [PayPal doesn't charge](https://www.paypal.com/us/legalhub/paypal/useragreement-full) when it's resolved with the buyer before it becomes a claim.
 
 JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends one action: message the buyer, offer a partial refund, contest with evidence, accept, or wait while PayPal reviews. Every claim it makes cites a piece of evidence, and plain code checks those citations before anything happens. Actions that move money wait for the owner.
 
