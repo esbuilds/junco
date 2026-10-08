@@ -14,10 +14,10 @@ const layout = {
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
     },
     widgetLayout: {
-      queue: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 16 },
-      activity: { xTrack: 0, yTrack: 16, xSpan: 12, ySpan: 10 },
-      holds: { xTrack: 0, yTrack: 26, xSpan: 6, ySpan: 10 },
-      case: { xTrack: 6, yTrack: 26, xSpan: 6, ySpan: 22 },
+      holds: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 8 },
+      activity: { xTrack: 0, yTrack: 8, xSpan: 12, ySpan: 9 },
+      queue: { xTrack: 0, yTrack: 17, xSpan: 7, ySpan: 16 },
+      case: { xTrack: 7, yTrack: 17, xSpan: 5, ySpan: 16 },
     },
   }],
   selectedPageId: 'desk',
@@ -26,7 +26,7 @@ const layout = {
 export function App() {
   return (
     <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
-      <div style={{ height: '100vh', width: '100%' }}>
+      <div className="jd-host">
         <AgStudio
           // The desk has no Studio data sources yet: each widget reads the desk API itself.
           data={{ sources: [] }}

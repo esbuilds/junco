@@ -78,6 +78,12 @@ ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 @keyframes jd-flash { from { background: var(--jd-ok-bg); } to { background: transparent; } }
 .jd-time { color: var(--jd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* Studio sets .ag-studio-root to a fixed 600px; the host has to pass the full height down through its wrappers. */
+.jd-host { height: 100vh; width: 100%; }
+.jd-host > div, .jd-host .ag-studio-react-container, .jd-host .ag-styled-root, .jd-host .ag-studio-root { height: 100%; width: 100%; }
+.jd-host .ag-studio-root { height: 100% !important; }
 .jd-grid { min-height: 120px; }
+.jd-grid .ag-cell { display: flex; align-items: center; line-height: 1.3; }
+.jd-grid .ag-cell-focus { border: 0 !important; }
 .jd-row-selected { background: var(--jd-surface-2) !important; }
 .jd-badge.jd-b-held { white-space: nowrap; }
