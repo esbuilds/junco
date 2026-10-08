@@ -15,3 +15,5 @@ services:
         sync: false
       - key: DESK_PASSWORD
         sync: false
+      - key: AGENT_MODE
+        value: "on"

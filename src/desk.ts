@@ -1,12 +1,13 @@
 // Dispute desk: a small web app over the gated MCP server. Every action goes through the same gate an AI agent hits.
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
-import { recommend, collectEvidence, gatherFromPayPal, type Recommendation } from './recommend.js';
+import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { readHolds } from './gate.js';
+import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 
 const ctx = await sandboxCtx();
 const { server, holds } = await createServer(ctx);
@@ -16,21 +17,10 @@ const mcp = new Client({ name: 'desk', version: '0' });
 await mcp.connect(b);
 const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
+const agent = makeAgent(ctx, callTool);
+const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
-// ponytail: recommendations cached in one JSON file so reloading the page doesn't re-bill Claude
-const RECS = '.junco/recs.json';
-type Saved = { recommendation: Recommendation | null; problems: string[]; at: string };
-const readRecs = (): Record<string, Saved> => { try { return JSON.parse(readFileSync(RECS, 'utf8')); } catch { return {}; } };
-const saveRec = (id: string, r: Saved) => { mkdirSync('.junco', { recursive: true }); writeFileSync(RECS, JSON.stringify({ ...readRecs(), [id]: r }, null, 2)); };
-
-const getDispute = async (id: string) => {
-  const r = await paypal(ctx, 'GET', `/v1/customer/disputes/${encodeURIComponent(id)}`);
-  if (r.status !== 200) throw Object.assign(new Error(`PayPal ${r.status} loading ${id}`), { code: r.status });
-  return r.body;
-};
-const allowedOf = (d: any) => (d.links ?? []).map((l: any) => l.rel).filter((r: string) => r !== 'self');
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id);
-
 function row(d: any) {
   const rec = readRecs()[d.dispute_id];
   return {
@@ -42,29 +32,13 @@ function row(d: any) {
   };
 }
 
-// Recommendation -> one gated tool call. Contest uses the tracking PayPal already has on the order.
-async function act(id: string, rec: Recommendation, message?: string) {
-  if (rec.decision === 'wait') return { error: { message: 'JUNCO recommends no PayPal action right now' } };
-  if (rec.decision === 'message') return callTool('send_dispute_message', { dispute_id: id, message: message ?? rec.message_to_buyer });
-  if (rec.decision === 'offer') {
-    const d = await getDispute(id);
-    return callTool('make_dispute_offer', { dispute_id: id, offer_type: 'REFUND', offer_amount: { currency_code: d.dispute_amount.currency_code, value: rec.offer_amount }, note: message ?? rec.message_to_buyer ?? rec.summary });
-  }
-  // ponytail: stock accept_dispute_claim rejects notes with spaces (toolkit 1.11 bug, see PLAN.md), so the note is one token
-  if (rec.decision === 'accept') return callTool('accept_dispute_claim', { dispute_id: id, note: 'accepted_by_owner_via_junco' });
-  const d = await getDispute(id);
-  if (!allowedOf(d).includes('provide_evidence')) // under PayPal review: supporting info is the only way to make the case
-    return callTool('provide_dispute_supporting_info', { dispute_id: id, notes: [rec.summary, ...rec.claims.map((c) => c.text)].join(' ').slice(0, 2000) });
-  const tracker = (await gatherFromPayPal(ctx, d)).map((e) => e.text.match(/^Tracking (\S+)/)?.[1]).find(Boolean);
-  if (rec.evidence_type === 'PROOF_OF_FULFILLMENT' && !tracker) return { error: { message: 'No tracking on the PayPal order to submit as proof of fulfillment' } };
-  return callTool('provide_dispute_evidence', {
-    dispute_id: id, evidence_type: rec.evidence_type ?? 'OTHER', notes: rec.summary,
-    ...(tracker && { carrier_name: 'USPS', tracking_number: tracker }), // ponytail: carrier hardcoded until trackers expose it
-  });
-}
-
 const json = (res: ServerResponse, code: number, body: unknown) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-const readBody = async (req: IncomingMessage) => { let s = ''; for await (const c of req) s += c; return s ? JSON.parse(s) : {}; };
+const readRaw = async (req: IncomingMessage, limit = 1_000_000) => {
+  let s = '';
+  for await (const c of req) { s += c; if (s.length > limit) throw Object.assign(new Error('Body too large'), { code: 413 }); }
+  return s;
+};
+const readBody = async (req: IncomingMessage) => { const s = await readRaw(req); return s ? JSON.parse(s) : {}; };
 const STATIC: Record<string, [string, string]> = {
   '/': ['public/index.html', 'text/html; charset=utf-8'],
   '/vendor/ag-grid.js': ['node_modules/ag-grid-community/dist/ag-grid-community.min.js', 'text/javascript'],
@@ -79,8 +53,25 @@ const authorized = (req: IncomingMessage) => {
   return scheme === 'Basic' && Buffer.from(value ?? '', 'base64').toString().split(':').slice(1).join(':') === PASSWORD;
 };
 
+// PayPal webhooks: open endpoint (PayPal can't send our password), so every event is verified with PayPal first.
+async function webhook(req: IncomingMessage, res: ServerResponse) {
+  const event = JSON.parse(await readRaw(req, 200_000));
+  const publicUrl = process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/webhooks/paypal` : '';
+  if (!(await agent.verifyWebhook(req.headers, event, publicUrl))) {
+    console.warn('[webhook] rejected unverified event', event?.id);
+    return json(res, 400, { error: { message: 'Unverified webhook' } });
+  }
+  json(res, 200, { ok: true }); // answer PayPal now; triage can take minutes
+  const id = event.resource?.dispute_id;
+  if (AGENT_MODE && typeof id === 'string' && String(event.event_type).startsWith('CUSTOMER.DISPUTE.'))
+    agent.triage(id, event.event_type).catch((e) => console.error('[agent]', e));
+}
+
 httpServer(async (req, res) => {
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); } // for the host's health check, no data
+  try {
+    if (req.method === 'POST' && req.url === '/webhooks/paypal') return await webhook(req, res);
+  } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
   const p = url.pathname.split('/').filter(Boolean);
@@ -92,14 +83,15 @@ httpServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/cases') {
       const list = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=50');
       const ids: string[] = (list.body.items ?? []).map((d: any) => d.dispute_id);
-      return json(res, 200, (await Promise.all(ids.map(getDispute))).map(row));
+      return json(res, 200, (await Promise.all(ids.map(agent.getDispute))).map(row));
     }
+    if (req.method === 'GET' && url.pathname === '/api/activity') return json(res, 200, { agent_mode: AGENT_MODE, items: readActivity().slice(-50).reverse() });
     if (p[0] === 'api' && p[1] === 'cases' && p[2]) {
       const id = p[2];
       if (req.method === 'GET' && !p[3]) {
-        const d = await getDispute(id);
+        const d = await agent.getDispute(id);
         const evidence = collectEvidence(d, await gatherFromPayPal(ctx, d));
-        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, holds: holdsFor(id) });
+        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -114,7 +106,7 @@ httpServer(async (req, res) => {
         if (!saved?.recommendation) return json(res, 400, { error: { message: 'Get a recommendation first' } });
         if (saved.problems.length) return json(res, 400, { error: { message: 'Recommendation failed checks', problems: saved.problems } });
         const { message } = await readBody(req);
-        return json(res, 200, await act(id, saved.recommendation, typeof message === 'string' && message.trim() ? message.trim().slice(0, 2000) : undefined));
+        return json(res, 200, await agent.act(id, saved.recommendation, typeof message === 'string' && message.trim() ? message.trim().slice(0, 2000) : undefined));
       }
     }
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending'));
@@ -124,4 +116,10 @@ httpServer(async (req, res) => {
   } catch (e: any) {
     json(res, e.code === 404 ? 404 : 500, { error: { message: e.message } });
   }
-}).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}`));
+}).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
+
+if (AGENT_MODE) { // backup for webhooks that never arrive
+  const run = () => agent.sweep().catch((e) => console.error('[agent] sweep', e));
+  setTimeout(run, 5_000);
+  setInterval(run, 10 * 60_000);
+}

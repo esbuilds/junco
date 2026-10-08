@@ -13,7 +13,9 @@
     "check-gate": "tsx src/check-gate.ts",
     "desk": "tsx src/desk.ts",
     "start": "tsx src/desk.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "check-agent": "tsx src/check-agent.ts",
+    "webhook": "tsx src/webhook.ts"
   },
   "keywords": [],
   "author": "",

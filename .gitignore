@@ -5,3 +5,4 @@ __pycache__/
 perplexity-prompt-*.md
 .junco/
 .playwright-mcp/
+STRATEGY.md
