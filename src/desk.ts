@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds, type Hold } from './gate.js';
+import { readHolds, savePolicy, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 
 const ctx = await sandboxCtx();
@@ -28,7 +28,23 @@ async function notifyHold(h: Hold) {
   } catch (e: any) { console.warn('[notify] failed', e.message); }
 }
 
-const { server, holds } = await createServer(ctx, undefined, (h) => void notifyHold(h));
+const { server, holds, policy } = await createServer(ctx, undefined, (h) => void notifyHold(h));
+
+// Owner-editable slice of the gate policy: the auto-offer limit and, per money-moving action, run it or hold it.
+const AUTO = ['send_dispute_message', 'provide_dispute_evidence', 'provide_dispute_supporting_info', 'accept_dispute_claim', 'create_refund'];
+const policyView = () => {
+  const offer = policy.tools.make_dispute_offer;
+  return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
+};
+function applyPolicy(body: any) {
+  const limit = Number(body?.offer_limit);
+  if (!Number.isFinite(limit) || limit < 0 || limit > 500) throw Object.assign(new Error('offer_limit must be between 0 and 500'), { code: 400 });
+  const auto = body?.auto ?? {};
+  if (Object.keys(auto).some((k) => !AUTO.includes(k) || typeof auto[k] !== 'boolean')) throw Object.assign(new Error('auto takes true/false for known actions only'), { code: 400 });
+  const tools: Policy['tools'] = { ...policy.tools, make_dispute_offer: { max_amount: Math.round(limit * 100) / 100, over: 'hold' } };
+  for (const t of AUTO) if (t in auto) tools[t] = auto[t] ? 'allow' : 'hold';
+  Object.assign(policy, savePolicy({ ...policy, tools }));
+}
 const [a, b] = InMemoryTransport.createLinkedPair();
 await server.connect(a);
 const mcp = new Client({ name: 'desk', version: '0' });
@@ -145,12 +161,18 @@ httpServer(async (req, res) => {
         return json(res, 200, await agent.act(id, saved.recommendation, typeof message === 'string' && message.trim() ? message.trim().slice(0, 2000) : undefined));
       }
     }
+    if (url.pathname === '/api/policy') {
+      if (req.method === 'PUT') applyPolicy(await readBody(req));
+      else if (req.method === 'DELETE') Object.assign(policy, savePolicy(null)); // reset to the repo default
+      else if (req.method !== 'GET') return json(res, 405, { error: { message: 'Method not allowed' } });
+      return json(res, 200, policyView());
+    }
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending'));
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject'))
       return json(res, 200, await holds[p[3]](p[2]));
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
-    json(res, e.code === 404 ? 404 : 500, { error: { message: e.message } });
+    json(res, e.code === 404 || e.code === 400 ? e.code : 500, { error: { message: e.message } });
   }
 }).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
 

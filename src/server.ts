@@ -2,7 +2,7 @@
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { tools, run, type Ctx } from './disputes.js';
-import { gate, loadPolicy, type Policy, type Hold } from './gate.js';
+import { gate, loadActivePolicy, type Policy, type Hold } from './gate.js';
 import { hydrate } from './persist.js';
 
 export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
@@ -25,9 +25,10 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   return { baseUrl, accessToken, token: async () => accessToken };
 }
 
-export async function createServer(ctx: Ctx & { accessToken: string }, policy: Policy = loadPolicy(), onHold?: (h: Hold) => void) {
-  const restored = await hydrate(); // restore holds, recs and agent state before anything reads them
+export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void) {
+  const restored = await hydrate(); // restore holds, recs, agent state and owner policy edits before anything reads them
   if (restored) console.error(`[persist] restored ${restored} state files from Postgres`);
+  const policy = given ?? loadActivePolicy(); // the gate reads this object on every call, so desk edits apply live
   const server = new PayPalAgentToolkit({
     accessToken: ctx.accessToken,
     configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true } } },
@@ -37,7 +38,7 @@ export async function createServer(ctx: Ctx & { accessToken: string }, policy: P
       content: [{ type: 'text' as const, text: await run(ctx, t.method, arg) }],
     }));
   }
-  return { server, holds: gate(server, policy, onHold) }; // gate last, so it wraps every tool
+  return { server, policy, holds: gate(server, policy, onHold) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {

@@ -10,6 +10,16 @@ export type Hold = { id: string; method: string; args: any; reason: string; crea
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
 
+// Owner edits from the desk live in .junco/policy.json (mirrored to Postgres); policy.json in the repo stays the default.
+const SAVED_POLICY = '.junco/policy.json';
+export const loadActivePolicy = (): Policy => { try { return loadPolicy(SAVED_POLICY); } catch { return loadPolicy(); } };
+export function savePolicy(p: Policy | null) {
+  mkdirSync('.junco', { recursive: true });
+  const next = p ?? loadPolicy(); // null resets to the repo default
+  writeFileSync(SAVED_POLICY, JSON.stringify(next, null, 2)); mirror(SAVED_POLICY, next);
+  return next;
+}
+
 // Money a call would move, if the tool has an amount field.
 const amountOf = (args: any): number | null => {
   const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount;

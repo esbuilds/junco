@@ -80,7 +80,7 @@ ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 ol.jd-activity .jd-mono { white-space: nowrap; }
 
 /* Studio sets .ag-studio-root to a fixed 600px; the host has to pass the full height down through its wrappers. */
-.jd-host { height: 100vh; width: 100%; }
+.jd-host { height: calc(100vh - 44px); width: 100%; }
 .jd-host > div, .jd-host .ag-studio-react-container, .jd-host .ag-styled-root, .jd-host .ag-studio-root { height: 100%; width: 100%; }
 .jd-host .ag-studio-root { height: 100% !important; }
 .jd-grid { min-height: 120px; }
@@ -135,3 +135,23 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 .jd-diff p { flex-basis: 100%; margin: 4px 0 0; }
 .jd-flip { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--jd-info-bg); color: var(--jd-ink, inherit); border-left: 3px solid var(--jd-info); }
 .jd-flip p { margin: 4px 0 0; }
+
+/* Policy page */
+.jd-policy-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--jd-line); }
+.jd-policy-row:first-child { border-top: 0; }
+.jd-policy-row > span:first-child { display: grid; gap: 2px; }
+.jd-policy-row select, .jd-money-input input { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
+.jd-money-input { display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0; }
+.jd-money-input input { width: 90px; margin-left: 4px; text-align: right; }
+.jd-ok { background: var(--jd-ok-bg); color: var(--jd-ok); }
+
+/* Top bar with page tabs */
+body { margin: 0; background: var(--jd-bg); }
+.jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Inter, system-ui, sans-serif; }
+.jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; }
+.jd-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-info-bg); color: var(--jd-info); font-weight: 600; }
+.jd-topbar nav { margin-left: auto; display: flex; gap: 4px; }
+.jd-tab { font: inherit; font-size: 14px; color: inherit; background: none; border: 1px solid transparent; border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+.jd-tab:hover { background: var(--jd-surface-2); }
+.jd-tab[aria-current="page"] { background: var(--jd-surface); border-color: var(--jd-line); font-weight: 600; }
+.jd-tab:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
