@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { actKey, TRIGGER, type Activity } from '../api';
-import { usePoll } from '../store';
+import { stopReplay, usePoll, useReplay } from '../store';
 import { Panel } from './Panel';
 
 interface ActivityResponse { agent_mode: boolean; items: Activity[] }
@@ -25,6 +25,31 @@ export function ActivityWidget() {
     }
     seen.current = new Set(keys);
   }, [data]);
+
+  const replay = useReplay();
+  if (replay) {
+    // Newest revealed step on top, like the live log; the newest one flashes as it appears.
+    const shown = replay.entries.slice(0, replay.shown).reverse();
+    const done = replay.shown >= replay.entries.length;
+    return (
+      <Panel title="Agent activity: replay" subtitle={`Logged events for ${replay.id}, ${new Date(replay.entries[0].at).toLocaleDateString()}${done ? '' : ', replaying...'}`}>
+        <div className="jd-replay-bar">
+          <span>Replay of what JUNCO actually did on this case. Nothing is sent to PayPal.</span>
+          <button type="button" className="jd-btn" onClick={stopReplay}>{done ? 'Back to live' : 'Stop replay'}</button>
+        </div>
+        <ol className="jd-activity jd-activity-replay" aria-live="polite">
+          {shown.map((x, i) => (
+            <li key={actKey(x)} className={i === 0 && !done ? 'jd-new' : undefined}>
+              <span className="jd-time">{new Date(x.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="jd-mono">{x.dispute_id}</span>
+              <span className="jd-muted">{TRIGGER[x.trigger] ?? x.trigger}</span>
+              <span><strong>{x.step}</strong>: {x.detail}</span>
+            </li>
+          ))}
+        </ol>
+      </Panel>
+    );
+  }
 
   const items = data?.items ?? [];
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ACTION_LABEL, api, DECISION_LABEL, human, money, REASONS, STATUS, dueText, type CaseDetail, type Decision,
 } from '../api';
-import { useSelectedCase, usePoll } from '../store';
+import { startReplay, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
 interface ActResult { ok?: boolean; held?: boolean; reason?: string; status?: string; error?: { message: string } }
@@ -160,6 +160,7 @@ export function CaseWidget() {
       <div className="jd-row">
         {canAct && <button type="button" className="jd-btn jd-primary" onClick={act} disabled={!!busy}>{busy === 'act' ? 'Working...' : ACTION_LABEL[rec!.decision as Decision]}</button>}
         <button type="button" className="jd-btn" onClick={recheck} disabled={!!busy}>{busy === 'recheck' ? 'Reading the case...' : rec ? 'Re-check' : 'Get recommendation'}</button>
+        {c.activity.length >= 2 && <button type="button" className="jd-btn" onClick={() => startReplay(c.id, c.activity)} title="Watch what JUNCO did on this case, step by step">Replay what JUNCO did</button>}
       </div>
       {c.status !== 'RESOLVED' && (c.budget ? (
         <div className="jd-handle">

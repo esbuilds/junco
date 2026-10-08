@@ -39,3 +39,22 @@ export function usePoll<T>(path: string | null, ms: number, deps: unknown[] = []
   }, [path, ms, tick, ...deps]);
   return { data, error, reload: () => setTick((n) => n + 1) };
 }
+
+// Replay: re-plays one case's logged agent activity in the activity widget, step by step, for judges.
+// It only shows events that really happened (from the activity log); nothing is sent to PayPal.
+export type Replay = { id: string; entries: import('./api').Activity[]; shown: number } | null;
+let replay: Replay = null;
+const replayListeners = new Set<() => void>();
+const emitReplay = () => replayListeners.forEach((l) => l());
+let timer: ReturnType<typeof setInterval> | undefined;
+export function startReplay(id: string, entries: import('./api').Activity[]) {
+  clearInterval(timer);
+  const ordered = [...entries].sort((a, b) => a.at.localeCompare(b.at)); // oldest first, the order it happened
+  replay = { id, entries: ordered, shown: 1 }; emitReplay();
+  timer = setInterval(() => {
+    if (!replay || replay.shown >= replay.entries.length) return clearInterval(timer);
+    replay = { ...replay, shown: replay.shown + 1 }; emitReplay();
+  }, 1800);
+}
+export function stopReplay() { clearInterval(timer); replay = null; emitReplay(); }
+export const useReplay = (): Replay => useSyncExternalStore((cb) => { replayListeners.add(cb); return () => replayListeners.delete(cb); }, () => replay);

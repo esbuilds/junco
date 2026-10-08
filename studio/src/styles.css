@@ -169,3 +169,7 @@ body { margin: 0; background: var(--jd-bg); }
 .jd-step-status { font-size: 12px; font-weight: 600; text-transform: capitalize; }
 .jd-step-done .jd-step-status { color: var(--jd-ok); }
 .jd-step-failed .jd-step-status { color: var(--jd-danger); }
+
+/* Judge replay */
+.jd-replay-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 6px 10px; border-radius: 8px; background: var(--jd-info-bg); color: var(--jd-info); font-size: 13px; }
+ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px minmax(0, 1fr); }
