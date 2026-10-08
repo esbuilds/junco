@@ -15,5 +15,7 @@ services:
         sync: false
       - key: DESK_PASSWORD
         sync: false
+      - key: HOLD_WEBHOOK_URL
+        sync: false
       - key: AGENT_MODE
         value: "on"

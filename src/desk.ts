@@ -6,11 +6,28 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds } from './gate.js';
+import { readHolds, type Hold } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 
 const ctx = await sandboxCtx();
-const { server, holds } = await createServer(ctx);
+const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+
+// "My phone buzzed": one Slack-compatible webhook call per new hold. Off unless HOLD_WEBHOOK_URL is set.
+async function notifyHold(h: Hold) {
+  const url = process.env.HOLD_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    const d = h.args?.dispute_id ? (await paypal(ctx, 'GET', `/v1/customer/disputes/${encodeURIComponent(h.args.dispute_id)}`)).body : {};
+    const amount = h.args?.offer_amount ? `${h.args.offer_amount.value} ${h.args.offer_amount.currency_code}` : d.dispute_amount ? `${d.dispute_amount.value} ${d.dispute_amount.currency_code}` : 'n/a';
+    const what = h.method.replace(/_/g, ' ');
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      text: `JUNCO is holding *${what}* on ${h.args?.dispute_id ?? 'a dispute'} (${amount}) for your OK.\nWhy: ${h.reason}\nApprove or reject: ${DESK_URL}`,
+    }) });
+    if (!r.ok) console.warn('[notify] webhook returned', r.status);
+  } catch (e: any) { console.warn('[notify] failed', e.message); }
+}
+
+const { server, holds } = await createServer(ctx, undefined, (h) => void notifyHold(h));
 const [a, b] = InMemoryTransport.createLinkedPair();
 await server.connect(a);
 const mcp = new Client({ name: 'desk', version: '0' });

@@ -72,6 +72,7 @@ With `AGENT_MODE=on`, JUNCO handles new disputes by itself:
 2. The agent waits for PayPal to unlock merchant actions (new disputes have none for a few minutes), gets a recommendation, and carries it out through the gate. Messages and evidence go out; larger offers and concessions wait in the owner's queue.
 3. It acts once per dispute state, never messages a buyer who hasn't answered the last seller message, and treats the update its own action causes as a no-op. A sweep every 10 minutes catches missed webhooks.
 4. Every step lands in the activity log shown in the desk.
+5. When the gate holds an action, JUNCO posts it to `HOLD_WEBHOOK_URL` (a Slack incoming webhook, or anything that accepts `{"text": ...}`) with the dispute, amount, reason and a link to the desk.
 
 ```bash
 npm run webhook https://your-desk.example.com   # register the sandbox webhook

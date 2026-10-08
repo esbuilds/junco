@@ -34,7 +34,7 @@ const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); wr
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 
-export function gate(server: any, policy: Policy) {
+export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void) {
   // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
   const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void }> = server._registeredTools;
   const originals: Record<string, Handler> = {};
@@ -47,6 +47,7 @@ export function gate(server: any, policy: Policy) {
         if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
         const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending' };
         writeHolds([...readHolds(), hold]);
+        onHold?.(hold);
         return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action.' });
       },
     });
