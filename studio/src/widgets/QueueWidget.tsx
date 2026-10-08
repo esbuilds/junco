@@ -21,7 +21,9 @@ const gridTheme = themeQuartz.withParams({
 });
 
 export function QueueWidget() {
-  const { data, error } = usePoll<CaseRow[]>('/api/cases', 10000);
+  const all = usePoll<CaseRow[]>('/api/cases', 10000);
+  const { error } = all;
+  const data = all.data?.filter((r) => r.status !== 'RESOLVED') ?? null; // resolved cases live in the Outcomes widget
   const selected = useSelectedCase();
   const gridApi = useRef<GridApi<CaseRow> | null>(null);
 

@@ -47,6 +47,7 @@ function row(d: any) {
     due: d.seller_response_due_date ?? null, buyer_due: d.buyer_response_due_date ?? null,
     allowed: allowedOf(d), decision: rec?.recommendation?.decision ?? null, problems: rec?.problems?.length ?? 0,
     pending_holds: holdsFor(d.dispute_id).filter((h) => h.status === 'pending').length,
+    outcome: d.dispute_outcome?.outcome_code ?? null, refunded: d.dispute_outcome?.amount_refunded ? Number(d.dispute_outcome.amount_refunded.value) : null,
   };
 }
 

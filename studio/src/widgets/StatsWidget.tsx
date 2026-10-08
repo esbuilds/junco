@@ -6,7 +6,7 @@ export function StatsWidget() {
   const cases = usePoll<CaseRow[]>('/api/cases', 10000);
   const holds = usePoll<Hold[]>('/api/holds', 5000);
 
-  const rows = cases.data ?? [];
+  const rows = (cases.data ?? []).filter((r) => r.status !== 'RESOLVED'); // resolved cases live in the Outcomes widget
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const cur = rows[0]?.currency ?? 'USD';
   const dues = rows.map((r) => daysLeft(r.due)).filter((d): d is number => d !== null).sort((a, b) => a - b);
