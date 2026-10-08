@@ -4,7 +4,7 @@ import { usePoll } from '../store';
 import { Panel } from './Panel';
 
 // Owner policy: what JUNCO may do on its own and what waits for approval. The gate reads it on every call.
-type PolicyView = { offer_limit: number; auto: Record<string, boolean> };
+type PolicyView = { offer_limit: number; ship_within_days: number; auto: Record<string, boolean> };
 const ACTIONS: [string, string, string][] = [
   ['send_dispute_message', 'Message the buyer', 'No money moves'],
   ['provide_dispute_evidence', 'Submit evidence to PayPal', 'Contests the case'],
@@ -37,6 +37,11 @@ export function PolicyWidget() {
         <span><strong>Auto-offer limit</strong><span className="jd-muted">Partial refund offers up to this amount go out without asking. Larger offers wait for you.</span></span>
         <span className="jd-money-input">$<input type="number" min={0} max={500} step={1} value={draft.offer_limit}
           onChange={(e) => setDraft({ ...draft, offer_limit: Number(e.target.value) })} aria-label="Auto-offer limit in dollars" /></span>
+      </label>
+      <label className="jd-policy-row">
+        <span><strong>Ship-by window</strong><span className="jd-muted">Shipment watch flags a paid order with no tracking on PayPal after this many days.</span></span>
+        <span className="jd-money-input"><input type="number" min={1} max={30} step={1} value={draft.ship_within_days}
+          onChange={(e) => setDraft({ ...draft, ship_within_days: Number(e.target.value) })} aria-label="Ship-by window in days" /> days</span>
       </label>
       {ACTIONS.map(([key, label, note]) => (
         <label key={key} className="jd-policy-row">

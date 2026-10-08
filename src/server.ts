@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { tools, run, type Ctx } from './disputes.js';
 import { gate, loadActivePolicy, type Policy, type Hold } from './gate.js';
 import { hydrate } from './persist.js';
+import { trackingTool } from './watch.js';
 
 export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   try { process.loadEnvFile(); } catch {} // ponytail: .env optional, real env vars win
@@ -38,6 +39,9 @@ export async function createServer(ctx: Ctx & { accessToken: string }, given?: P
       content: [{ type: 'text' as const, text: await run(ctx, t.method, arg) }],
     }));
   }
+  server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
+    content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
+  }));
   return { server, policy, holds: gate(server, policy, onHold) }; // gate last, so it wraps every tool
 }
 

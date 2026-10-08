@@ -5,6 +5,7 @@ import { AtRiskWidget } from './AtRiskWidget';
 import { CaseWidget } from './CaseWidget';
 import { HoldsWidget } from './HoldsWidget';
 import { LedgerWidget } from './LedgerWidget';
+import { OrdersWidget } from './OrdersWidget';
 import { PolicyWidget } from './PolicyWidget';
 import { QueueWidget } from './QueueWidget';
 import { StatsWidget } from './StatsWidget';
@@ -17,6 +18,7 @@ const defs = [
   { id: 'junco-at-risk', label: 'At risk this week', comp: AtRiskWidget, defaultSize: { width: 7, height: 7 }, minSize: { width: 4, height: 4 } },
   { id: 'junco-ledger', label: 'Outcomes', comp: LedgerWidget, defaultSize: { width: 3, height: 7 }, minSize: { width: 3, height: 4 } },
   { id: 'junco-policy', label: 'Policy', comp: PolicyWidget, defaultSize: { width: 6, height: 14 }, minSize: { width: 4, height: 8 } },
+  { id: 'junco-orders', label: 'Shipment watch', comp: OrdersWidget, defaultSize: { width: 12, height: 20 }, minSize: { width: 6, height: 8 } },
   { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 7, height: 12 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 5, height: 12 }, minSize: { width: 4, height: 8 } },
   { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },

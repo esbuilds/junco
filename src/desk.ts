@@ -10,6 +10,7 @@ import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
+import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -35,7 +36,7 @@ const { server, holds, policy } = await createServer(ctx, undefined, (h) => void
 const AUTO = ['send_dispute_message', 'provide_dispute_evidence', 'provide_dispute_supporting_info', 'accept_dispute_claim', 'create_refund'];
 const policyView = () => {
   const offer = policy.tools.make_dispute_offer;
-  return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
+  return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, ship_within_days: policy.ship_within_days ?? 2, auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
 };
 function applyPolicy(body: any) {
   const limit = Number(body?.offer_limit);
@@ -44,7 +45,9 @@ function applyPolicy(body: any) {
   if (Object.keys(auto).some((k) => !AUTO.includes(k) || typeof auto[k] !== 'boolean')) throw Object.assign(new Error('auto takes true/false for known actions only'), { code: 400 });
   const tools: Policy['tools'] = { ...policy.tools, make_dispute_offer: { max_amount: Math.round(limit * 100) / 100, over: 'hold' } };
   for (const t of AUTO) if (t in auto) tools[t] = auto[t] ? 'allow' : 'hold';
-  Object.assign(policy, savePolicy({ ...policy, tools }));
+  const days = body?.ship_within_days === undefined ? policy.ship_within_days ?? 2 : Number(body.ship_within_days);
+  if (!Number.isInteger(days) || days < 1 || days > 30) throw Object.assign(new Error('ship_within_days must be a whole number from 1 to 30'), { code: 400 });
+  Object.assign(policy, savePolicy({ ...policy, tools, ship_within_days: days }));
 }
 const [a, b] = InMemoryTransport.createLinkedPair();
 await server.connect(a);
@@ -54,6 +57,7 @@ const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
 const agent = makeAgent(ctx, callTool);
 const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
+const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id);
@@ -108,6 +112,9 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
     return json(res, 400, { error: { message: 'Unverified webhook' } });
   }
   json(res, 200, { ok: true }); // answer PayPal now; triage can take minutes
+  // Shipment watch: a captured payment starts being watched for tracking.
+  if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' && typeof event.resource?.id === 'string')
+    return void watch.refresh(event.resource.id, event.event_type).catch((e) => console.error('[watch]', e.message));
   const id = event.resource?.dispute_id;
   if (typeof id !== 'string' || !String(event.event_type).startsWith('CUSTOMER.DISPUTE.')) return;
   // An owner-approved plan owns its dispute: it runs even with agent mode off, and the agent stays out so nothing acts twice.
@@ -189,6 +196,23 @@ httpServer(async (req, res) => {
         return json(res, 200, await agent.act(id, saved.recommendation, typeof message === 'string' && message.trim() ? message.trim().slice(0, 2000) : undefined));
       }
     }
+    if (url.pathname === '/api/orders' && req.method === 'GET')
+      return json(res, 200, { seller_protection_page: SELLER_PROTECTION_PAGE, items: Object.values(readOrders()).sort((x, y) => y.captured_at.localeCompare(x.captured_at)) });
+    if (url.pathname === '/api/orders' && req.method === 'POST') { // watch a capture by hand (one the webhook missed)
+      const { capture_id } = await readBody(req);
+      if (typeof capture_id !== 'string' || !/^[A-Z0-9]{10,30}$/.test(capture_id)) return json(res, 400, { error: { message: 'capture_id looks wrong' } });
+      return json(res, 200, await watch.refresh(capture_id, 'owner'));
+    }
+    if (p[0] === 'api' && p[1] === 'orders' && p[2] && p[3] === 'track' && req.method === 'POST') {
+      const o = readOrders()[p[2]];
+      if (!o) return json(res, 404, { error: { message: 'Not a watched order' } });
+      const { tracking_number, carrier } = await readBody(req);
+      const args = trackingTool.parameters.safeParse({ order_id: o.order_id, capture_id: o.capture_id, tracking_number: String(tracking_number ?? '').replace(/\s/g, ''), carrier });
+      if (!args.success) return json(res, 400, { error: { message: 'Pick USPS, UPS, FedEx or DHL and enter the tracking number (letters and digits only)' } });
+      const r = await callTool('add_order_tracking', args.data);
+      if (!r.ok) return json(res, r.held ? 202 : 400, r);
+      return json(res, 200, await watch.refresh(o.capture_id, 'owner'));
+    }
     if (url.pathname === '/api/policy') {
       if (req.method === 'PUT') applyPolicy(await readBody(req));
       else if (req.method === 'DELETE') Object.assign(policy, savePolicy(null)); // reset to the repo default
@@ -204,6 +228,8 @@ httpServer(async (req, res) => {
   }
 }).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
 
+// Watched orders cross their ship-by time without any event, so they are re-checked on a timer too.
+setInterval(() => void watch.refreshAll().catch((e) => console.error('[watch]', e)), 10 * 60_000);
 // Plans wait on time as well as events ("buyer silent for 48 hours"), so they also run on a timer.
 setInterval(() => void plans.tickAll().catch((e) => console.error('[plan]', e)), 10 * 60_000);
 

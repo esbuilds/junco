@@ -5,7 +5,7 @@ import { mirror } from './persist.js';
 
 export type Verdict = 'allow' | 'hold' | 'deny';
 export type Rule = Verdict | { max_amount: number; over: Verdict };
-export type Policy = { default: Verdict; tools: Record<string, Rule> };
+export type Policy = { default: Verdict; tools: Record<string, Rule>; ship_within_days?: number };
 export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected'; result?: string };
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));

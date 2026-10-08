@@ -13,7 +13,7 @@ const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-sche
 const palette = dark
   ? { backgroundColor: '#1d1d1b', foregroundColor: '#ecebe6', headerBackgroundColor: '#262623', borderColor: '#34332f', accentColor: '#5fb497' }
   : { backgroundColor: '#ffffff', foregroundColor: '#1d1d1b', headerBackgroundColor: '#f0eee8', borderColor: '#e3e0d8', accentColor: '#1f5c4a' };
-const gridTheme = themeQuartz.withParams({
+export const gridTheme = themeQuartz.withParams({
   ...palette,
   fontFamily: 'Inter, system-ui, sans-serif',
   rowHeight: 36,

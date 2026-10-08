@@ -173,3 +173,9 @@ body { margin: 0; background: var(--jd-bg); }
 /* Judge replay */
 .jd-replay-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 6px 10px; border-radius: 8px; background: var(--jd-info-bg); color: var(--jd-info); font-size: 13px; }
 ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px minmax(0, 1fr); }
+
+/* Shipment watch */
+.jd-track .jd-row { flex-wrap: nowrap; }
+.jd-track select, .jd-track input[type=text] { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
+.jd-track input[type=text] { width: 220px; }
+.jd-panel a { color: var(--jd-accent, #1f5c4a); }

@@ -27,17 +27,23 @@ const layout = {
       case: { xTrack: 7, yTrack: 11, xSpan: 5, ySpan: 22 },
     },
   }, {
+    // Prevention: paid orders watched until they have tracking, before any dispute exists.
+    id: 'orders',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { orders: { id: 'orders', type: 'junco-orders', dataMapping: {} } },
+    widgetLayout: { orders: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 30 } },
+  }, {
     // Second page: the owner's policy, so the gate's limits are a setting on screen instead of a file.
     id: 'policy',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { policy: { id: 'policy', type: 'junco-policy', dataMapping: {} } },
-    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 25 } },
+    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 28 } },
   }],
   selectedPageId: 'desk',
 };
 
 // Studio shows no page tabs in view mode, so the desk has its own slim header to switch pages.
-const PAGES = [['desk', 'Desk'], ['policy', 'Policy']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['policy', 'Policy']] as const;
 
 export function App() {
   const [page, setPage] = useState<string>('desk');
