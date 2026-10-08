@@ -3,7 +3,7 @@ services:
     name: junco-desk
     runtime: node
     plan: starter
-    buildCommand: npm ci
+    buildCommand: npm ci && npm --prefix studio ci && npm --prefix studio run build
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:

@@ -1,6 +1,7 @@
 // Dispute desk: a small web app over the gated MCP server. Every action goes through the same gate an AI agent hits.
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, sandboxCtx } from './server.js';
@@ -56,10 +57,19 @@ const readRaw = async (req: IncomingMessage, limit = 1_000_000) => {
   return s;
 };
 const readBody = async (req: IncomingMessage) => { const s = await readRaw(req); return s ? JSON.parse(s) : {}; };
+// The AG Studio desk (studio/, built on deploy) is the main page when its build exists; the original page stays at /classic.
+// If the studio build is missing, / falls back to the original page so a failed build never leaves the desk blank.
+const STUDIO = 'studio/dist';
+const hasStudio = existsSync(`${STUDIO}/index.html`);
+const TYPES: Record<string, string> = { js: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2', png: 'image/png' };
 const STATIC: Record<string, [string, string]> = {
-  '/': ['public/index.html', 'text/html; charset=utf-8'],
+  '/': hasStudio ? [`${STUDIO}/index.html`, 'text/html; charset=utf-8'] : ['public/index.html', 'text/html; charset=utf-8'],
+  '/classic': ['public/index.html', 'text/html; charset=utf-8'],
   '/vendor/ag-grid.js': ['node_modules/ag-grid-community/dist/ag-grid-community.min.js', 'text/javascript'],
 };
+// Vite's hashed assets, listed once at startup so request paths never reach the filesystem.
+if (hasStudio) for (const f of readdirSync(`${STUDIO}/assets`)) STATIC[`/assets/${f}`] = [`${STUDIO}/assets/${f}`, TYPES[f.split('.').pop()!] ?? 'application/octet-stream'];
+const gz = new Map<string, Buffer>(); // ponytail: in-memory gzip cache, a few MB for the studio bundle
 
 // Hosted desks must set DESK_PASSWORD: the desk can approve actions that move money.
 const PASSWORD = process.env.DESK_PASSWORD;
@@ -95,7 +105,13 @@ httpServer(async (req, res) => {
   try {
     if (req.method === 'GET' && STATIC[url.pathname]) {
       const [file, type] = STATIC[url.pathname];
-      res.writeHead(200, { 'Content-Type': type }); return res.end(readFileSync(file));
+      const headers: Record<string, string> = { 'Content-Type': type };
+      if (url.pathname.startsWith('/assets/')) headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+      if (/gzip/.test(String(req.headers['accept-encoding'] ?? ''))) {
+        if (!gz.has(file)) gz.set(file, gzipSync(readFileSync(file)));
+        res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' }); return res.end(gz.get(file));
+      }
+      res.writeHead(200, headers); return res.end(readFileSync(file));
     }
     if (req.method === 'GET' && url.pathname === '/api/cases') {
       const list = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=50');
