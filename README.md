@@ -59,7 +59,7 @@ PayPal's buyer-side dispute API needs permissions a normal sandbox app does not 
 ```bash
 npm run seed                                   # creates an order, prints the buyer approval link
 npm run seed capture <order_id>                # shipped: captures and adds USPS tracking
-npm run seed capture <order_id> --no-tracking  # never shipped: the honest answer is to refund
+npm run seed capture <order_id> unshipped      # never shipped: the honest answer is to refund
 ```
 
 Then log in to sandbox.paypal.com as the buyer, open the payment, choose **Report a problem**, then **I didn't receive my item**. PayPal unlocks merchant actions about 4 minutes later.

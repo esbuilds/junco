@@ -2,7 +2,7 @@
 // so the buyer opens the dispute in the sandbox site (about 2 minutes, steps printed below).
 //   npm run seed                      create an order, print the buyer approval link
 //   npm run seed capture <order_id>   capture it and add USPS tracking   (scenario: shipped, worth contesting)
-//   npm run seed capture <order_id> --no-tracking                        (scenario: never shipped, should concede)
+//   npm run seed capture <order_id> unshipped                      (scenario: never shipped, should concede)
 import { paypal } from './disputes.js';
 import { sandboxCtx } from './server.js';
 
@@ -26,13 +26,13 @@ if (!cmd) {
    ${approve}
    (It redirects to example.com afterwards. That's expected.)
 2. Run: npm run seed capture ${r.body.id}            (shipped, with tracking)
-   or:  npm run seed capture ${r.body.id} --no-tracking   (never shipped)`);
+   or:  npm run seed capture ${r.body.id} unshipped     (never shipped)`);
 } else if (cmd === 'capture' && orderId) {
   const r = await paypal(ctx, 'POST', `/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, { json: {} });
   if (r.status >= 300) { console.error('Capture failed. Did the buyer approve the order?', r.status, JSON.stringify(r.body)); process.exit(1); }
   const capture = r.body.purchase_units?.[0]?.payments?.captures?.[0]?.id;
   console.log(`Captured ${capture}, paid by ${r.body.payer?.email_address}.`);
-  if (!process.argv.includes('--no-tracking')) {
+  if (!process.argv.slice(2).some((a) => a === 'unshipped' || a === '--no-tracking')) {
     const tracking = `9400${String(Date.now()).padStart(18, '0')}`; // ponytail: fake USPS-shaped number, sandbox only
     const t = await paypal(ctx, 'POST', `/v2/checkout/orders/${encodeURIComponent(orderId)}/track`, { json: { capture_id: capture, tracking_number: tracking, carrier: 'USPS', notify_payer: false } });
     console.log(t.status < 300 ? `Added USPS tracking ${tracking}.` : `Tracking failed (${t.status}): ${JSON.stringify(t.body)}`);
@@ -43,5 +43,5 @@ if (!cmd) {
    - Activity -> the $48.00 Test Store payment -> Report a problem -> I didn't receive my item -> submit
 4. Wait about 4 minutes for PayPal to unlock merchant actions, then refresh the dispute desk.`);
 } else {
-  console.log('usage: npm run seed | npm run seed capture <order_id> [--no-tracking]');
+  console.log('usage: npm run seed | npm run seed capture <order_id> [unshipped]');
 }
