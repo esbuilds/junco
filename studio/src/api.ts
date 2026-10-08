@@ -15,9 +15,10 @@ export interface Claim { text: string; evidence_ids: string[] }
 export interface Recommendation {
   decision: Decision; summary: string; claims: Claim[];
   offer_amount?: number; message_to_buyer?: string;
+  would_change_mind?: string | null; change_reason?: string | null;
 }
 
-export interface SavedRec { recommendation: Recommendation | null; problems: string[]; at: string }
+export interface SavedRec { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null }
 
 export interface Hold {
   id: string; status: string; method: string; reason: string; args?: any;

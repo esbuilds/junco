@@ -129,8 +129,10 @@ httpServer(async (req, res) => {
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
         const extra = delivery_scan ? [{ source: 'carrier delivery scan (entered by merchant)', text: String(delivery_scan).slice(0, 500) }] : [];
-        const out = await recommend(ctx, id, extra);
-        const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString() };
+        const before = readRecs()[id];
+        const prev = before?.recommendation ? { decision: before.recommendation.decision, summary: before.recommendation.summary, at: before.at } : null;
+        const out = await recommend(ctx, id, extra, undefined, prev);
+        const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev };
         saveRec(id, saved);
         return json(res, 200, { ...saved, evidence: out.evidence });
       }

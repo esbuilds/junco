@@ -129,3 +129,9 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 .jd-risk-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jd-risk-amt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 .jd-risk-why { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Decision diff and "what would change my mind" */
+.jd-diff { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); }
+.jd-diff p { flex-basis: 100%; margin: 4px 0 0; }
+.jd-flip { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--jd-info-bg); color: var(--jd-ink, inherit); border-left: 3px solid var(--jd-info); }
+.jd-flip p { margin: 4px 0 0; }

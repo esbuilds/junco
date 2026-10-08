@@ -35,6 +35,7 @@ export function CaseWidget() {
 
   const rec = c.saved?.recommendation ?? null;
   const problems = c.saved?.problems ?? [];
+  const prev = c.saved?.previous ?? null;
   const canAct = !!rec && !problems.length && rec.decision !== 'wait';
   const editable = !!rec && !problems.length && (rec.decision === 'message' || rec.decision === 'offer');
 
@@ -83,6 +84,15 @@ export function CaseWidget() {
       <h3>Recommendation</h3>
       {rec ? (
         <div className="jd-rec">
+          {prev && prev.decision !== rec.decision && (
+            <div className="jd-diff" aria-label="What changed since the last check">
+              <span className={`jd-badge jd-b-${prev.decision}`}>{DECISION_LABEL[prev.decision as Decision] ?? prev.decision}</span>
+              <span aria-hidden="true">&rarr;</span>
+              <span className={`jd-badge jd-b-${rec.decision}`}>{DECISION_LABEL[rec.decision]}</span>
+              <span className="jd-muted">changed on re-check</span>
+              {rec.change_reason && <p>{rec.change_reason}</p>}
+            </div>
+          )}
           <span className={`jd-badge jd-b-${rec.decision}`}>{DECISION_LABEL[rec.decision]}</span>
           {rec.offer_amount ? <strong> {money(rec.offer_amount, c.currency)}</strong> : null}
           <p>{rec.summary}</p>
@@ -94,6 +104,9 @@ export function CaseWidget() {
               </li>
             ))}
           </ul>
+          {rec.would_change_mind && (rec.decision === 'wait' || rec.decision === 'accept') && (
+            <div className="jd-flip"><strong>What would change my mind</strong><p>{rec.would_change_mind}</p></div>
+          )}
           {problems.length > 0 && (
             <div className="jd-problems"><strong>Blocked by checks</strong><ul>{problems.map((p, i) => <li key={i}>{p}</li>)}</ul></div>
           )}

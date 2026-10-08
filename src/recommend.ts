@@ -17,6 +17,8 @@ export const Recommendation = z.object({
   offer_amount: z.string().nullable().describe('For offer: refund amount like "12.00", else null'),
   evidence_type: z.enum(['PROOF_OF_FULFILLMENT', 'PROOF_OF_REFUND', 'OTHER']).nullable().describe('For contest, else null'),
   message_to_buyer: z.string().nullable().describe('Short, polite message to the buyer; required for message'),
+  would_change_mind: z.string().nullable().describe('For wait or accept: the specific evidence that would flip this to a stronger action (what it must show, from whom, dated when), else null'),
+  change_reason: z.string().nullable().describe('Only if a previous recommendation is given and your decision differs from it: one sentence naming the new or changed evidence (by ID) that changed it, else null'),
 });
 export type Recommendation = z.infer<typeof Recommendation>;
 
@@ -102,16 +104,20 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
   return problems;
 }
 
-export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = new Anthropic()) {
+export type Previous = { decision: Recommendation['decision']; summary: string } | null;
+
+export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = new Anthropic(), previous: Previous = null) {
   const r = await fetch(`${ctx.baseUrl}/v1/customer/disputes/${disputeId}`, { headers: { Authorization: `Bearer ${await ctx.token()}` } });
   if (!r.ok) throw new Error(`Could not load dispute ${disputeId}: ${r.status}`);
   const dispute = await r.json();
   const evidence = collectEvidence(dispute, [...(await gatherFromPayPal(ctx, dispute)), ...merchantRecords]);
-  return { dispute, evidence, ...(await decide(dispute, evidence, client)) };
+  return { dispute, evidence, ...(await decide(dispute, evidence, client, previous)) };
 }
 
 // The model call plus validation, separate from PayPal so evals can feed it synthetic disputes.
-export async function decide(dispute: any, evidence: Evidence[], client = new Anthropic()) {
+export async function decide(dispute: any, evidence: Evidence[], client = new Anthropic(), previous: Previous = null, today = new Date().toISOString().slice(0, 10)) {
+  // On a re-check the model sees its last decision, so it can say what changed (decision diff in the desk).
+  const prior = previous ? `\n\nPrevious recommendation, before this re-check: ${previous.decision}. ${previous.summary}` : '';
   const res = await client.beta.messages.parse({
     model: 'claude-opus-5-5',
     max_tokens: 16000,
@@ -119,7 +125,7 @@ export async function decide(dispute: any, evidence: Evidence[], client = new An
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system: SYSTEM,
-    messages: [{ role: 'user', content: `Evidence:\n${evidence.map((e) => `${e.id} [${e.source}] ${e.text}`).join('\n')}` }],
+    messages: [{ role: 'user', content: `Evidence:\n${evidence.map((e) => `${e.id} [${e.source}] ${e.text}`).join('\n')}${prior}\n\nToday is ${today}.` }],
   });
   const usage = { input: res.usage.input_tokens, output: res.usage.output_tokens };
   if (res.stop_reason === 'refusal' || !res.parsed_output)

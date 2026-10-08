@@ -6,7 +6,7 @@ import { recommend, gatherFromPayPal, type Recommendation } from './recommend.js
 import { mirror } from './persist.js';
 
 type CallTool = (name: string, args: any) => Promise<any>;
-export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string };
+export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null };
 export type Activity = { at: string; dispute_id: string; trigger: string; step: string; detail: string };
 
 // State lives in JSON files under .junco/, mirrored to Postgres when DATABASE_URL is set (see persist.ts).

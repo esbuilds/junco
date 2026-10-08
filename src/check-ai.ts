@@ -8,7 +8,7 @@ const dispute = {
   links: [{ rel: 'self' }, { rel: 'make_offer' }, { rel: 'accept_claim' }, { rel: 'send_message' }],
 };
 const ev = collectEvidence(dispute, [{ source: 'merchant shipping', text: 'USPS 9400 delivered' }]);
-const base: Recommendation = { decision: 'offer', summary: '', claims: [{ text: 'Delivered', evidence_ids: ['E2'] }], offer_amount: '10.00', evidence_type: null, message_to_buyer: null };
+const base: Recommendation = { decision: 'offer', summary: '', claims: [{ text: 'Delivered', evidence_ids: ['E2'] }], offer_amount: '10.00', evidence_type: null, message_to_buyer: null, would_change_mind: null, change_reason: null };
 
 assert.deepEqual(validate(base, ev, dispute), []);
 assert.match(validate({ ...base, claims: [{ text: 'Buyer admitted receipt', evidence_ids: ['E9'] }] }, ev, dispute)[0], /missing evidence E9/);
