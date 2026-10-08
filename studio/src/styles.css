@@ -119,3 +119,13 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
   outline: none !important; box-shadow: none !important;
 }
 .ag-studio-layout-widget:has(.jd-holds-empty) { border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; }
+
+/* At risk this week */
+.jd-risk { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.jd-risk li + li { border-top: 1px solid var(--jd-line); }
+.jd-risk-row { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 7px 4px; }
+.jd-risk-row:hover { background: var(--jd-surface-2); }
+.jd-risk-row:focus-visible { outline: 2px solid var(--jd-focus, #2b6fd6); outline-offset: -2px; }
+.jd-risk-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jd-risk-amt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.jd-risk-why { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }

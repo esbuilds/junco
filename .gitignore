@@ -8,3 +8,4 @@ perplexity-prompt-*.md
 STRATEGY.md
 outreach/
 studio/screenshots/*.png
+.claude/

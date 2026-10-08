@@ -1,6 +1,7 @@
 // Studio custom widget definitions. Each widget is a React component; state lives in the desk server, not in Studio.
 import { createWidgets, type AgWidgetDefinition } from 'ag-studio-react';
 import { ActivityWidget } from './ActivityWidget';
+import { AtRiskWidget } from './AtRiskWidget';
 import { CaseWidget } from './CaseWidget';
 import { HoldsWidget } from './HoldsWidget';
 import { QueueWidget } from './QueueWidget';
@@ -11,6 +12,7 @@ const form = ({ createDefaults }: { createDefaults: (p: object) => any }) => cre
 
 const defs = [
   { id: 'junco-stats', label: 'Summary stats', comp: StatsWidget, defaultSize: { width: 12, height: 4 }, minSize: { width: 6, height: 4 } },
+  { id: 'junco-at-risk', label: 'At risk this week', comp: AtRiskWidget, defaultSize: { width: 7, height: 7 }, minSize: { width: 4, height: 4 } },
   { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 7, height: 12 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 5, height: 12 }, minSize: { width: 4, height: 8 } },
   { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },
