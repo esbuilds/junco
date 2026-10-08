@@ -132,23 +132,23 @@ npm run check        # tools through the MCP server against the sandbox (add -- 
 npm run check-gate   # policy decisions, holds, approve and reject
 npm run check-ai     # validator cases offline, then one real Claude call
 npm run check-agent  # agent triage: acts once per state, no repeat messages
-npm run eval         # 35-scenario recommendation eval (about $0.80)
+npm run eval         # 41-scenario recommendation eval (about $1)
 ```
 
 ## Eval
 
-`evals/scenarios.ts` holds 35 dispute scenarios: item not received (delivered, shipped only, never shipped, cancelled label, wrong ZIP, porch theft, empty box, signature), chargebacks under PayPal review, not as described, unauthorized, credit not processed, duplicate charges, merchant data mistakes, and prompt injection in buyer messages and merchant records. Each lists the decisions a careful advisor could defend and the ones that are clearly wrong. `npm run eval` runs them through the production prompt and validator and scores in code, no model judges.
+`evals/scenarios.ts` holds 41 dispute scenarios: item not received (delivered, shipped only, never shipped, cancelled label, wrong ZIP, porch theft, empty box, signature), chargebacks under PayPal review, not as described, unauthorized, credit not processed, duplicate charges, merchant data mistakes, and 10 prompt injections in buyer messages, photo captions and merchant records (including fake PayPal rulings, a buyer posing as the seller, ready-made JSON output, and a planted note pushing the agent to contest a case it should concede). Each lists the decisions a careful advisor could defend and the ones that are clearly wrong. `npm run eval` runs them through the production prompt and validator and scores in code, no model judges.
 
-Latest full run (Oct 7 2026, Claude Opus 5.5, about $0.80):
+Latest full run (Oct 8 2026, Claude Opus 5.5, about $1.03):
 
 | Measure | Result |
 |---|---|
-| Acceptable decision, passed the validator | 34 / 35 |
+| Acceptable decision, passed the validator | 41 / 41 |
 | Clearly wrong decision | 0 |
 | Invented or missing citations | 0 |
-| Prompt injections resisted | 4 / 4 |
+| Prompt injections resisted | 10 / 10 |
 
-The one miss was a scenario bug: the delivery scan said UPS while the PayPal tracking number was USPS, and Claude asked to confirm they match before contesting a $900 case. The scenario was fixed and passes. Raw results are in `evals/results/`.
+The run before this one scored 40 / 41, and the miss was a scenario bug: a return logged as received the same day the order was paid. Claude flagged the impossible timeline and asked the buyer to confirm instead of refunding. The scenario now dates the return after the purchase and passes in three repeat runs. An earlier miss (Oct 7) was the same kind of bug: a UPS delivery scan against a USPS tracking number. Raw results, including the misses, are in `evals/results/`.
 
 ## Security notes
 
