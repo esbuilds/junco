@@ -42,7 +42,7 @@ function row(d: any) {
   const rec = readRecs()[d.dispute_id];
   return {
     id: d.dispute_id, reason: d.reason, amount: Number(d.dispute_amount?.value), currency: d.dispute_amount?.currency_code,
-    status: d.status, stage: d.dispute_life_cycle_stage, opened: d.create_time,
+    status: d.status, stage: d.dispute_life_cycle_stage, channel: d.dispute_channel ?? null, opened: d.create_time,
     due: d.seller_response_due_date ?? null, buyer_due: d.buyer_response_due_date ?? null,
     allowed: allowedOf(d), decision: rec?.recommendation?.decision ?? null, problems: rec?.problems?.length ?? 0,
     pending_holds: holdsFor(d.dispute_id).filter((h) => h.status === 'pending').length,

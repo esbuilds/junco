@@ -202,7 +202,7 @@ function render(c, flash) {
   const problems = c.saved?.problems ?? [];
   $('#panel').innerHTML = `
     <h2>${esc(REASONS[c.reason] ?? human(c.reason))}, ${esc(money(c.amount, c.currency))}</h2>
-    <div class="muted">${esc(c.id)} &middot; ${human(c.stage)} &middot; ${esc(STATUS[c.status] ?? human(c.status))}${c.due ? ` &middot; respond in ${esc(dueText(c))}` : ''}</div>
+    <div class="muted">${esc(c.id)} &middot; ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} &middot; ${esc(STATUS[c.status] ?? human(c.status))}${c.due ? ` &middot; respond in ${esc(dueText(c))}` : ''}</div>
     <h3>PayPal allows now</h3>
     <div class="chips">${c.allowed.length ? c.allowed.map((a) => `<span class="chip">${human(a)}</span>`).join('') : '<span class="muted">No merchant actions right now</span>'}</div>
 
@@ -214,6 +214,8 @@ function render(c, flash) {
       <ul class="claims">${rec.claims.map((cl) => `<li>${esc(cl.text)}${cl.evidence_ids.map((i) => `<span class="cite" data-ev="${esc(i)}" tabindex="0">${esc(i)}</span>`).join('')}</li>`).join('')}</ul>
       ${problems.length ? `<div class="problems"><strong>Blocked by checks</strong><ul>${problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>` : ''}
       ${!problems.length && (rec.decision === 'message' || rec.decision === 'offer') ? `<h3>Message to buyer</h3><textarea id="msg" maxlength="2000" aria-label="Message to buyer">${esc(rec.message_to_buyer ?? '')}</textarea>` : ''}
+      <details style="margin-top:10px"${c.status === 'RESOLVED' ? ' hidden' : ''}><summary class="muted">Add a carrier delivery scan and re-check</summary>
+        <input type="text" id="scan" aria-label="Carrier delivery scan" placeholder="e.g. Delivered, front door, San Jose CA 95131, Oct 4 2:14pm" style="margin-top:6px"></details>
       <div class="row">
         ${!problems.length && rec.decision !== 'wait' ? `<button class="btn primary" id="act">${esc(ACTION[rec.decision])}</button>` : ''}
         <button class="btn" id="rerun">Re-check</button>
