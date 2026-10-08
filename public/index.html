@@ -77,8 +77,16 @@
   .hold { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 14px; margin-top: 8px; border-radius: 10px; background: var(--warn-bg); color: var(--ink); border: 1px solid var(--line); }
   .hold .why { color: var(--warn); font-size: 13px; }
   .due-soon { color: var(--danger); font-weight: 600; }
+  .activity { margin: 0 24px 16px; padding: 12px 16px; }
+  .activity h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .activity ol { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; }
+  .activity li { display: grid; grid-template-columns: 70px 150px 130px minmax(0, 1fr); gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+  .activity li:first-child { border-top: 0; }
+  .activity li.new { animation: flash 2s ease-out; }
+  @keyframes flash { from { background: var(--ok-bg); } to { background: transparent; } }
+  .activity .t { color: var(--muted); font-variant-numeric: tabular-nums; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 520px) { header, .stats, main, .holds { padding-left: 16px; padding-right: 16px; } }
+  @media (max-width: 520px) { header, .stats, main, .holds { padding-left: 16px; padding-right: 16px; } .activity { margin: 0 16px 16px; } .activity li { grid-template-columns: 60px minmax(0, 1fr); } }
 </style>
 </head>
 <body>
@@ -94,6 +102,8 @@
 </section>
 
 <section class="holds" id="holds" aria-live="polite"></section>
+
+<section class="card activity" aria-label="Agent activity"><h3 id="act-title">Agent activity</h3><ol id="activity" aria-live="polite"></ol></section>
 
 <main>
   <div class="card"><div id="grid" aria-label="Dispute queue"></div></div>
@@ -244,7 +254,25 @@ function render(c, flash) {
   });
 }
 
+const TRIGGER = { sweep: 'scheduled check', webhook: 'PayPal webhook' };
+let seenActivity = null;
+async function loadActivity() {
+  const { agent_mode, items } = await api('/api/activity');
+  $('#act-title').textContent = agent_mode ? 'Agent activity (agent mode on)' : 'Agent activity';
+  const key = (x) => x.at + x.dispute_id + x.step;
+  const fresh = seenActivity && items.some((x) => !seenActivity.has(key(x)));
+  $('#activity').innerHTML = items.length ? items.map((x) => `<li class="${seenActivity && !seenActivity.has(key(x)) ? 'new' : ''}">
+    <span class="t">${esc(new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span>
+    <span>${esc(x.dispute_id)}</span><span class="muted">${esc(TRIGGER[x.trigger] ?? x.trigger)}</span>
+    <span><strong>${esc(x.step)}</strong>: ${esc(x.detail)}</span></li>`).join('') : '<li><span class="muted">Nothing yet.</span></li>';
+  seenActivity = new Set(items.map(key));
+  if (fresh) refresh(); // the agent did something: pull new holds and case states too
+}
+// ponytail: 5s polling, switch to SSE if the hero shot needs sub-second updates
+setInterval(() => { if (!document.hidden) loadActivity().catch(() => {}); }, 5000);
+
 async function refresh() { await Promise.all([loadCases(), loadHolds()]); }
+loadActivity().catch(() => {});
 refresh().catch((err) => { $('#panel').innerHTML = `<div class="result err">Could not load disputes: ${esc(err.message)}</div>`; });
 </script>
 </body>
