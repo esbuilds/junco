@@ -1,4 +1,4 @@
-// Optional Postgres backing for .junco/*.json, for hosts with a throwaway disk (Render free tier).
+// Optional Postgres backing for .junco/*.json, for hosts whose disk is wiped on restart and redeploy (Render without a disk).
 // The JSON files stay the working copy: hydrate() restores them at startup, mirror() saves each write.
 // ponytail: one row per file, last write wins; fine for one desk process, not for several writers.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -10,7 +10,10 @@ let pool: pg.Pool | null | undefined;
 const db = () => {
   if (pool !== undefined) return pool;
   const url = process.env.DATABASE_URL;
-  pool = url ? new pg.Pool({ connectionString: url, max: 2, ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: true } }) : null;
+  // TLS for external hosts (e.g. *.render.com, Neon); none for localhost or Render's internal hostnames, which have no dots.
+  const host = url ? new URL(url).hostname : '';
+  const tls = host.includes('.') && host !== '127.0.0.1';
+  pool = url ? new pg.Pool({ connectionString: url, max: 2, ssl: tls ? { rejectUnauthorized: true } : false }) : null;
   if (!pool && process.env.RENDER) console.warn('[persist] WARNING: no DATABASE_URL on Render. Holds, recommendations and agent state live on a disk Render wipes on every restart and redeploy.');
   return pool;
 };

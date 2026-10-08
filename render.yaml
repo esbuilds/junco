@@ -2,7 +2,7 @@ services:
   - type: web
     name: junco-desk
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /healthz
@@ -18,6 +18,8 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: HOLD_WEBHOOK_URL
+        sync: false
+      - key: AG_STUDIO_LICENSE_KEY
         sync: false
       - key: AGENT_MODE
         value: "on"
