@@ -64,6 +64,20 @@ npm run seed capture <order_id> unshipped      # never shipped: the honest answe
 
 Then log in to sandbox.paypal.com as the buyer, open the payment, choose **Report a problem**, then **I didn't receive my item**. PayPal unlocks merchant actions about 4 minutes later.
 
+## Agent mode
+
+With `AGENT_MODE=on`, JUNCO handles new disputes by itself:
+
+1. PayPal sends `CUSTOMER.DISPUTE.CREATED` / `UPDATED` / `RESOLVED` to `/webhooks/paypal`. Every event is checked with PayPal's `verify-webhook-signature` before anything runs.
+2. The agent waits for PayPal to unlock merchant actions (new disputes have none for a few minutes), gets a recommendation, and carries it out through the gate. Messages and evidence go out; larger offers and concessions wait in the owner's queue.
+3. It acts once per dispute state, never messages a buyer who hasn't answered the last seller message, and treats the update its own action causes as a no-op. A sweep every 10 minutes catches missed webhooks.
+4. Every step lands in the activity log shown in the desk.
+
+```bash
+npm run webhook https://your-desk.example.com   # register the sandbox webhook
+npm run check-agent                             # loop guards against live sandbox disputes
+```
+
 ## Use it from an AI agent (MCP)
 
 `src/server.ts` starts one MCP server with PayPal's stock dispute tools plus JUNCO's, all behind the gate. For Claude Desktop or any MCP client:
@@ -116,6 +130,7 @@ npm run typecheck
 npm run check        # tools through the MCP server against the sandbox (add -- --write to send a real message)
 npm run check-gate   # policy decisions, holds, approve and reject
 npm run check-ai     # validator cases offline, then one real Claude call
+npm run check-agent  # agent triage: acts once per state, no repeat messages
 ```
 
 ## Security notes
