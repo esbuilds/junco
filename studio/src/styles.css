@@ -1,0 +1,83 @@
+/* Palette and tone copied from public/index.html so the Studio desk reads as the same product. */
+:root {
+  --jd-bg: #f6f5f1; --jd-surface: #ffffff; --jd-surface-2: #f0eee8; --jd-ink: #1d1d1b; --jd-muted: #6b6a64; --jd-line: #e3e0d8;
+  --jd-accent: #1f5c4a; --jd-accent-ink: #ffffff; --jd-warn: #a15c07; --jd-warn-bg: #fdf1dc; --jd-danger: #a8322a; --jd-danger-bg: #fbe7e5;
+  --jd-ok: #1f6b3a; --jd-ok-bg: #e2f2e7; --jd-info: #2b4f8a; --jd-info-bg: #e5ecf8; --jd-focus: #2b6fd6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --jd-bg: #141413; --jd-surface: #1d1d1b; --jd-surface-2: #262623; --jd-ink: #ecebe6; --jd-muted: #a09f98; --jd-line: #34332f;
+    --jd-accent: #5fb497; --jd-accent-ink: #0d1f19; --jd-warn: #e5a54a; --jd-warn-bg: #3a2a12; --jd-danger: #ef8a80; --jd-danger-bg: #3d1d1a;
+    --jd-ok: #7fcf9b; --jd-ok-bg: #18301f; --jd-info: #8fb2ee; --jd-info-bg: #1b2740; --jd-focus: #7aa7f0;
+  }
+}
+body { margin: 0; background: var(--jd-bg); color: var(--jd-ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
+
+.jd-panel { height: 100%; box-sizing: border-box; overflow: auto; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 12px; padding: 16px 18px; }
+.jd-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.jd-panel-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.jd-panel h3 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jd-muted); }
+.jd-muted { color: var(--jd-muted); }
+.jd-mono { font-variant-numeric: tabular-nums; }
+.jd-empty { color: var(--jd-muted); padding: 32px 8px; text-align: center; }
+.jd-live { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-live::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; vertical-align: middle; }
+
+.jd-badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.jd-b-message { background: var(--jd-info-bg); color: var(--jd-info); }
+.jd-b-offer, .jd-b-held { background: var(--jd-warn-bg); color: var(--jd-warn); }
+.jd-b-contest { background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-b-accept { background: var(--jd-danger-bg); color: var(--jd-danger); }
+.jd-b-wait { background: var(--jd-surface-2); color: var(--jd-muted); border: 1px solid var(--jd-line); }
+.jd-due-soon { color: var(--jd-danger); font-weight: 600; }
+.jd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.jd-chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); }
+
+.jd-result { margin-top: 10px; padding: 10px 12px; border-radius: 8px; }
+.jd-ok { background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-held { background: var(--jd-warn-bg); color: var(--jd-warn); }
+.jd-err { background: var(--jd-danger-bg); color: var(--jd-danger); }
+
+.jd-btn { border: 1px solid var(--jd-line); background: var(--jd-surface); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.jd-btn:hover:not(:disabled) { background: var(--jd-surface-2); }
+.jd-btn:disabled { opacity: .55; cursor: progress; }
+.jd-primary { background: var(--jd-accent); color: var(--jd-accent-ink); border-color: var(--jd-accent); }
+.jd-primary:hover:not(:disabled) { filter: brightness(1.06); background: var(--jd-accent); }
+.jd-danger { color: var(--jd-danger); }
+.jd-linkish { border: 0; background: none; padding: 0; color: var(--jd-info); cursor: pointer; text-decoration: underline; }
+.jd-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.jd-panel input[type=text], .jd-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--jd-line); background: var(--jd-surface); border-radius: 8px; padding: 8px 10px; }
+.jd-textarea { min-height: 84px; resize: vertical; margin-top: 4px; }
+.jd-scan { margin-top: 10px; }
+.jd-scan input { margin-top: 6px; }
+
+.jd-rec { border: 1px solid var(--jd-line); border-radius: 10px; padding: 14px; }
+.jd-rec p { margin: 8px 0 0; }
+.jd-claims { margin: 10px 0 0; padding-left: 18px; }
+.jd-claims li { margin: 4px 0; }
+.jd-cite { font-size: 11px; font-weight: 600; padding: 0 6px; margin-left: 4px; border-radius: 4px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); cursor: default; }
+.jd-cite:focus-visible { outline-color: var(--jd-focus); }
+.jd-problems { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--jd-danger-bg); color: var(--jd-danger); }
+.jd-problems ul { margin: 4px 0 0; padding-left: 18px; }
+
+ol.jd-evidence { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+ol.jd-evidence li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--jd-surface-2); border: 1px solid transparent; overflow-wrap: anywhere; transition: border-color .15s, background .15s; }
+ol.jd-evidence li.jd-hl { border-color: var(--jd-accent); background: var(--jd-surface); }
+.jd-ev-id { font-weight: 600; font-variant-numeric: tabular-nums; }
+.jd-src { font-size: 12px; }
+
+.jd-hold { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 14px; margin-top: 8px; border-radius: 10px; background: var(--jd-warn-bg); border: 1px solid var(--jd-line); }
+.jd-held-why { color: var(--jd-warn); font-size: 13px; }
+
+ol.jd-activity { margin: 0; padding: 0; list-style: none; }
+ol.jd-activity li { display: grid; grid-template-columns: 96px 150px 165px minmax(0, 1fr); gap: 10px; padding: 6px 8px; border-top: 1px solid var(--jd-line); font-size: 13px; overflow-wrap: anywhere; border-radius: 6px; }
+ol.jd-activity li:first-child { border-top: 0; }
+ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
+@keyframes jd-flash { from { background: var(--jd-ok-bg); } to { background: transparent; } }
+.jd-time { color: var(--jd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.jd-grid { min-height: 120px; }
+.jd-row-selected { background: var(--jd-surface-2) !important; }
+.jd-badge.jd-b-held { white-space: nowrap; }

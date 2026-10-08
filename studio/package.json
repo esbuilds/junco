@@ -1,0 +1,29 @@
+{
+  "name": "junco-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "JUNCO dispute desk on AG Studio. Runs on localhost against the desk server (src/desk.ts).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "shot": "node screenshots/shot.mjs"
+  },
+  "dependencies": {
+    "ag-grid-community": "36.2.0",
+    "ag-grid-react": "36.2.0",
+    "ag-studio": "3.0.0",
+    "ag-studio-react": "3.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.64.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.4"
+  }
+}

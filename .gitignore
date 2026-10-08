@@ -7,3 +7,4 @@ perplexity-prompt-*.md
 .playwright-mcp/
 STRATEGY.md
 outreach/
+studio/screenshots/*.png
