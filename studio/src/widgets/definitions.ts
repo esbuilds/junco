@@ -4,15 +4,17 @@ import { ActivityWidget } from './ActivityWidget';
 import { CaseWidget } from './CaseWidget';
 import { HoldsWidget } from './HoldsWidget';
 import { QueueWidget } from './QueueWidget';
+import { StatsWidget } from './StatsWidget';
 
 // Widgets without a data mapping: the form is just the standard setup and title tabs.
 const form = ({ createDefaults }: { createDefaults: (p: object) => any }) => createDefaults({});
 
 const defs = [
-  { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 12, height: 9 }, minSize: { width: 6, height: 5 } },
-  { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 6, height: 16 }, minSize: { width: 4, height: 8 } },
-  { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 6, height: 6 }, minSize: { width: 4, height: 4 } },
-  { id: 'junco-activity', label: 'Agent activity', comp: ActivityWidget, defaultSize: { width: 12, height: 8 }, minSize: { width: 6, height: 5 } },
+  { id: 'junco-stats', label: 'Summary stats', comp: StatsWidget, defaultSize: { width: 12, height: 4 }, minSize: { width: 6, height: 4 } },
+  { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 7, height: 12 }, minSize: { width: 6, height: 5 } },
+  { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 5, height: 12 }, minSize: { width: 4, height: 8 } },
+  { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },
+  { id: 'junco-activity', label: 'Agent activity', comp: ActivityWidget, defaultSize: { width: 8, height: 6 }, minSize: { width: 6, height: 4 } },
 ].map((d) => ({ ...d, form })) as unknown as AgWidgetDefinition[];
 
 export const JUNCO_WIDGET_IDS = defs.map((d) => d.id);

@@ -72,7 +72,7 @@ ol.jd-evidence li.jd-hl { border-color: var(--jd-accent); background: var(--jd-s
 .jd-held-why { color: var(--jd-warn); font-size: 13px; }
 
 ol.jd-activity { margin: 0; padding: 0; list-style: none; }
-ol.jd-activity li { display: grid; grid-template-columns: 96px 150px 165px minmax(0, 1fr); gap: 10px; padding: 6px 8px; border-top: 1px solid var(--jd-line); font-size: 13px; overflow-wrap: anywhere; border-radius: 6px; }
+ol.jd-activity li { display: grid; grid-template-columns: 84px 132px 128px minmax(0, 1fr); gap: 10px; padding: 6px 8px; border-top: 1px solid var(--jd-line); font-size: 13px; overflow-wrap: anywhere; border-radius: 6px; }
 ol.jd-activity li:first-child { border-top: 0; }
 ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 @keyframes jd-flash { from { background: var(--jd-ok-bg); } to { background: transparent; } }
@@ -83,7 +83,31 @@ ol.jd-activity li.jd-new { animation: jd-flash 2.5s ease-out; }
 .jd-host > div, .jd-host .ag-studio-react-container, .jd-host .ag-styled-root, .jd-host .ag-studio-root { height: 100%; width: 100%; }
 .jd-host .ag-studio-root { height: 100% !important; }
 .jd-grid { min-height: 120px; }
+/* AG Grid's root sets its inherited colours from Studio's light theme; pin them to the desk palette so dark mode holds. */
+.jd-grid .ag-styled-root {
+  --ag-inherited-background-color: var(--jd-surface) !important; --ag-inherited-foreground-color: var(--jd-ink) !important;
+  --ag-inherited-header-background-color: var(--jd-surface-2) !important; --ag-inherited-border-color: var(--jd-line) !important;
+  --ag-inherited-accent-color: var(--jd-accent) !important;
+  --ag-foreground-color: var(--jd-ink) !important; --ag-header-foreground-color: var(--jd-ink) !important;
+}
+.jd-grid .ag-cell, .jd-grid .ag-header-cell-text { color: var(--jd-ink) !important; }
 .jd-grid .ag-cell { display: flex; align-items: center; line-height: 1.3; }
 .jd-grid .ag-cell-focus { border: 0 !important; }
 .jd-row-selected { background: var(--jd-surface-2) !important; }
 .jd-badge.jd-b-held { white-space: nowrap; }
+
+/* Header stats (four tiles, same numbers as public/index.html). Fills its grid cell. */
+.jd-stats { height: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.jd-stat { background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 12px; padding: 10px 14px; box-sizing: border-box; min-width: 0; }
+.jd-stat > div:first-child { font-size: 13px; }
+.jd-stat-v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Holds with nothing waiting: one line, no card. */
+.jd-holds-empty { height: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 18px; }
+.jd-holds-empty h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.jd-holds-empty .jd-muted { font-size: 14px; }
+/* Studio paints each widget cell white with its own text colour. The cards draw their own surface,
+   so the cell goes transparent and takes the desk ink colour (fixes dark text on the dark theme). */
+.ag-studio-layout-widget-container { background: transparent; color: var(--jd-ink); box-shadow: none; }
+.jd-host .ag-studio-layout-widget-body { background: transparent; }
+.ag-studio-layout-widget:has(.jd-holds-empty) { border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; }

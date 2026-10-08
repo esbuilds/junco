@@ -7,15 +7,17 @@ import { Panel } from './Panel';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Same palette as public/index.html (light and dark), so the Studio desk matches the old desk.
-const theme = themeQuartz.withParams({
-  backgroundColor: 'var(--jd-surface)',
-  foregroundColor: 'var(--jd-ink)',
-  headerBackgroundColor: 'var(--jd-surface-2)',
-  borderColor: 'var(--jd-line)',
-  accentColor: 'var(--jd-accent)',
+// Same palette as public/index.html (light and dark). AG Grid's theme takes literal colours, not CSS variables,
+// so the hex set is picked by colour scheme, as the reference desk does.
+const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
+const palette = dark
+  ? { backgroundColor: '#1d1d1b', foregroundColor: '#ecebe6', headerBackgroundColor: '#262623', borderColor: '#34332f', accentColor: '#5fb497' }
+  : { backgroundColor: '#ffffff', foregroundColor: '#1d1d1b', headerBackgroundColor: '#f0eee8', borderColor: '#e3e0d8', accentColor: '#1f5c4a' };
+const gridTheme = themeQuartz.withParams({
+  ...palette,
   fontFamily: 'Inter, system-ui, sans-serif',
-  rowHeight: 48,
+  rowHeight: 36,
+  cellHorizontalPaddingScale: 0.8,
 });
 
 export function QueueWidget() {
@@ -24,25 +26,25 @@ export function QueueWidget() {
   const gridApi = useRef<GridApi<CaseRow> | null>(null);
 
   const columns = useMemo<ColDef<CaseRow>[]>(() => [
-    { field: 'reason', headerName: 'Reason', flex: 1.3, minWidth: 150, valueFormatter: (p) => REASONS[p.value] ?? human(p.value) },
-    { field: 'amount', headerName: 'Amount', width: 110, type: 'rightAligned', valueFormatter: (p) => money(p.value, p.data?.currency) },
+    { field: 'reason', headerName: 'Reason', flex: 1.2, minWidth: 118, valueFormatter: (p) => REASONS[p.value] ?? human(p.value) },
+    { field: 'amount', headerName: 'Amount', width: 84, type: 'rightAligned', valueFormatter: (p) => money(p.value, p.data?.currency) },
     {
-      field: 'due', headerName: 'You respond in', width: 135,
+      field: 'due', headerName: 'Respond in', width: 108,
       comparator: (a: string | null, b: string | null) => (a ? Date.parse(a) : Infinity) - (b ? Date.parse(b) : Infinity),
       cellRenderer: (p: { data?: CaseRow }) => {
         const d = daysLeft(p.data?.due ?? null);
         return <span className={d !== null && d <= 3 ? 'jd-due-soon' : undefined}>{dueText(p.data?.due ?? null)}</span>;
       },
     },
-    { field: 'status', headerName: 'Status', flex: 1, minWidth: 130, valueFormatter: (p) => STATUS[p.value] ?? human(p.value) },
+    { field: 'status', headerName: 'Status', flex: 1, minWidth: 116, valueFormatter: (p) => STATUS[p.value] ?? human(p.value) },
     {
-      field: 'decision', headerName: 'JUNCO says', width: 145,
+      field: 'decision', headerName: 'JUNCO says', width: 130,
       cellRenderer: (p: { value: CaseRow['decision'] }) => p.value
         ? <span className={`jd-badge jd-b-${p.value}`}>{DECISION_LABEL[p.value]}</span>
         : <span className="jd-muted">Not reviewed</span>,
     },
     {
-      field: 'pending_holds', headerName: 'Approvals', width: 115,
+      field: 'pending_holds', headerName: 'Approvals', width: 100,
       cellRenderer: (p: { value: number }) => p.value ? <span className="jd-badge jd-b-held">{p.value} waiting</span> : null,
     },
   ], []);
@@ -58,7 +60,7 @@ export function QueueWidget() {
       {error && <div className="jd-result jd-err">{error}</div>}
       <div className="jd-grid">
         <AgGridReact<CaseRow>
-          theme={theme}
+          theme={gridTheme}
           rowData={data ?? []}
           columnDefs={columns}
           getRowId={(p) => p.data.id}

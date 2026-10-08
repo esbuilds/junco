@@ -16,11 +16,19 @@ export function HoldsWidget() {
   };
 
   const holds = data ?? [];
+  // With nothing held the card collapses to one line, with no card chrome, so the space goes to the rest of the desk.
+  if (holds.length === 0 && !error && !err) {
+    return (
+      <div className="jd-holds-empty" aria-live="polite">
+        <h2>Waiting for you</h2>
+        <span className="jd-muted">Nothing waiting for you</span>
+      </div>
+    );
+  }
   return (
     <Panel title="Waiting for you" subtitle={holds.length ? `${holds.length} held action${holds.length === 1 ? '' : 's'}` : 'Nothing held'} live>
       {error && <div className="jd-result jd-err">{error}</div>}
       {err && <div className="jd-result jd-err">{err}</div>}
-      {holds.length === 0 && !error && <div className="jd-empty">No actions are waiting for approval.</div>}
       {holds.map((h) => (
         <div key={h.id} className="jd-hold">
           <div>

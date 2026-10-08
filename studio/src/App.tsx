@@ -2,22 +2,24 @@ import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { widgets } from './widgets/definitions';
 import './styles.css';
 
-// Pre-built desk layout: queue across the top, activity under it, case and holds side by side.
+// Pre-built desk layout: summary stats, then holds and activity, then queue on the left and case on the right.
 const layout = {
   pages: [{
     id: 'desk',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: {
-      queue: { id: 'queue', type: 'junco-queue', dataMapping: {} },
-      activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
+      stats: { id: 'stats', type: 'junco-stats', dataMapping: {} },
       holds: { id: 'holds', type: 'junco-holds', dataMapping: {} },
+      activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
+      queue: { id: 'queue', type: 'junco-queue', dataMapping: {} },
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
     },
     widgetLayout: {
-      holds: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 8 },
-      activity: { xTrack: 0, yTrack: 8, xSpan: 12, ySpan: 9 },
-      queue: { xTrack: 0, yTrack: 17, xSpan: 7, ySpan: 16 },
-      case: { xTrack: 7, yTrack: 17, xSpan: 5, ySpan: 16 },
+      stats: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 4 },
+      holds: { xTrack: 0, yTrack: 4, xSpan: 6, ySpan: 8 },
+      activity: { xTrack: 6, yTrack: 4, xSpan: 6, ySpan: 8 },
+      queue: { xTrack: 0, yTrack: 12, xSpan: 7, ySpan: 19 },
+      case: { xTrack: 7, yTrack: 12, xSpan: 5, ySpan: 19 },
     },
   }],
   selectedPageId: 'desk',
