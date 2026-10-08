@@ -29,10 +29,14 @@ export interface Activity {
   at: string; dispute_id: string; trigger: string; step: string; detail: string;
 }
 
+export interface PlanStep { when: string; action: string; text: string; amount: string | null; status: 'waiting' | 'done' | 'failed' | 'skipped'; ran_at?: string }
+export interface Plan { dispute_id: string; summary: string; steps: PlanStep[]; budget: number; status: 'proposed' | 'active' | 'finished' | 'cancelled'; approved_at?: string }
+
 export interface CaseDetail extends CaseRow {
   evidence: Evidence[];
   saved: SavedRec | null;
   budget: { limit: number; amount: number; currency: string; set_at: string } | null;
+  plan: Plan | null;
   holds: Hold[];
   activity: Activity[];
 }

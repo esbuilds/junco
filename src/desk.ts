@@ -9,6 +9,7 @@ import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
+import { makePlans, readPlans } from './plan.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -52,6 +53,7 @@ await mcp.connect(b);
 const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
 const agent = makeAgent(ctx, callTool);
+const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id);
@@ -107,8 +109,10 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   }
   json(res, 200, { ok: true }); // answer PayPal now; triage can take minutes
   const id = event.resource?.dispute_id;
-  if (AGENT_MODE && typeof id === 'string' && String(event.event_type).startsWith('CUSTOMER.DISPUTE.'))
-    agent.triage(id, event.event_type).catch((e) => console.error('[agent]', e));
+  if (typeof id !== 'string' || !String(event.event_type).startsWith('CUSTOMER.DISPUTE.')) return;
+  // An owner-approved plan owns its dispute: it runs even with agent mode off, and the agent stays out so nothing acts twice.
+  if (plans.isActive(id)) plans.tick(id, event.event_type).catch((e) => console.error('[plan]', e));
+  else if (AGENT_MODE) agent.triage(id, event.event_type).catch((e) => console.error('[agent]', e));
 }
 
 httpServer(async (req, res) => {
@@ -141,7 +145,7 @@ httpServer(async (req, res) => {
       if (req.method === 'GET' && !p[3]) {
         const d = await agent.getDispute(id);
         const evidence = collectEvidence(d, await gatherFromPayPal(ctx, d));
-        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, budget: readBudgets()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
+        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -152,6 +156,11 @@ httpServer(async (req, res) => {
         const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev };
         saveRec(id, saved);
         return json(res, 200, { ...saved, evidence: out.evidence });
+      }
+      if (p[3] === 'plan') {
+        if (req.method === 'POST' && !p[4]) return json(res, 200, await plans.propose(id));
+        if (req.method === 'POST' && p[4] === 'approve') return json(res, 200, await plans.approve(id));
+        if (req.method === 'DELETE' && !p[4]) return json(res, 200, plans.cancel(id));
       }
       if (p[3] === 'budget' && (req.method === 'PUT' || req.method === 'DELETE')) {
         // "Handle it, up to $N": a standing approval for this dispute only. Pending holds within it run now.
@@ -194,6 +203,9 @@ httpServer(async (req, res) => {
     json(res, e.code === 404 || e.code === 400 ? e.code : 500, { error: { message: e.message } });
   }
 }).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
+
+// Plans wait on time as well as events ("buyer silent for 48 hours"), so they also run on a timer.
+setInterval(() => void plans.tickAll().catch((e) => console.error('[plan]', e)), 10 * 60_000);
 
 if (AGENT_MODE) { // backup for webhooks that never arrive
   const run = () => agent.sweep().catch((e) => console.error('[agent] sweep', e));

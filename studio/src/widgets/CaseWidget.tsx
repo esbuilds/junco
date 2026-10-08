@@ -8,13 +8,16 @@ import { Panel } from './Panel';
 interface ActResult { ok?: boolean; held?: boolean; reason?: string; status?: string; error?: { message: string } }
 type Flash = { kind: 'ok' | 'held' | 'err'; text: string; detail?: string };
 
+const WHEN: Record<string, string> = { now: 'Now', buyer_silent_48h: 'If the buyer is silent 48h', buyer_replies: 'When the buyer replies', paypal_review: 'If PayPal reviews' };
+const STEP: Record<string, string> = { message: 'Message', offer: 'Offer', evidence: 'Submit evidence', supporting_info: 'Send PayPal the facts' };
+
 export function CaseWidget() {
   const id = useSelectedCase();
   const { data: c, error, reload } = usePoll<CaseDetail>(id ? `/api/cases/${encodeURIComponent(id)}` : null, 5000, [id]);
   const [hl, setHl] = useState<string | null>(null); // evidence id lit by a hovered or focused citation
   const [draft, setDraft] = useState('');
   const [scan, setScan] = useState('');
-  const [busy, setBusy] = useState<'recheck' | 'act' | 'budget' | null>(null);
+  const [busy, setBusy] = useState<'recheck' | 'act' | 'budget' | 'plan' | null>(null);
   const [limit, setLimit] = useState('');
   const [flash, setFlash] = useState<Flash | null>(null);
 
@@ -76,6 +79,14 @@ export function CaseWidget() {
     } catch (e: any) {
       setFlash({ kind: 'err', text: 'Not done.', detail: e.message });
     } finally { setBusy(null); reload(); }
+  };
+
+  // Approve-a-plan: propose, approve once, cancel. Steps then run off PayPal updates.
+  const planCall = async (method: 'POST' | 'DELETE', suffix = '') => {
+    setBusy('plan'); setFlash(null);
+    try { await api(`/api/cases/${encodeURIComponent(id)}/plan${suffix}`, { method }); }
+    catch (e: any) { setFlash({ kind: 'err', text: 'Not done.', detail: e.message }); }
+    finally { setBusy(null); reload(); }
   };
 
   // Hover or focus on a citation lights up the evidence it cites.
@@ -166,6 +177,36 @@ export function CaseWidget() {
         <div className={`jd-result jd-${flash.kind === 'ok' ? 'ok' : flash.kind === 'held' ? 'held' : 'err'}`} role="status">
           <strong>{flash.text}</strong> {flash.detail}
         </div>
+      )}
+
+      {c.status !== 'RESOLVED' && (
+        <>
+          <h3>Plan</h3>
+          {!c.plan || c.plan.status === 'cancelled' || c.plan.status === 'finished' ? (
+            <div className="jd-row" style={{ marginTop: 0 }}>
+              {c.plan?.status === 'finished' && <span className="jd-muted">Last plan finished.</span>}
+              <button type="button" className="jd-btn" onClick={() => planCall('POST')} disabled={!!busy}>{busy === 'plan' ? 'Planning...' : 'Plan the next few days'}</button>
+            </div>
+          ) : (
+            <div className="jd-plan">
+              <p>{c.plan.summary}</p>
+              <ol>
+                {c.plan.steps.map((st, i) => (
+                  <li key={i} className={`jd-step jd-step-${st.status}`}>
+                    <span className="jd-step-when">{WHEN[st.when] ?? st.when}</span>
+                    <span><strong>{STEP[st.action] ?? st.action}{st.amount ? ` ${money(Number(st.amount), c.currency)}` : ''}</strong> <span className="jd-muted">{st.text}</span></span>
+                    <span className="jd-step-status">{st.status === 'waiting' ? (c.plan!.status === 'proposed' ? '' : 'waiting') : st.status}</span>
+                  </li>
+                ))}
+              </ol>
+              <div className="jd-row">
+                {c.plan.status === 'proposed' && <button type="button" className="jd-btn jd-primary" onClick={() => planCall('POST', '/approve')} disabled={!!busy}>Approve plan</button>}
+                <button type="button" className="jd-btn" onClick={() => planCall('DELETE')} disabled={!!busy}>{c.plan.status === 'proposed' ? 'Discard' : 'Stop plan'}</button>
+                {c.plan.status === 'active' && <span className="jd-muted">Running since {new Date(c.plan.approved_at!).toLocaleString()}</span>}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <h3>Evidence</h3>
