@@ -80,7 +80,7 @@
   .activity { margin: 0 24px 16px; padding: 12px 16px; }
   .activity h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
   .activity ol { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; }
-  .activity li { display: grid; grid-template-columns: 70px 150px 130px minmax(0, 1fr); gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+  .activity li { display: grid; grid-template-columns: 70px 150px 165px minmax(0, 1fr); gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
   .activity li:first-child { border-top: 0; }
   .activity li.new { animation: flash 2s ease-out; }
   @keyframes flash { from { background: var(--ok-bg); } to { background: transparent; } }
@@ -254,7 +254,7 @@ function render(c, flash) {
   });
 }
 
-const TRIGGER = { sweep: 'scheduled check', webhook: 'PayPal webhook' };
+const TRIGGER = { sweep: 'scheduled check', 'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute', 'CUSTOMER.DISPUTE.UPDATED': 'PayPal: dispute updated', 'CUSTOMER.DISPUTE.RESOLVED': 'PayPal: resolved' };
 let seenActivity = null;
 async function loadActivity() {
   const { agent_mode, items } = await api('/api/activity');
