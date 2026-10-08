@@ -2,7 +2,7 @@
 
 Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates can also cost a $15 dispute fee, which PayPal waives when it's settled early.
 
-JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends one action: message the buyer, offer a partial refund, contest with evidence, or accept. Every claim it makes cites a piece of evidence, and plain code checks those citations before anything happens. Actions that move money wait for the owner.
+JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends one action: message the buyer, offer a partial refund, contest with evidence, accept, or wait while PayPal reviews. Every claim it makes cites a piece of evidence, and plain code checks those citations before anything happens. Actions that move money wait for the owner.
 
 It is built as an extension to [PayPal's Agent Toolkit](https://github.com/paypal/agent-toolkit). The stock toolkit can list disputes and concede them, but it cannot contest one. JUNCO adds the missing tools, so any MCP-capable agent gets them, and ships a dispute desk for the merchant.
 
@@ -30,7 +30,7 @@ It is built as an extension to [PayPal's Agent Toolkit](https://github.com/paypa
 ```
 
 1. **Evidence.** `recommend.ts` follows the dispute to its capture and order and collects the reason, amount, deadline, messages, evidence already on file, offer history, items, ship-to address, tracking and seller-protection status. Each item gets an ID (E1, E2, ...).
-2. **Recommendation.** Claude Opus 5.5 returns a structured decision (`message`, `offer`, `contest` or `accept`), a short summary, claims that each cite evidence IDs, and a draft message to the buyer. It is told which actions PayPal currently allows on the case.
+2. **Recommendation.** Claude Opus 5.5 returns a structured decision (`message`, `offer`, `contest`, `accept` or `wait`), a short summary, claims that each cite evidence IDs, and a draft message to the buyer. It is told which actions PayPal currently allows on the case.
 3. **Checks.** `validate()` rejects the recommendation if a claim cites evidence that does not exist or cites nothing, if PayPal does not currently allow the action, if an offer is zero or larger than the disputed amount, or if a message is empty. A blocked recommendation cannot be carried out from the desk.
 4. **Gate.** Every tool call on the MCP server, including PayPal's stock tools, goes through `policy.json`. The default policy lets messages and evidence through, allows offers up to $25, and holds larger offers, refunds and concessions for the owner.
 5. **Action.** The new tools check PayPal's HATEOAS links before calling the API, so they only run when PayPal says the action is available.
@@ -89,6 +89,7 @@ Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the age
 | `provide_dispute_evidence` | `POST /v1/customer/disputes/{id}/provide-evidence` | `provide_evidence` | fulfillment needs carrier and tracking; refund proof needs a refund ID |
 | `make_dispute_offer` | `POST /v1/customer/disputes/{id}/make-offer` | `make_offer` | amount required unless replacement only |
 | `send_dispute_message` | `POST /v1/customer/disputes/{id}/send-message` | `send_message` | 1 to 2000 characters |
+| `provide_dispute_supporting_info` | `POST /v1/customer/disputes/{id}/provide-supporting-info` | `provide_supporting_info` | 1 to 2000 characters; used for cases already under PayPal review |
 
 They use the toolkit's own tool shape (`method`, `name`, `description`, zod `parameters`, `actions`) and register on the toolkit's `PayPalAgentToolkit` MCP server, so nothing in PayPal's package is forked.
 
