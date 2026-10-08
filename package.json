@@ -16,7 +16,8 @@
     "seed": "tsx src/seed.ts",
     "check-agent": "tsx src/check-agent.ts",
     "webhook": "tsx src/webhook.ts",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "check-persist": "tsx src/check-persist.ts"
   },
   "keywords": [],
   "author": "",
@@ -27,11 +28,13 @@
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@paypal/agent-toolkit": "^1.11.0",
     "ag-grid-community": "^36.2.0",
+    "pg": "^8.23.1",
     "tsx": "^4.23.15",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
     "typescript": "^7.0.2"
   },
   "engines": {

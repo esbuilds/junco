@@ -3,6 +3,7 @@ import { PayPalAgentToolkit } from '@paypal/agent-toolkit/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { tools, run, type Ctx } from './disputes.js';
 import { gate, loadPolicy, type Policy, type Hold } from './gate.js';
+import { hydrate } from './persist.js';
 
 export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   try { process.loadEnvFile(); } catch {} // ponytail: .env optional, real env vars win
@@ -25,6 +26,8 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
 }
 
 export async function createServer(ctx: Ctx & { accessToken: string }, policy: Policy = loadPolicy(), onHold?: (h: Hold) => void) {
+  const restored = await hydrate(); // restore holds, recs and agent state before anything reads them
+  if (restored) console.error(`[persist] restored ${restored} state files from Postgres`);
   const server = new PayPalAgentToolkit({
     accessToken: ctx.accessToken,
     configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true } } },

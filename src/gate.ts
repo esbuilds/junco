@@ -1,6 +1,7 @@
 // Approval gate: every tool call on the MCP server (stock PayPal tools and JUNCO's) is allowed, held for the owner, or denied by policy.json.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { mirror } from './persist.js';
 
 export type Verdict = 'allow' | 'hold' | 'deny';
 export type Rule = Verdict | { max_amount: number; over: Verdict };
@@ -26,10 +27,10 @@ export function decide(policy: Policy, method: string, args: any): { verdict: Ve
     : { verdict: rule.over, reason: `${amt} is over the ${rule.max_amount} limit for ${method}` };
 }
 
-// ponytail: holds live in one JSON file; move to a DB when more than one process writes them
+// Holds live in one JSON file, mirrored to Postgres when DATABASE_URL is set (persist.ts). One writer process.
 const HOLDS = '.junco/holds.json';
 export const readHolds = (): Hold[] => { try { return JSON.parse(readFileSync(HOLDS, 'utf8')); } catch { return []; } };
-const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(HOLDS, JSON.stringify(h, null, 2)); };
+const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(HOLDS, JSON.stringify(h, null, 2)); mirror(HOLDS, h); };
 
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });

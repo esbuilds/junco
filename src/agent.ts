@@ -3,14 +3,15 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { paypal, type Ctx } from './disputes.js';
 import { recommend, gatherFromPayPal, type Recommendation } from './recommend.js';
+import { mirror } from './persist.js';
 
 type CallTool = (name: string, args: any) => Promise<any>;
 export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string };
 export type Activity = { at: string; dispute_id: string; trigger: string; step: string; detail: string };
 
-// ponytail: state in JSON files under .junco/; one desk process writes them. Use a DB if that ever changes.
+// State lives in JSON files under .junco/, mirrored to Postgres when DATABASE_URL is set (see persist.ts).
 const read = <T>(f: string, empty: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return empty; } };
-const write = (f: string, v: unknown) => { mkdirSync('.junco', { recursive: true }); writeFileSync(f, JSON.stringify(v, null, 2)); };
+const write = (f: string, v: unknown) => { mkdirSync('.junco', { recursive: true }); writeFileSync(f, JSON.stringify(v, null, 2)); mirror(f, v); };
 export const readRecs = () => read<Record<string, Saved>>('.junco/recs.json', {});
 export const saveRec = (id: string, r: Saved) => write('.junco/recs.json', { ...readRecs(), [id]: r });
 export const readActivity = () => read<Activity[]>('.junco/activity.json', []);
