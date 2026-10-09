@@ -190,3 +190,8 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-start-step:focus-visible { outline: 2px solid var(--jd-focus); }
 .jd-start-step strong { display: block; }
 .jd-start-n { width: 24px; height: 24px; border-radius: 999px; background: var(--jd-accent); color: var(--jd-accent-ink); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+
+/* Studio's native widgets (Insights) get the same card as the desk's custom ones. */
+.jd-host .ag-studio-layout-widget:not(:has(.jd-panel)):not(:has(.jd-stats)):not(:has(.jd-holds-empty)) .ag-studio-layout-widget-container {
+  background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 12px; overflow: hidden;
+}
