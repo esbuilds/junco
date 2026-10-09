@@ -61,7 +61,7 @@ export function OrdersWidget() {
       </p>
       <div className="jd-grid">
         <AgGridReact<Watched>
-          theme={gridTheme} rowData={items} columnDefs={columns} getRowId={(p) => p.data.capture_id}
+          theme={gridTheme} rowData={items} loading={!data && !error} columnDefs={columns} getRowId={(p) => p.data.capture_id}
           rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
           onRowClicked={(e) => { if (e.data) { setPick(e.data.capture_id); setMsg(null); } }}
           domLayout="autoHeight" overlayNoRowsTemplate='<span class="jd-muted">No captured payments yet. New ones appear here within seconds.</span>'

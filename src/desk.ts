@@ -158,6 +158,20 @@ httpServer(async (req, res) => {
       const ids: string[] = (list.body.items ?? []).map((d: any) => d.dispute_id);
       return json(res, 200, (await Promise.all(ids.map(agent.getDispute))).map(row));
     }
+    if (req.method === 'GET' && url.pathname === '/api/start') {
+      // "Start here" for judges, worked out from live state so it never points at something stale.
+      const recs = readRecs(), acts = readActivity();
+      const hold = readHolds().find((h) => h.status === 'pending' && h.args?.dispute_id);
+      const counts = new Map<string, number>();
+      for (const a of acts) if (a.dispute_id.startsWith('PP-')) counts.set(a.dispute_id, (counts.get(a.dispute_id) ?? 0) + 1);
+      const replay = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      const refusal = Object.entries(recs).find(([id, r]) => id !== hold?.args?.dispute_id && r.recommendation && ['wait', 'accept'].includes(r.recommendation.decision) && r.recommendation.would_change_mind)?.[0]
+        ?? Object.entries(recs).find(([id, r]) => id !== hold?.args?.dispute_id && r.recommendation && ['wait', 'accept'].includes(r.recommendation.decision))?.[0] ?? null;
+      return json(res, 200, {
+        hold: hold ? { id: hold.id, dispute_id: hold.args.dispute_id, method: hold.method } : null,
+        refusal, replay, orders: Object.keys(readOrders()).length,
+      });
+    }
     if (req.method === 'GET' && url.pathname === '/api/activity') return json(res, 200, { agent_mode: AGENT_MODE, items: readActivity().slice(-50).reverse() });
     if (p[0] === 'api' && p[1] === 'cases' && p[2]) {
       const id = p[2];

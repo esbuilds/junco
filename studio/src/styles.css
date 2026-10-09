@@ -179,3 +179,14 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-track select, .jd-track input[type=text] { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
 .jd-track input[type=text] { width: 220px; }
 .jd-panel a { color: var(--jd-accent, #1f5c4a); }
+
+/* Start here */
+.jd-start { position: fixed; top: 48px; right: 24px; z-index: 50; width: 440px; max-width: calc(100vw - 32px); background: var(--jd-surface); color: var(--jd-ink); border: 1px solid var(--jd-line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 16px; font-family: Inter, system-ui, sans-serif; }
+.jd-start-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.jd-start-head .jd-btn { margin-left: auto; }
+.jd-start ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.jd-start-step { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--jd-surface-2); font-size: 14px; }
+.jd-start-step:hover { outline: 1px solid var(--jd-accent); }
+.jd-start-step:focus-visible { outline: 2px solid var(--jd-focus); }
+.jd-start-step strong { display: block; }
+.jd-start-n { width: 24px; height: 24px; border-radius: 999px; background: var(--jd-accent); color: var(--jd-accent-ink); display: grid; place-items: center; font-weight: 600; font-size: 13px; }

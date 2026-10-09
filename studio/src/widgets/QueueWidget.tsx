@@ -64,6 +64,7 @@ export function QueueWidget() {
         <AgGridReact<CaseRow>
           theme={gridTheme}
           rowData={data ?? []}
+          loading={!all.data && !error}
           columnDefs={columns}
           getRowId={(p) => p.data.id}
           rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}

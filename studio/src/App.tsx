@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { widgets } from './widgets/definitions';
+import { StartHere } from './widgets/StartHere';
 import './styles.css';
 
 // Pre-built desk layout: summary stats, then holds and activity, then at-risk, outcomes and queue on the left, case on the right.
@@ -52,6 +53,7 @@ export function App() {
       <header className="jd-topbar">
         <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><span className="jd-tag">PayPal sandbox</span>
         <nav aria-label="Pages">
+          <StartHere go={setPage} />
           {PAGES.map(([id, label]) => (
             <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
           ))}
