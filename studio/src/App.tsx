@@ -32,6 +32,12 @@ const layout = {
       case: { xTrack: 7, yTrack: 11, xSpan: 5, ySpan: 22 },
     },
   }, insightsPage, {
+    // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
+    id: 'try',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { try: { id: 'try', type: 'junco-try', dataMapping: {} } },
+    widgetLayout: { try: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 34 } },
+  }, {
     // Prevention: paid orders watched until they have tracking, before any dispute exists.
     id: 'orders',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -63,7 +69,7 @@ const theme = studioTheme.withParams({
 } as any);
 
 // Studio shows no page tabs in view mode, so the desk has its own slim header to switch pages.
-const PAGES = [['desk', 'Desk'], ['insights', 'Insights'], ['orders', 'Orders'], ['policy', 'Policy']] as const;
+const PAGES = [['desk', 'Desk'], ['insights', 'Insights'], ['orders', 'Orders'], ['try', 'Try it'], ['policy', 'Policy']] as const;
 
 export function App() {
   const [page, setPage] = useState<string>('desk');

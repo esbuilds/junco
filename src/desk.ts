@@ -11,6 +11,7 @@ import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
+import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 
 const ctx = await sandboxCtx();
@@ -255,6 +256,15 @@ httpServer(async (req, res) => {
       const r = await callTool('add_order_tracking', args.data);
       if (!r.ok) return json(res, r.held ? 202 : 400, r);
       return json(res, 200, await watch.refresh(o.capture_id, 'owner'));
+    }
+    if (url.pathname === '/api/try/scenarios' && req.method === 'GET') return json(res, 200, listScenarios());
+    if (url.pathname === '/api/try' && req.method === 'POST') {
+      // Scenario mode: synthetic cases only, no PayPal calls. Rate-limited by visitor address (Render sets x-forwarded-for).
+      const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
+      const limited = tryAllowed(visitor);
+      if (limited) return json(res, 429, { error: { message: limited } });
+      const out = await runTry(await readBody(req));
+      return json(res, out.error ? 400 : 200, out.error ? { error: { message: out.error } } : out);
     }
     if (url.pathname === '/api/policy/what-if' && req.method === 'POST') return json(res, 200, whatIf(buildPolicy(await readBody(req))));
     if (url.pathname === '/api/policy') {
