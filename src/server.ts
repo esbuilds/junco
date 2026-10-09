@@ -26,9 +26,13 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   return { baseUrl, accessToken, token: async () => accessToken };
 }
 
+let hydrated = false;
 export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void) {
-  const restored = await hydrate(); // restore holds, recs, agent state and owner policy edits before anything reads them
-  if (restored) console.error(`[persist] restored ${restored} state files from Postgres`);
+  if (!hydrated) { // once per process: later servers (one per remote MCP request) share the files the first one restored
+    hydrated = true;
+    const restored = await hydrate(); // restore holds, recs, agent state and owner policy edits before anything reads them
+    if (restored) console.error(`[persist] restored ${restored} state files from Postgres`);
+  }
   const policy = given ?? loadActivePolicy(); // the gate reads this object on every call, so desk edits apply live
   const server = new PayPalAgentToolkit({
     accessToken: ctx.accessToken,

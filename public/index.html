@@ -256,7 +256,7 @@ function render(c, flash) {
   });
 }
 
-const TRIGGER = { sweep: 'scheduled check', owner: 'you', 'PAYMENT.CAPTURE.COMPLETED': 'PayPal: payment captured', 'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute', 'CUSTOMER.DISPUTE.UPDATED': 'PayPal: dispute updated', 'CUSTOMER.DISPUTE.RESOLVED': 'PayPal: resolved' };
+const TRIGGER = { sweep: 'scheduled check', owner: 'you', mcp: 'MCP client', 'PAYMENT.CAPTURE.COMPLETED': 'PayPal: payment captured', 'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute', 'CUSTOMER.DISPUTE.UPDATED': 'PayPal: dispute updated', 'CUSTOMER.DISPUTE.RESOLVED': 'PayPal: resolved' };
 let seenActivity = null;
 async function loadActivity() {
   const { agent_mode, items } = await api('/api/activity');

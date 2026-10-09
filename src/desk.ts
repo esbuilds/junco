@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
@@ -129,6 +130,17 @@ httpServer(async (req, res) => {
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
+  // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
+  // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
+  if (url.pathname === '/mcp') {
+    try {
+      const { server: s } = await createServer(ctx, policy, (h) => { agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client: ${h.reason}`); void notifyHold(h); });
+      const t = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on('close', () => { void t.close(); void s.close(); });
+      await s.connect(t);
+      return await t.handleRequest(req, res, req.method === 'POST' ? JSON.parse((await readRaw(req, 1_000_000)) || '{}') : undefined);
+    } catch (e: any) { return json(res, 400, { error: { message: e.message } }); }
+  }
   const p = url.pathname.split('/').filter(Boolean);
   try {
     if (req.method === 'GET' && STATIC[url.pathname]) {

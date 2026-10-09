@@ -95,6 +95,31 @@ npm run check-agent                             # loop guards against live sandb
 }
 ```
 
+### Connect to a running desk
+
+The desk also serves the same gated tools over HTTP at `/mcp`, behind the desk password. An agent connected this way shares the desk's policy and holds, so anything it tries that needs approval shows up on the desk right away, marked "MCP client" in the activity log.
+
+Claude Code:
+
+```bash
+claude mcp add --transport http junco https://YOUR-DESK.onrender.com/mcp \
+  --header "Authorization: Basic $(printf 'junco:YOUR_DESK_PASSWORD' | base64)"
+```
+
+Claude Desktop (through `mcp-remote`):
+
+```json
+{
+  "mcpServers": {
+    "junco": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://YOUR-DESK.onrender.com/mcp", "--header", "Authorization:${JUNCO_AUTH}"],
+      "env": { "JUNCO_AUTH": "Basic <base64 of junco:YOUR_DESK_PASSWORD>" }
+    }
+  }
+}
+```
+
 Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the agent. The owner approves or rejects them in the desk or with `npm run holds [approve|reject <id>]`.
 
 ## Tools added

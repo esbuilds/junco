@@ -56,6 +56,7 @@ export async function api<T = any>(path: string, opts: RequestInit & { json?: un
 export const TRIGGER: Record<string, string> = {
   sweep: 'scheduled check',
   owner: 'you',
+  mcp: 'MCP client',
   'PAYMENT.CAPTURE.COMPLETED': 'PayPal: payment captured',
   check: 'manual check', // rows written by older local runs
   'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute',
