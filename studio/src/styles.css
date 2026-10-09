@@ -195,3 +195,7 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-host .ag-studio-layout-widget:not(:has(.jd-panel)):not(:has(.jd-stats)):not(:has(.jd-holds-empty)) .ag-studio-layout-widget-container {
   background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 12px; overflow: hidden;
 }
+
+/* Policy what-if */
+.jd-whatif { display: grid; gap: 4px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); }
+.jd-whatif-cases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }

@@ -42,7 +42,7 @@ const layout = {
     id: 'policy',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { policy: { id: 'policy', type: 'junco-policy', dataMapping: {} } },
-    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 28 } },
+    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 34 } },
   }],
   selectedPageId: 'desk',
 };

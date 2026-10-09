@@ -18,6 +18,13 @@ export function PolicyWidget() {
   const [draft, setDraft] = useState<PolicyView | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => { if (data && !draft) setDraft(data); }, [data, draft]);
+  // What-if: replay saved recommendations under the draft (server uses the gate's own rules; no PayPal calls).
+  const [what, setWhat] = useState<{ handled: number; total: number; cases: { id: string; decision: string; handled: boolean }[] } | null>(null);
+  useEffect(() => {
+    if (!draft) return;
+    const t = setTimeout(() => { api('/api/policy/what-if', { method: 'POST', json: draft }).then(setWhat).catch(() => setWhat(null)); }, 300);
+    return () => clearTimeout(t);
+  }, [draft]);
 
   const send = async (method: 'PUT' | 'DELETE') => {
     setMsg(null);
@@ -52,6 +59,13 @@ export function PolicyWidget() {
           </select>
         </label>
       ))}
+      {what && what.total > 0 && (
+        <div className="jd-whatif" aria-live="polite">
+          <strong>JUNCO would have handled {what.handled} of {what.total} recommended action{what.total === 1 ? '' : 's'} without you</strong>
+          <span className="jd-muted">{dirty ? 'with these unsaved settings' : 'with the current policy'}, replaying its saved recommendations. The rest would wait for your OK.</span>
+          <span className="jd-whatif-cases">{what.cases.map((c) => <span key={c.id} className={`jd-badge ${c.handled ? 'jd-b-contest' : 'jd-b-held'}`} title={c.id}>{c.decision} {c.handled ? 'runs' : 'waits'}</span>)}</span>
+        </div>
+      )}
       <div className="jd-row">
         <button type="button" className="jd-btn jd-primary" disabled={!dirty} onClick={() => send('PUT')}>Save policy</button>
         <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>

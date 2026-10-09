@@ -8,7 +8,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createServer, sandboxCtx } from './server.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, type Hold, type Policy } from './gate.js';
+import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
@@ -39,7 +39,7 @@ const policyView = () => {
   const offer = policy.tools.make_dispute_offer;
   return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, ship_within_days: policy.ship_within_days ?? 2, auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
 };
-function applyPolicy(body: any) {
+function buildPolicy(body: any): Policy {
   const limit = Number(body?.offer_limit);
   if (!Number.isFinite(limit) || limit < 0 || limit > 500) throw Object.assign(new Error('offer_limit must be between 0 and 500'), { code: 400 });
   const auto = body?.auto ?? {};
@@ -48,7 +48,24 @@ function applyPolicy(body: any) {
   for (const t of AUTO) if (t in auto) tools[t] = auto[t] ? 'allow' : 'hold';
   const days = body?.ship_within_days === undefined ? policy.ship_within_days ?? 2 : Number(body.ship_within_days);
   if (!Number.isInteger(days) || days < 1 || days > 30) throw Object.assign(new Error('ship_within_days must be a whole number from 1 to 30'), { code: 400 });
-  Object.assign(policy, savePolicy({ ...policy, tools, ship_within_days: days }));
+  return { ...policy, tools, ship_within_days: days };
+}
+const applyPolicy = (body: any) => Object.assign(policy, savePolicy(buildPolicy(body)));
+
+// What-if: replay every saved recommendation through the gate's own decide() under a draft policy. No PayPal calls.
+// ponytail: contest counts as provide_dispute_evidence; a case under review would use supporting info, same default rule
+const ACTION_TOOL: Record<string, string> = { message: 'send_dispute_message', offer: 'make_dispute_offer', contest: 'provide_dispute_evidence', accept: 'accept_dispute_claim' };
+function whatIf(draft: Policy) {
+  const budgets = readBudgets();
+  const cases = Object.entries(readRecs())
+    .filter(([, r]) => r.recommendation && r.recommendation.decision !== 'wait' && !r.problems.length)
+    .map(([id, r]) => {
+      const rec = r.recommendation!;
+      const args = { dispute_id: id, ...(rec.decision === 'offer' && { offer_amount: { currency_code: 'USD', value: rec.offer_amount } }) };
+      const { verdict, reason } = gateDecide(draft, ACTION_TOOL[rec.decision], args, budgets);
+      return { id, decision: rec.decision, handled: verdict === 'allow', reason };
+    });
+  return { handled: cases.filter((c) => c.handled).length, total: cases.length, cases };
 }
 const [a, b] = InMemoryTransport.createLinkedPair();
 await server.connect(a);
@@ -239,6 +256,7 @@ httpServer(async (req, res) => {
       if (!r.ok) return json(res, r.held ? 202 : 400, r);
       return json(res, 200, await watch.refresh(o.capture_id, 'owner'));
     }
+    if (url.pathname === '/api/policy/what-if' && req.method === 'POST') return json(res, 200, whatIf(buildPolicy(await readBody(req))));
     if (url.pathname === '/api/policy') {
       if (req.method === 'PUT') applyPolicy(await readBody(req));
       else if (req.method === 'DELETE') Object.assign(policy, savePolicy(null)); // reset to the repo default
