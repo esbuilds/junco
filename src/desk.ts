@@ -94,6 +94,13 @@ const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id ==
 const HOLD_TAGS = '.junco/hold-tags.json';
 const holdTags = (): Record<string, string> => { try { return JSON.parse(readFileSync(HOLD_TAGS, 'utf8')); } catch { return {}; } };
 const tagged = (h: Hold) => (holdTags()[h.id] ? { ...h, asked_by: holdTags()[h.id] } : h);
+// Models treat a JSON Schema pattern as a hint, so a first call often breaks it (accept_dispute_claim's note allows no
+// spaces) and the chat shows a failed step. Spelling the pattern out in the field's description gets it right first time.
+const spellOutPatterns = (schema: any) => ({
+  ...schema,
+  properties: Object.fromEntries(Object.entries(schema?.properties ?? {}).map(([k, v]: [string, any]) =>
+    [k, v?.pattern ? { ...v, description: `${v.description ? `${v.description}. ` : ''}Must match ${v.pattern} (no spaces unless the pattern allows them).` } : v])),
+});
 let assistantMcp: Promise<Client> | null = null;
 const assistantTools = () => (assistantMcp ??= (async () => {
   const { server: s } = await createServer(ctx, policy, (h) => {
@@ -382,7 +389,7 @@ httpServer(async (req, res) => {
       return json(res, out.error ? 400 : 200, out.error ? { error: { message: out.error } } : out);
     }
     if (STUDIO_AI && url.pathname === '/api/studio-ai/tools' && req.method === 'GET')
-      return json(res, 200, (await (await assistantTools()).listTools()).tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })));
+      return json(res, 200, (await (await assistantTools()).listTools()).tools.map((t) => ({ name: t.name, description: t.description, inputSchema: spellOutPatterns(t.inputSchema) })));
     if (STUDIO_AI && p[0] === 'api' && p[1] === 'studio-ai' && p[2] === 'tools' && p[3] && req.method === 'POST') {
       const r: any = await (await assistantTools()).callTool({ name: p[3], arguments: await readBody(req) });
       return json(res, 200, { text: r.content?.[0]?.text ?? '' });
