@@ -12,6 +12,7 @@ import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, decide as ga
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
+import { caseHtml, caseMarkdown } from './casefile.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 
 const ctx = await sandboxCtx();
@@ -193,10 +194,19 @@ httpServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/activity') return json(res, 200, { agent_mode: AGENT_MODE, items: readActivity().slice(-50).reverse() });
     if (p[0] === 'api' && p[1] === 'cases' && p[2]) {
       const id = p[2];
+      if (req.method === 'GET' && (p[3] === 'file.md' || p[3] === 'file.html')) {
+        const d = await agent.getDispute(id);
+        const savedRec = readRecs()[id];
+        const input = { d, evidence: savedRec?.evidence ?? collectEvidence(d, await gatherFromPayPal(ctx, d)), saved: savedRec ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id) };
+        const md = p[3] === 'file.md';
+        res.writeHead(200, { 'Content-Type': md ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8', ...(md && { 'Content-Disposition': `attachment; filename="${id}.md"` }) });
+        return res.end(md ? caseMarkdown(input) : caseHtml(input));
+      }
       if (req.method === 'GET' && !p[3]) {
         const d = await agent.getDispute(id);
-        const evidence = collectEvidence(d, await gatherFromPayPal(ctx, d));
-        return json(res, 200, { ...row(d), evidence, saved: readRecs()[id] ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
+        const savedRec = readRecs()[id];
+        const evidence = savedRec?.evidence ?? collectEvidence(d, await gatherFromPayPal(ctx, d)); // the set the saved recommendation cites
+        return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -204,7 +214,7 @@ httpServer(async (req, res) => {
         const before = readRecs()[id];
         const prev = before?.recommendation ? { decision: before.recommendation.decision, summary: before.recommendation.summary, at: before.at } : null;
         const out = await recommend(ctx, id, extra, undefined, prev);
-        const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev };
+        const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev, evidence: out.evidence };
         saveRec(id, saved);
         return json(res, 200, { ...saved, evidence: out.evidence });
       }

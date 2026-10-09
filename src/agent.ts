@@ -2,11 +2,11 @@
 // Allowed actions run, money-moving ones wait for the owner, and every step is logged.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { paypal, type Ctx } from './disputes.js';
-import { recommend, gatherFromPayPal, type Recommendation } from './recommend.js';
+import { type Evidence, recommend, gatherFromPayPal, type Recommendation } from './recommend.js';
 import { mirror } from './persist.js';
 
 type CallTool = (name: string, args: any) => Promise<any>;
-export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null };
+export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null; evidence?: Evidence[] };
 export type Activity = { at: string; dispute_id: string; trigger: string; step: string; detail: string };
 
 // State lives in JSON files under .junco/, mirrored to Postgres when DATABASE_URL is set (see persist.ts).
@@ -70,7 +70,7 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
       if (d.status === 'RESOLVED') { write('.junco/handled.json', { ...handled(), [id]: { state } }); return log(id, trigger, 'closed', `Resolved: ${d.dispute_outcome?.outcome_code ?? 'unknown outcome'}`); }
 
       const out = await recommend(ctx, id);
-      saveRec(id, { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString() });
+      saveRec(id, { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), evidence: out.evidence });
       const rec = out.recommendation;
       write('.junco/handled.json', { ...handled(), [id]: { ...prev, state } });
       if (!rec) return log(id, trigger, 'needs you', out.problems.join('; '));
