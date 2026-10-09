@@ -100,6 +100,9 @@ export function CaseWidget() {
   return (
     <Panel title={`${REASONS[c.reason] ?? human(c.reason)}, ${money(c.amount, c.currency)}`}
       subtitle={`${c.id} · ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} · ${STATUS[c.status] ?? human(c.status)}${c.due ? ` · respond in ${dueText(c.due)}` : ''}`}>
+      {(c.buyer_disputes ?? 0) >= 2 && (
+        <div className="jd-repeat" role="note">Repeat buyer: this buyer has opened {c.buyer_disputes} disputes with you. Shown for you only; JUNCO's recommendation doesn't use it.</div>
+      )}
       <h3>PayPal allows now</h3>
       <div className="jd-chips">
         {c.allowed.length

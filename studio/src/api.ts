@@ -4,7 +4,7 @@ export interface CaseRow {
   id: string; reason: string; amount: number; currency: string; status: string; stage: string;
   channel: string | null; opened: string; due: string | null; buyer_due: string | null;
   allowed: string[]; decision: Decision | null; problems: number; pending_holds: number;
-  outcome: string | null; refunded: number | null;
+  outcome: string | null; refunded: number | null; buyer_disputes: number | null;
 }
 
 export type Decision = 'message' | 'offer' | 'contest' | 'accept' | 'wait';

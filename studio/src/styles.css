@@ -207,3 +207,4 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-try-field textarea { min-height: 72px; resize: vertical; }
 .jd-try-wide { grid-column: 1 / -1; }
 a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
+.jd-repeat { margin: 4px 0 8px; padding: 6px 10px; border-radius: 8px; background: var(--jd-warn-bg); color: var(--jd-warn); font-size: 13px; }

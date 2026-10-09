@@ -1,7 +1,8 @@
 // Dispute desk: a small web app over the gated MCP server. Every action goes through the same gate an AI agent hits.
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
+import { mirror } from './persist.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -81,14 +82,66 @@ const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id);
+// Repeat disputer: how many disputes the same buyer (PayPal payer ID, else email) has open or closed with this seller,
+// from the last case list. A plain count for the owner; deliberately not given to the model as evidence.
+const buyerOf = (d: any) => d.disputed_transactions?.[0]?.buyer?.payer_id ?? d.disputed_transactions?.[0]?.buyer?.email ?? null;
+let buyerCounts = new Map<string, number>();
+async function loadDisputes(ids?: string[]) {
+  ids ??= ((await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=50')).body.items ?? []).map((d: any) => d.dispute_id);
+  const ds = await Promise.all(ids!.map(agent.getDispute));
+  buyerCounts = new Map();
+  for (const d of ds) { const b = buyerOf(d); if (b) buyerCounts.set(b, (buyerCounts.get(b) ?? 0) + 1); }
+  return ds;
+}
+
+// Weekly digest for the owner (Slack, same webhook as hold pings): the week in a few lines, from desk state only.
+async function digestText() {
+  const rows = (await loadDisputes()).map(row), weekAgo = Date.now() - 7 * 86_400_000;
+  const money = (n: number) => `$${n.toFixed(2)}`;
+  const open = rows.filter((r) => r.status !== 'RESOLVED');
+  const due = open.filter((r) => r.due && Date.parse(r.due) - Date.now() < 7 * 86_400_000);
+  const resolved = rows.filter((r) => r.status === 'RESOLVED'); // PayPal's list has no resolution date, so this is to date, not this week
+  const kept = ['RESOLVED_SELLER_FAVOUR', 'RESOLVED_WITH_PAYOUT', 'CANCELED_BY_BUYER', 'DENIED'];
+  const refunded = resolved.reduce((t, r) => t + (r.outcome && kept.includes(r.outcome) ? 0 : r.refunded ?? r.amount), 0);
+  const acted = readActivity().filter((a) => Date.parse(a.at) > weekAgo && (a.step === 'done' || a.step === 'plan step done')).length;
+  const holds = readHolds().filter((h) => h.status === 'pending').length;
+  const orders = Object.values(readOrders());
+  return [
+    `*JUNCO weekly* (${new Date(weekAgo).toDateString().slice(4, 10)} to ${new Date().toDateString().slice(4, 10)})`,
+    `• Open disputes: ${open.length} (${money(open.reduce((t, r) => t + r.amount, 0))})${due.length ? `, ${due.length} due within 7 days` : ''}`,
+    `• Waiting for you: ${holds} held action${holds === 1 ? '' : 's'}`,
+    resolved.length ? `• Resolved so far: ${resolved.length} (kept ${money(resolved.reduce((t, r) => t + r.amount, 0) - refunded)}, refunded ${money(refunded)})` : '• Resolved so far: none',
+    `• JUNCO acted on its own ${acted} time${acted === 1 ? '' : 's'} this week, inside your policy`,
+    orders.length ? `• Shipment watch: ${orders.length} paid order${orders.length === 1 ? '' : 's'}, ${orders.filter((o) => o.status === 'at_risk').length} at risk` : '',
+    `Open the desk: ${DESK_URL}`,
+  ].filter(Boolean).join('\n');
+}
+const DIGEST = '.junco/digest.json';
+async function sendDigest() {
+  const url = process.env.HOLD_WEBHOOK_URL;
+  if (!url) return { sent: false, reason: 'HOLD_WEBHOOK_URL not set' };
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: await digestText() }) });
+  if (r.ok) { const v = { sent_at: new Date().toISOString() }; writeFileSync(DIGEST, JSON.stringify(v)); mirror(DIGEST, v); }
+  return { sent: r.ok, status: r.status };
+}
+// Mondays at 15:00 UTC (8am Pacific), once per week.
+setInterval(() => {
+  const now = new Date();
+  if (now.getUTCDay() !== 1 || now.getUTCHours() !== 15 || !process.env.HOLD_WEBHOOK_URL) return;
+  let last = 0; try { last = Date.parse(JSON.parse(readFileSync(DIGEST, 'utf8')).sent_at); } catch {}
+  if (Date.now() - last > 6 * 86_400_000) void sendDigest().catch((e) => console.warn('[digest]', e.message));
+}, 10 * 60_000);
+
 function row(d: any) {
   const rec = readRecs()[d.dispute_id];
+  const buyer = buyerOf(d);
   return {
     id: d.dispute_id, reason: d.reason, amount: Number(d.dispute_amount?.value), currency: d.dispute_amount?.currency_code,
     status: d.status, stage: d.dispute_life_cycle_stage, channel: d.dispute_channel ?? null, opened: d.create_time,
     due: d.seller_response_due_date ?? null, buyer_due: d.buyer_response_due_date ?? null,
     allowed: allowedOf(d), decision: rec?.recommendation?.decision ?? null, problems: rec?.problems?.length ?? 0,
     pending_holds: holdsFor(d.dispute_id).filter((h) => h.status === 'pending').length,
+    buyer_disputes: buyer ? buyerCounts.get(buyer) ?? 1 : null,
     outcome: d.dispute_outcome?.outcome_code ?? null, refunded: d.dispute_outcome?.amount_refunded ? Number(d.dispute_outcome.amount_refunded.value) : null,
   };
 }
@@ -175,7 +228,7 @@ httpServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/cases') {
       const list = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=50');
       const ids: string[] = (list.body.items ?? []).map((d: any) => d.dispute_id);
-      return json(res, 200, (await Promise.all(ids.map(agent.getDispute))).map(row));
+      return json(res, 200, (await loadDisputes(ids)).map(row));
     }
     if (req.method === 'GET' && url.pathname === '/api/start') {
       // "Start here" for judges, worked out from live state so it never points at something stale.
@@ -267,6 +320,8 @@ httpServer(async (req, res) => {
       if (!r.ok) return json(res, r.held ? 202 : 400, r);
       return json(res, 200, await watch.refresh(o.capture_id, 'owner'));
     }
+    if (url.pathname === '/api/digest' && req.method === 'GET') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(await digestText()); }
+    if (url.pathname === '/api/digest/send' && req.method === 'POST') return json(res, 200, await sendDigest());
     if (url.pathname === '/api/try/scenarios' && req.method === 'GET') return json(res, 200, listScenarios());
     if (url.pathname === '/api/try' && req.method === 'POST') {
       // Scenario mode: synthetic cases only, no PayPal calls. Rate-limited by visitor address (Render sets x-forwarded-for).
