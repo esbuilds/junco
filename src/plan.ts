@@ -10,6 +10,7 @@ import { collectEvidence, gatherFromPayPal } from './recommend.js';
 import { allowedOf } from './agent.js';
 import { setBudget } from './gate.js';
 import { mirror } from './persist.js';
+import { isUps } from './carrier.js';
 
 const When = z.enum(['now', 'buyer_silent_48h', 'buyer_replies', 'paypal_review']);
 const Action = z.enum(['message', 'offer', 'evidence', 'supporting_info']);
@@ -110,7 +111,7 @@ export function makePlans({ ctx, callTool, getDispute, log }: Deps, client = new
     if (s.action === 'offer') return callTool('make_dispute_offer', { dispute_id: id, offer_type: 'REFUND', offer_amount: { currency_code: d.dispute_amount.currency_code, value: s.amount }, note: s.text });
     if (s.action === 'supporting_info') return callTool('provide_dispute_supporting_info', { dispute_id: id, notes: s.text.slice(0, 2000) });
     const tracker = (await gatherFromPayPal(ctx, d)).map((e) => e.text.match(/^Tracking (\S+) status SHIPPED/)?.[1]).find(Boolean);
-    return callTool('provide_dispute_evidence', { dispute_id: id, evidence_type: tracker ? 'PROOF_OF_FULFILLMENT' : 'OTHER', notes: s.text, ...(tracker && { carrier_name: 'USPS', tracking_number: tracker }) });
+    return callTool('provide_dispute_evidence', { dispute_id: id, evidence_type: tracker ? 'PROOF_OF_FULFILLMENT' : 'OTHER', notes: s.text, ...(tracker && { carrier_name: isUps(tracker) ? 'UPS' : 'USPS', tracking_number: tracker }) });
   }
 
   const active = () => Object.values(readPlans()).filter((p) => p.status === 'active').map((p) => p.dispute_id);

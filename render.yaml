@@ -25,5 +25,9 @@ services:
         sync: false
       - key: USPS_CONSUMER_SECRET
         sync: false
+      - key: UPS_CLIENT_ID
+        sync: false
+      - key: UPS_CLIENT_SECRET
+        sync: false
       - key: AGENT_MODE
         value: "on"

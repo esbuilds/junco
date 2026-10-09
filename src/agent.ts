@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { paypal, type Ctx } from './disputes.js';
 import { type Evidence, recommend, gatherFromPayPal, type Recommendation } from './recommend.js';
 import { mirror } from './persist.js';
+import { isUps } from './carrier.js';
 
 type CallTool = (name: string, args: any) => Promise<any>;
 export type Saved = { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null; evidence?: Evidence[] };
@@ -48,7 +49,7 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
     if (rec.evidence_type === 'PROOF_OF_FULFILLMENT' && !tracker) return { error: { message: 'No shipped tracking on the PayPal order to submit as proof of fulfillment' } };
     return callTool('provide_dispute_evidence', {
       dispute_id: id, evidence_type: rec.evidence_type ?? 'OTHER', notes: rec.summary,
-      ...(tracker && { carrier_name: 'USPS', tracking_number: tracker }), // ponytail: carrier hardcoded until trackers expose it
+      ...(tracker && { carrier_name: isUps(tracker) ? 'UPS' : 'USPS', tracking_number: tracker }), // carrier picked from the number (1Z is UPS)
     });
   }
 

@@ -3,6 +3,7 @@
 //   npm run seed                      create an order, print the buyer approval link
 //   npm run seed capture <order_id>   capture it and add USPS tracking   (scenario: shipped, worth contesting)
 //   npm run seed capture <order_id> unshipped                      (scenario: never shipped, should concede)
+//   npm run seed capture <order_id> track <number>   capture with a real tracking number (USPS, or UPS if it starts with 1Z)
 import { paypal } from './disputes.js';
 import { sandboxCtx } from './server.js';
 
@@ -33,9 +34,13 @@ if (!cmd) {
   const capture = r.body.purchase_units?.[0]?.payments?.captures?.[0]?.id;
   console.log(`Captured ${capture}, paid by ${r.body.payer?.email_address}.`);
   if (!process.argv.slice(2).some((a) => a === 'unshipped' || a === '--no-tracking')) {
-    const tracking = `9400${String(Date.now()).padStart(18, '0')}`; // ponytail: fake USPS-shaped number, sandbox only
-    const t = await paypal(ctx, 'POST', `/v2/checkout/orders/${encodeURIComponent(orderId)}/track`, { json: { capture_id: capture, tracking_number: tracking, carrier: 'USPS', notify_payer: false } });
-    console.log(t.status < 300 ? `Added USPS tracking ${tracking}.` : `Tracking failed (${t.status}): ${JSON.stringify(t.body)}`);
+    // `seed capture <id> track <number>` uses a real tracking number (carrier from the number: 1Z is UPS), so carrier
+    // proof can look it up; otherwise a USPS-shaped number that only exists in the sandbox.
+    const args = process.argv.slice(2), real = args.includes('track') ? args[args.indexOf('track') + 1] : null;
+    const tracking = real ?? `9400${String(Date.now()).padStart(18, '0')}`;
+    const carrier = /^1Z/i.test(tracking) ? 'UPS' : 'USPS';
+    const t = await paypal(ctx, 'POST', `/v2/checkout/orders/${encodeURIComponent(orderId)}/track`, { json: { capture_id: capture, tracking_number: tracking, carrier, notify_payer: false } });
+    console.log(t.status < 300 ? `Added ${carrier} tracking ${tracking}${real ? ' (real number)' : ' (sandbox-only number)'}.` : `Tracking failed (${t.status}): ${JSON.stringify(t.body)}`);
   } else console.log('No tracking added: this order never shipped.');
   console.log(`
 3. Open the dispute as the buyer (about 2 minutes):

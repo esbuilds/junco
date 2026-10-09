@@ -184,9 +184,9 @@ The 41 scenarios double as a benchmark any dispute agent can be scored against, 
 
 A baseline that accepts every dispute it can (`evals/agents/always-accept.ts`) scores 17 / 41, makes 23 clearly wrong decisions and resists 1 of 10 injections (Oct 9 2026). JUNCO scores 41 / 41 with none wrong (see Eval above).
 
-## Carrier proof (USPS)
+## Carrier proof (USPS, UPS)
 
-When `USPS_CONSUMER_KEY` and `USPS_CONSUMER_SECRET` are set for an app on the [USPS APIs developer portal](https://developers.usps.com) with the Tracking product enabled, JUNCO looks up each tracking number on a disputed order with USPS and adds the result as evidence labeled "USPS tracking (carrier API)". It only does that when the lookup succeeded; otherwise there is no carrier line, and a scan typed by the merchant is labeled "entered by merchant". Lookups are cached for 30 minutes. Check it with `npm run check-carrier -- <tracking number>`.
+When carrier credentials are set, JUNCO looks up each tracking number on a disputed order with the carrier and adds the result as evidence labeled as carrier data: USPS through the [USPS APIs](https://developers.usps.com) (`USPS_CONSUMER_KEY`, `USPS_CONSUMER_SECRET`, Tracking product enabled) and UPS for `1Z` numbers through the [UPS Developer Portal](https://developer.ups.com) (`UPS_CLIENT_ID`, `UPS_CLIENT_SECRET`, Tracking API added). It only does that when the lookup succeeded; otherwise there is no carrier line, and a scan typed by the merchant is labeled "entered by merchant". Lookups are cached for 30 minutes. Check it with `npm run check-carrier -- <tracking number>`.
 
 ## Security notes
 

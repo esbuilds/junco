@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4'; // SDK output helper needs zod 4; dispute tools stay on zod 3 to match the toolkit
 import { paypal, type Ctx } from './disputes.js';
-import { carrierText, lookupUsps } from './carrier.js';
+import { carrierText, lookupCarrier } from './carrier.js';
 
 export type Evidence = { id: string; source: string; text: string };
 
@@ -59,7 +59,7 @@ export async function gatherFromPayPal(ctx: Ctx, dispute: any): Promise<Omit<Evi
         const number = String(tr.id).split('-').slice(1).join('-');
         out.push({ source: `paypal order ${order.body.id} tracker`, text: `Tracking ${number} status ${tr.status} (added by merchant on PayPal).` });
         // Carrier proof: added only when the carrier lookup actually succeeded (see carrier.ts).
-        const c = tr.status === 'SHIPPED' ? await lookupUsps(number) : null;
+        const c = tr.status === 'SHIPPED' ? await lookupCarrier(number) : null;
         if (c) out.push({ source: c.source, text: carrierText(c) });
       }
     }
