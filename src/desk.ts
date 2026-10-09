@@ -14,6 +14,7 @@ import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.j
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
+import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 
 const ctx = await sandboxCtx();
@@ -40,7 +41,7 @@ const { server, holds, policy } = await createServer(ctx, undefined, (h) => void
 const AUTO = ['send_dispute_message', 'provide_dispute_evidence', 'provide_dispute_supporting_info', 'accept_dispute_claim', 'create_refund'];
 const policyView = () => {
   const offer = policy.tools.make_dispute_offer;
-  return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, ship_within_days: policy.ship_within_days ?? 2, auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
+  return { offer_limit: typeof offer === 'object' ? offer.max_amount : 0, ship_within_days: policy.ship_within_days ?? 2, negotiation: boundsFrom(policy), auto: Object.fromEntries(AUTO.map((t) => [t, policy.tools[t] === 'allow'])) };
 };
 function buildPolicy(body: any): Policy {
   const limit = Number(body?.offer_limit);
@@ -51,7 +52,10 @@ function buildPolicy(body: any): Policy {
   for (const t of AUTO) if (t in auto) tools[t] = auto[t] ? 'allow' : 'hold';
   const days = body?.ship_within_days === undefined ? policy.ship_within_days ?? 2 : Number(body.ship_within_days);
   if (!Number.isInteger(days) || days < 1 || days > 30) throw Object.assign(new Error('ship_within_days must be a whole number from 1 to 30'), { code: 400 });
-  return { ...policy, tools, ship_within_days: days };
+  const nb = { ...boundsFrom(policy), ...(body?.negotiation ?? {}) };
+  if (![nb.open_pct, nb.ceiling_pct, nb.max_rounds].every(Number.isInteger) || nb.open_pct < 1 || nb.ceiling_pct > 90 || nb.open_pct > nb.ceiling_pct || nb.max_rounds < 1 || nb.max_rounds > 6)
+    throw Object.assign(new Error('Negotiation: whole numbers, opening 1% up to the ceiling, ceiling at most 90%, 1 to 6 rounds'), { code: 400 });
+  return { ...policy, tools, ship_within_days: days, negotiation: { open_pct: nb.open_pct, ceiling_pct: nb.ceiling_pct, max_rounds: nb.max_rounds } } as Policy;
 }
 const applyPolicy = (body: any) => Object.assign(policy, savePolicy(buildPolicy(body)));
 
@@ -78,6 +82,7 @@ const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
 const agent = makeAgent(ctx, callTool);
 const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
+const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, log: agent.log }, () => boundsFrom(policy));
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
@@ -191,7 +196,8 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   const id = event.resource?.dispute_id;
   if (typeof id !== 'string' || !String(event.event_type).startsWith('CUSTOMER.DISPUTE.')) return;
   // An owner-approved plan owns its dispute: it runs even with agent mode off, and the agent stays out so nothing acts twice.
-  if (plans.isActive(id)) plans.tick(id, event.event_type).catch((e) => console.error('[plan]', e));
+  if (negotiations.isActive(id)) negotiations.step(id, event.event_type).catch((e) => console.error('[negotiate]', e));
+  else if (plans.isActive(id)) plans.tick(id, event.event_type).catch((e) => console.error('[plan]', e));
   else if (AGENT_MODE) agent.triage(id, event.event_type).catch((e) => console.error('[agent]', e));
 }
 
@@ -259,7 +265,7 @@ httpServer(async (req, res) => {
         const d = await agent.getDispute(id);
         const savedRec = readRecs()[id];
         const evidence = savedRec?.evidence ?? collectEvidence(d, await gatherFromPayPal(ctx, d)); // the set the saved recommendation cites
-        return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
+        return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, negotiation: readNegotiations()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -270,6 +276,10 @@ httpServer(async (req, res) => {
         const saved = { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), previous: prev, evidence: out.evidence };
         saveRec(id, saved);
         return json(res, 200, { ...saved, evidence: out.evidence });
+      }
+      if (p[3] === 'negotiate') {
+        if (req.method === 'POST') return json(res, 200, await negotiations.start(id));
+        if (req.method === 'DELETE') return json(res, 200, negotiations.stop(id));
       }
       if (p[3] === 'plan') {
         if (req.method === 'POST' && !p[4]) return json(res, 200, await plans.propose(id));

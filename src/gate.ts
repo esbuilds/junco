@@ -58,6 +58,14 @@ const HOLDS = '.junco/holds.json';
 export const readHolds = (): Hold[] => { try { return JSON.parse(readFileSync(HOLDS, 'utf8')); } catch { return []; } };
 const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(HOLDS, JSON.stringify(h, null, 2)); mirror(HOLDS, h); };
 
+// Ask the owner directly: a pending hold for an action JUNCO wants but won't take on its own (e.g. a negotiation that
+// hit its ceiling). Approving it runs the tool through the same path as any other hold.
+export function requestApproval(method: string, args: any, reason: string): Hold {
+  const hold: Hold = { id: randomUUID().slice(0, 8), method, args, reason, created: new Date().toISOString(), status: 'pending' };
+  writeHolds([...readHolds(), hold]);
+  return hold;
+}
+
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 

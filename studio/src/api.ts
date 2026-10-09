@@ -37,6 +37,7 @@ export interface CaseDetail extends CaseRow {
   saved: SavedRec | null;
   budget: { limit: number; amount: number; currency: string; set_at: string } | null;
   plan: Plan | null;
+  negotiation: { status: 'active' | 'settled' | 'needs_you' | 'stopped'; bounds: { open_pct: number; ceiling_pct: number; max_rounds: number }; rounds: { at: string; offered: number; message: string }[]; note?: string } | null;
   holds: Hold[];
   activity: Activity[];
 }

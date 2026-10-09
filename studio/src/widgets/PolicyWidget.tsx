@@ -4,7 +4,7 @@ import { usePoll } from '../store';
 import { Panel } from './Panel';
 
 // Owner policy: what JUNCO may do on its own and what waits for approval. The gate reads it on every call.
-type PolicyView = { offer_limit: number; ship_within_days: number; auto: Record<string, boolean> };
+type PolicyView = { offer_limit: number; ship_within_days: number; negotiation: { open_pct: number; ceiling_pct: number; max_rounds: number }; auto: Record<string, boolean> };
 const ACTIONS: [string, string, string][] = [
   ['send_dispute_message', 'Message the buyer', 'No money moves'],
   ['provide_dispute_evidence', 'Submit evidence to PayPal', 'Contests the case'],
@@ -50,6 +50,15 @@ export function PolicyWidget() {
         <span className="jd-money-input"><input type="number" min={1} max={30} step={1} value={draft.ship_within_days}
           onChange={(e) => setDraft({ ...draft, ship_within_days: Number(e.target.value) })} aria-label="Ship-by window in days" /> days</span>
       </label>
+      <div className="jd-policy-row">
+        <span><strong>Negotiation</strong><span className="jd-muted">When JUNCO negotiates a partial refund: where it opens, the most it will ever offer, and how many rounds before it asks you.</span></span>
+        <span className="jd-neg-inputs">
+          {([['open_pct', 'Open', '%'], ['ceiling_pct', 'Ceiling', '%'], ['max_rounds', 'Rounds', '']] as const).map(([k, label, unit]) => (
+            <label key={k} className="jd-money-input">{label} <input type="number" min={1} max={k === 'max_rounds' ? 6 : 90} step={1} value={draft.negotiation[k]}
+              onChange={(e) => setDraft({ ...draft, negotiation: { ...draft.negotiation, [k]: Number(e.target.value) } })} aria-label={`Negotiation ${label}`} />{unit}</label>
+          ))}
+        </span>
+      </div>
       {ACTIONS.map(([key, label, note]) => (
         <label key={key} className="jd-policy-row">
           <span><strong>{label}</strong><span className="jd-muted">{note}</span></span>

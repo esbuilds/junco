@@ -17,7 +17,7 @@ export function CaseWidget() {
   const [hl, setHl] = useState<string | null>(null); // evidence id lit by a hovered or focused citation
   const [draft, setDraft] = useState('');
   const [scan, setScan] = useState('');
-  const [busy, setBusy] = useState<'recheck' | 'act' | 'budget' | 'plan' | null>(null);
+  const [busy, setBusy] = useState<'recheck' | 'act' | 'budget' | 'plan' | 'negotiate' | null>(null);
   const [limit, setLimit] = useState('');
   const [flash, setFlash] = useState<Flash | null>(null);
 
@@ -85,6 +85,13 @@ export function CaseWidget() {
   const planCall = async (method: 'POST' | 'DELETE', suffix = '') => {
     setBusy('plan'); setFlash(null);
     try { await api(`/api/cases/${encodeURIComponent(id)}/plan${suffix}`, { method }); }
+    catch (e: any) { setFlash({ kind: 'err', text: 'Not done.', detail: e.message }); }
+    finally { setBusy(null); reload(); }
+  };
+
+  const negotiate = async (method: 'POST' | 'DELETE') => {
+    setBusy('negotiate'); setFlash(null);
+    try { await api(`/api/cases/${encodeURIComponent(id)}/negotiate`, { method }); }
     catch (e: any) { setFlash({ kind: 'err', text: 'Not done.', detail: e.message }); }
     finally { setBusy(null); reload(); }
   };
@@ -182,6 +189,26 @@ export function CaseWidget() {
         <div className={`jd-result jd-${flash.kind === 'ok' ? 'ok' : flash.kind === 'held' ? 'held' : 'err'}`} role="status">
           <strong>{flash.text}</strong> {flash.detail}
         </div>
+      )}
+
+      {c.status !== 'RESOLVED' && (c.allowed.includes('make_offer') || c.negotiation) && (
+        <>
+          <h3>Negotiate</h3>
+          {!c.negotiation || c.negotiation.status === 'stopped' || c.negotiation.status === 'settled' ? (
+            <div className="jd-row" style={{ marginTop: 0 }}>
+              {c.negotiation?.status === 'settled' && <span className="jd-muted">Last negotiation settled.</span>}
+              <button type="button" className="jd-btn" onClick={() => negotiate('POST')} disabled={!!busy || !c.allowed.includes('make_offer')}>{busy === 'negotiate' ? 'Opening...' : 'Negotiate a partial refund'}</button>
+            </div>
+          ) : (
+            <div className="jd-plan">
+              <p>{c.negotiation.status === 'needs_you' ? `Waiting for you: ${c.negotiation.note}. The held offer is in Waiting for you.` : `Negotiating: opens at ${c.negotiation.bounds.open_pct}%, never above ${c.negotiation.bounds.ceiling_pct}%, up to ${c.negotiation.bounds.max_rounds} rounds.`}</p>
+              <ol>{c.negotiation.rounds.map((r, i) => (
+                <li key={i} className="jd-step jd-step-done"><span className="jd-step-when">Round {i + 1}</span><span><strong>Offered {money(r.offered, c.currency)}</strong> <span className="jd-muted">{r.message}</span></span><span className="jd-step-status">{new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span></li>
+              ))}</ol>
+              <div className="jd-row"><button type="button" className="jd-btn" onClick={() => negotiate('DELETE')} disabled={!!busy}>Stop negotiating</button></div>
+            </div>
+          )}
+        </>
       )}
 
       {c.status !== 'RESOLVED' && (
