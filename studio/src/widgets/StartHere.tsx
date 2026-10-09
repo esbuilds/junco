@@ -17,9 +17,8 @@ export function StartHere({ go }: { go: (page: string) => void }) {
   if (data?.refusal) steps.push(['See it refuse', `Open ${data.refusal}. JUNCO says not to fight this one and names the proof that would change its mind.`, () => openCase(data.refusal!)]);
   if (data?.hold) steps.push(['Approve or reject', `JUNCO wants to ${WANTS[data.hold.method] ?? data.hold.method.replace(/_/g, ' ')} on ${data.hold.dispute_id} and is waiting for you. Money only moves with your OK.`, () => openCase(data.hold!.dispute_id)]);
   if (data?.replay) steps.push(['Watch the agent work', `Open ${data.replay} and press "Replay what JUNCO did": its real log, step by step.`, () => openCase(data.replay!)]);
-  steps.push(['Before any dispute', data?.orders ? `Orders: ${data.orders} paid order${data.orders === 1 ? '' : 's'} watched until they have tracking.` : 'Orders: every paid order is watched until it has tracking, before any dispute.', () => { go('orders'); setOpen(false); }]);
   steps.push(['Test it yourself', 'Try it: pick one of the 41 test cases or write your own buyer message, and watch JUNCO decide. Nothing reaches PayPal.', () => { go('try'); setOpen(false); }]);
-  steps.push(['Your rules', 'Policy: what JUNCO may do on its own, and what always waits for you.', () => { go('policy'); setOpen(false); }]);
+  steps.push(['Before any dispute', data?.orders ? `Orders: ${data.orders} paid order${data.orders === 1 ? '' : 's'} watched until they have tracking.` : 'Orders: every paid order is watched until it has tracking, before any dispute.', () => { go('orders'); setOpen(false); }]);
 
   return (
     <>

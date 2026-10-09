@@ -210,3 +210,4 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-repeat { margin: 4px 0 8px; padding: 6px 10px; border-radius: 8px; background: var(--jd-warn-bg); color: var(--jd-warn); font-size: 13px; }
 .jd-neg-inputs { display: flex; gap: 8px; flex-wrap: nowrap; justify-content: flex-end; flex-shrink: 0; }
 .jd-neg-inputs input { width: 64px; }
+.jd-casefile { font-size: 13px; align-self: center; margin-left: auto; }

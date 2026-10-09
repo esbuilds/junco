@@ -69,7 +69,7 @@ const theme = studioTheme.withParams({
 } as any);
 
 // Studio shows no page tabs in view mode, so the desk has its own slim header to switch pages.
-const PAGES = [['desk', 'Desk'], ['insights', 'Insights'], ['orders', 'Orders'], ['try', 'Try it'], ['policy', 'Policy']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['try', 'Try it']] as const;
 
 export function App() {
   const [page, setPage] = useState<string>('desk');

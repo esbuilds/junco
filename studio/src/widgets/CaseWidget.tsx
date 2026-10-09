@@ -8,6 +8,11 @@ import { Panel } from './Panel';
 interface ActResult { ok?: boolean; held?: boolean; reason?: string; status?: string; error?: { message: string } }
 type Flash = { kind: 'ok' | 'held' | 'err'; text: string; detail?: string };
 
+// Hidden from the desk for now (v3.6): one sandbox buyer makes the repeat note read as a flaw, and negotiation
+// stays off screen until it has been tested live with a real buyer. Both still run on the server.
+const SHOW_REPEAT_BUYER = false;
+const SHOW_NEGOTIATION = false;
+
 const WHEN: Record<string, string> = { now: 'Now', buyer_silent_48h: 'If the buyer is silent 48h', buyer_replies: 'When the buyer replies', paypal_review: 'If PayPal reviews' };
 const STEP: Record<string, string> = { message: 'Message', offer: 'Offer', evidence: 'Submit evidence', supporting_info: 'Send PayPal the facts' };
 
@@ -107,7 +112,7 @@ export function CaseWidget() {
   return (
     <Panel title={`${REASONS[c.reason] ?? human(c.reason)}, ${money(c.amount, c.currency)}`}
       subtitle={`${c.id} · ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} · ${STATUS[c.status] ?? human(c.status)}${c.due ? ` · respond in ${dueText(c.due)}` : ''}`}>
-      {(c.buyer_disputes ?? 0) >= 2 && (
+      {SHOW_REPEAT_BUYER && (c.buyer_disputes ?? 0) >= 2 && (
         <div className="jd-repeat" role="note">Repeat buyer: this buyer has opened {c.buyer_disputes} disputes with you. Shown for you only; JUNCO's recommendation doesn't use it.</div>
       )}
       <h3>PayPal allows now</h3>
@@ -170,7 +175,7 @@ export function CaseWidget() {
       <div className="jd-row">
         {canAct && <button type="button" className="jd-btn jd-primary" onClick={act} disabled={!!busy}>{busy === 'act' ? 'Working...' : ACTION_LABEL[rec!.decision as Decision]}</button>}
         <button type="button" className="jd-btn" onClick={recheck} disabled={!!busy}>{busy === 'recheck' ? 'Reading the case...' : rec ? 'Re-check' : 'Get recommendation'}</button>
-        <a className="jd-btn" href={`/api/cases/${encodeURIComponent(c.id)}/file.html`} target="_blank" rel="noreferrer">Case file</a>
+        <a className="jd-linkish jd-casefile" href={`/api/cases/${encodeURIComponent(c.id)}/file.html`} target="_blank" rel="noreferrer">Case file</a>
         {c.activity.length >= 2 && <button type="button" className="jd-btn" onClick={() => startReplay(c.id, c.activity)} title="Watch what JUNCO did on this case, step by step">Replay what JUNCO did</button>}
       </div>
       {c.status !== 'RESOLVED' && (c.budget ? (
@@ -191,7 +196,7 @@ export function CaseWidget() {
         </div>
       )}
 
-      {c.status !== 'RESOLVED' && (c.allowed.includes('make_offer') || c.negotiation) && (
+      {SHOW_NEGOTIATION && c.status !== 'RESOLVED' && (c.allowed.includes('make_offer') || c.negotiation) && (
         <>
           <h3>Negotiate</h3>
           {!c.negotiation || c.negotiation.status === 'stopped' || c.negotiation.status === 'settled' ? (

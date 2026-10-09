@@ -99,6 +99,21 @@ async function loadDisputes(ids?: string[]) {
   return ds;
 }
 
+// Every desk widget polls the case list, and each refresh is one PayPal call per dispute. Serve the last list at once
+// and refresh it in the background when it is over 15 seconds old (stale-while-revalidate); anything that changes a
+// case drops the cache. Warmed at startup so a judge's cold open doesn't wait on PayPal.
+let casesCache: { at: number; ds: Promise<any[]> } | null = null;
+function cachedDisputes() {
+  const stale = !casesCache || Date.now() - casesCache.at > 15_000;
+  if (!casesCache) casesCache = { at: Date.now(), ds: loadDisputes() };
+  else if (stale) { const next = loadDisputes(); next.then(() => { casesCache = { at: Date.now(), ds: next }; }, () => {}); }
+  const current = casesCache.ds;
+  current.catch(() => { if (casesCache?.ds === current) casesCache = null; }); // a failed load isn't cached
+  return current;
+}
+const dropCases = () => { casesCache = null; };
+void cachedDisputes().catch(() => {});
+
 // Weekly digest for the owner (Slack, same webhook as hold pings): the week in a few lines, from desk state only.
 async function digestText() {
   const rows = (await loadDisputes()).map(row), weekAgo = Date.now() - 7 * 86_400_000;
@@ -190,6 +205,7 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
     return json(res, 400, { error: { message: 'Unverified webhook' } });
   }
   json(res, 200, { ok: true }); // answer PayPal now; triage can take minutes
+  dropCases(); // PayPal says something changed
   // Shipment watch: a captured payment starts being watched for tracking.
   if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' && typeof event.resource?.id === 'string')
     return void watch.refresh(event.resource.id, event.event_type).catch((e) => console.error('[watch]', e.message));
@@ -208,6 +224,7 @@ httpServer(async (req, res) => {
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
+  if (req.method !== 'GET') dropCases(); // any owner action may change a case; the next list is fresh
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
   if (url.pathname === '/mcp') {
@@ -232,9 +249,7 @@ httpServer(async (req, res) => {
       res.writeHead(200, headers); return res.end(readFileSync(file));
     }
     if (req.method === 'GET' && url.pathname === '/api/cases') {
-      const list = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=50');
-      const ids: string[] = (list.body.items ?? []).map((d: any) => d.dispute_id);
-      return json(res, 200, (await loadDisputes(ids)).map(row));
+      return json(res, 200, (await cachedDisputes()).map(row));
     }
     if (req.method === 'GET' && url.pathname === '/api/start') {
       // "Start here" for judges, worked out from live state so it never points at something stale.
