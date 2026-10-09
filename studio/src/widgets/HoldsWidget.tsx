@@ -36,6 +36,7 @@ export function HoldsWidget() {
             <button type="button" className="jd-linkish" onClick={() => selectCase(h.args?.dispute_id ?? null)}>{h.args?.dispute_id}</button>
             {h.args?.offer_amount ? ` for ${money(h.args.offer_amount.value, h.args.offer_amount.currency_code)}` : ''}
             <div className="jd-held-why">Held: {h.reason}</div>
+            {h.asked_by && <div className="jd-held-why">Asked by the {h.asked_by}</div>}
           </div>
           <div className="jd-row">
             <button type="button" className="jd-btn jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>Approve</button>

@@ -6,7 +6,7 @@ import { StartHere } from './widgets/StartHere';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
 import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
-import { aiSetup, aiToolDisplay } from './studioAi';
+import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
 import './styles.css';
 
@@ -105,7 +105,7 @@ export function App() {
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}
-          {...(ai ? { ai, aiToolDisplay } : {})}
+          {...(ai ? { ai, aiToolDisplay: aiToolDisplayAll } : {})}
         />}
       </div>
     </AgStudioProvider>

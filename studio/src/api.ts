@@ -22,7 +22,7 @@ export interface Recommendation {
 export interface SavedRec { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null }
 
 export interface Hold {
-  id: string; status: string; method: string; reason: string; args?: any;
+  id: string; status: string; method: string; reason: string; args?: any; asked_by?: string;
 }
 
 export interface Activity {
@@ -58,6 +58,7 @@ export const TRIGGER: Record<string, string> = {
   sweep: 'scheduled check',
   owner: 'you',
   mcp: 'MCP client',
+  assistant: 'dashboard assistant',
   'PAYMENT.CAPTURE.COMPLETED': 'PayPal: payment captured',
   check: 'manual check', // rows written by older local runs
   'CUSTOMER.DISPUTE.CREATED': 'PayPal: new dispute',

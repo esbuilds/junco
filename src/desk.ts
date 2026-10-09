@@ -87,7 +87,27 @@ const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, 
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
-const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id);
+const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map(tagged);
+
+// The Studio assistant's PayPal tools: the same gated MCP server every other agent gets, nothing more. A held action is
+// tagged with who asked, so the owner sees "asked by the dashboard assistant" on the hold. The tag lives beside the gate.
+const HOLD_TAGS = '.junco/hold-tags.json';
+const holdTags = (): Record<string, string> => { try { return JSON.parse(readFileSync(HOLD_TAGS, 'utf8')); } catch { return {}; } };
+const tagged = (h: Hold) => (holdTags()[h.id] ? { ...h, asked_by: holdTags()[h.id] } : h);
+let assistantMcp: Promise<Client> | null = null;
+const assistantTools = () => (assistantMcp ??= (async () => {
+  const { server: s } = await createServer(ctx, policy, (h) => {
+    const tags = { ...holdTags(), [h.id]: 'dashboard assistant' };
+    writeFileSync(HOLD_TAGS, JSON.stringify(tags, null, 2)); mirror(HOLD_TAGS, tags);
+    agent.log(h.args?.dispute_id ?? 'assistant', 'assistant', 'waiting for you', `${h.method.replace(/_/g, ' ')} asked by the dashboard assistant: ${h.reason}`);
+    void notifyHold(h);
+  });
+  const [x, y] = InMemoryTransport.createLinkedPair();
+  await s.connect(x);
+  const c = new Client({ name: 'studio-assistant', version: '0' });
+  await c.connect(y);
+  return c;
+})());
 // Repeat disputer: how many disputes the same buyer (PayPal payer ID, else email) has open or closed with this seller,
 // from the last case list. A plain count for the owner; deliberately not given to the model as evidence.
 const buyerOf = (d: any) => d.disputed_transactions?.[0]?.buyer?.payer_id ?? d.disputed_transactions?.[0]?.buyer?.email ?? null;
@@ -361,6 +381,12 @@ httpServer(async (req, res) => {
       const out = await runTry(await readBody(req));
       return json(res, out.error ? 400 : 200, out.error ? { error: { message: out.error } } : out);
     }
+    if (STUDIO_AI && url.pathname === '/api/studio-ai/tools' && req.method === 'GET')
+      return json(res, 200, (await (await assistantTools()).listTools()).tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })));
+    if (STUDIO_AI && p[0] === 'api' && p[1] === 'studio-ai' && p[2] === 'tools' && p[3] && req.method === 'POST') {
+      const r: any = await (await assistantTools()).callTool({ name: p[3], arguments: await readBody(req) });
+      return json(res, 200, { text: r.content?.[0]?.text ?? '' });
+    }
     if (STUDIO_AI && url.pathname === '/api/studio-ai' && req.method === 'POST') { // AG Studio's assistant; off unless STUDIO_AI=1
       const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       return await studioAiTurn(JSON.parse((await readRaw(req, 8_000_000)) || '{}'), res, visitor);
@@ -372,7 +398,7 @@ httpServer(async (req, res) => {
       else if (req.method !== 'GET') return json(res, 405, { error: { message: 'Method not allowed' } });
       return json(res, 200, policyView());
     }
-    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending'));
+    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending').map(tagged));
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject'))
       return json(res, 200, await holds[p[3]](p[2]));
     json(res, 404, { error: { message: 'Not found' } });

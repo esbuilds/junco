@@ -111,14 +111,34 @@ function juncoTools(api: any): AgAiTool[] {
   ];
 }
 
+// The same PayPal tools every JUNCO agent gets, through the same policy gate on the desk. A money action the policy
+// holds lands on the Desk as a hold "asked by the dashboard assistant"; nothing moves without the owner.
+let paypalTools: AgAiTool[] = [];
+async function loadPayPalTools() {
+  const list = await desk<{ name: string; description: string; inputSchema: any }[]>('/api/studio-ai/tools');
+  paypalTools = list.map((t) => ({
+    name: t.name, description: t.description, kind: 'client' as const,
+    schema: () => ({ name: t.name, description: t.description, parameters: t.inputSchema }),
+    async execute(call, ctx) {
+      try { return ctx.success((await desk<{ text: string }>(`/api/studio-ai/tools/${encodeURIComponent(t.name)}`, { method: 'POST', json: call.args })).text); }
+      catch (e: any) { return ctx.error(e.message); }
+    },
+  }));
+}
+
 // How JUNCO's tools read in the assistant panel.
 export const aiToolDisplay = {
   junco_explain_case: { label: ({ args }: any) => ({ text: `Read JUNCO's reasoning on ${args.dispute_id ?? 'a case'}` }) },
   junco_policy_what_if: { label: ({ args }: any) => ({ text: 'Replay cases under a different limit', pill: args.offer_limit === undefined ? undefined : `$${args.offer_limit}` }) },
   junco_open_case: { label: ({ args }: any) => ({ text: `Open ${args.dispute_id ?? 'a case'}` }) },
 };
+// PayPal tool calls read as their action and case: "make dispute offer, PP-R-...". Keyed lazily, so any tool name works.
+export const aiToolDisplayAll = new Proxy(aiToolDisplay as Record<string, any>, {
+  get: (t, name: string) => t[name] ?? ({ label: ({ args }: any) => ({ text: `${name.replace(/_/g, ' ')}${args?.dispute_id ? `, ${args.dispute_id}` : ''}`,
+    pill: args?.offer_amount?.value ? `$${args.offer_amount.value}` : undefined }) }),
+});
 
-const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. To show a case, call junco_open_case. You cannot act on disputes: refunds, offers and evidence go through JUNCO's gate and the owner.";
+const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. To show a case, call junco_open_case. You may act on a dispute only when the owner asks you to, and only with the PayPal tools listed. Every one of them passes through the owner's policy gate: an action the policy holds waits on the Desk for the owner's approval, and you must then say plainly that it is waiting for them and has not happened yet. Never claim money moved unless the tool result says it did.";
 
 let registered = false;
 export function aiSetup() {
@@ -126,12 +146,13 @@ export function aiSetup() {
   return ({ api }: { api: any }) => {
     (window as any).__studio = api; // read by the reliability check (npm run check-studio-ai)
     const junco = juncoTools(api);
+    void loadPayPalTools().catch((e) => console.warn('[studio-ai] PayPal tools unavailable', e.message));
     return createAiHarness(api, ({ builtIn }) => ({
       // Turn limits stop a confused agent looping on paid calls (one cold run once took 63 calls and 4 minutes).
       agents: (Object.keys(builtIn) as AgBuiltInAgentId[]).map((id) => directLlmRunner(id !== 'lead' ? { ...builtIn[id], adapter, maxTurns: 8 } : {
         ...builtIn.lead, adapter, maxTurns: 10,
         instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
-        tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []), ...junco],
+        tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []), ...junco, ...paypalTools],
       })),
       primary: 'lead',
       promptStarters: [{ label: QUESTION, prompt: PROMPT }],
