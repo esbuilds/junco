@@ -9,9 +9,10 @@ const KEPT = new Set(['RESOLVED_SELLER_FAVOUR', 'RESOLVED_WITH_PAYOUT', 'CANCELE
 export const FIELDS = [
   { id: 'dispute', name: 'Dispute', format: 'textFormat' },
   { id: 'reason', name: 'Reason', format: 'textFormat' },
-  { id: 'status', name: 'Status', format: 'textFormat' },
-  { id: 'junco_says', name: 'JUNCO says', format: 'textFormat' },
-  { id: 'deadline', name: 'Deadline', format: 'textFormat' },
+  { id: 'status', name: 'Status', format: 'textFormat', description: 'Where the dispute stands. "Resolved" means closed; anything else is still open.' },
+  { id: 'junco_says', name: 'JUNCO says', format: 'textFormat', description: 'What JUNCO recommends. "Accept" means JUNCO expects the merchant to lose this dispute.' },
+  { id: 'deadline', name: 'Deadline', format: 'textFormat', description: 'When the merchant must respond: Due this week (7 days or less), Due later, No deadline yet, or Resolved.' },
+  { id: 'days_left', name: 'Days left', format: 'numberFormat', description: 'Days until the response deadline; empty when PayPal has set none. 7 or less means due this week.' },
   { id: 'amount', name: 'Amount', format: 'currencyFormat' },
   { id: 'kept', name: 'Kept', format: 'currencyFormat' },
   { id: 'refunded', name: 'Refunded', format: 'currencyFormat' },
@@ -29,7 +30,7 @@ export function toRows(cases: CaseRow[]) {
     const refunded = !resolved ? 0 : r.outcome && KEPT.has(r.outcome) ? 0 : r.refunded ?? r.amount;
     return {
       dispute: r.id, reason: REASONS[r.reason] ?? human(r.reason), status: STATUS[r.status] ?? human(r.status),
-      junco_says: r.decision ? DECISION_LABEL[r.decision] : 'Not reviewed', deadline: bucket(r),
+      junco_says: r.decision ? DECISION_LABEL[r.decision] : 'Not reviewed', deadline: bucket(r), days_left: resolved ? null : daysLeft(r.due),
       amount: r.amount, kept: resolved ? r.amount - refunded : 0, refunded,
     };
   });

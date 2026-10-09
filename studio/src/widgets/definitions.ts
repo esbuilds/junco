@@ -31,5 +31,10 @@ export const JUNCO_WIDGET_IDS = defs.map((d) => d.id);
 
 export const widgets = createWidgets({
   additionalTypes: defs as any,
-  menu: [{ label: 'JUNCO desk', widgetIds: JUNCO_WIDGET_IDS as any }],
+  menu: [
+    { label: 'JUNCO desk', widgetIds: JUNCO_WIDGET_IDS as any },
+    // With STUDIO_AI on, the assistant builds from Studio's own widgets; it only sees types listed in the menu.
+    // ponytail: no 'grid', Studio's native grid renders blank in this app (see insights.ts); charts render fine.
+    ...(__STUDIO_AI__ ? [{ label: 'Studio', widgetIds: ['bar-chart-grouped', 'column-chart-grouped', 'donut-chart', 'value', 'text'] as any }] : []),
+  ],
 } as any);

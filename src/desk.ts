@@ -16,6 +16,7 @@ import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
+import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -224,7 +225,7 @@ httpServer(async (req, res) => {
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
-  if (req.method !== 'GET') dropCases(); // any owner action may change a case; the next list is fresh
+  if (req.method !== 'GET' && url.pathname !== '/api/studio-ai') dropCases(); // any owner action may change a case; the next list is fresh (the assistant only reads)
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
   if (url.pathname === '/mcp') {
@@ -359,6 +360,10 @@ httpServer(async (req, res) => {
       if (limited) return json(res, 429, { error: { message: limited } });
       const out = await runTry(await readBody(req));
       return json(res, out.error ? 400 : 200, out.error ? { error: { message: out.error } } : out);
+    }
+    if (STUDIO_AI && url.pathname === '/api/studio-ai' && req.method === 'POST') { // AG Studio's assistant; off unless STUDIO_AI=1
+      const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
+      return await studioAiTurn(JSON.parse((await readRaw(req, 8_000_000)) || '{}'), res, visitor);
     }
     if (url.pathname === '/api/policy/what-if' && req.method === 'POST') return json(res, 200, whatIf(buildPolicy(await readBody(req))));
     if (url.pathname === '/api/policy') {

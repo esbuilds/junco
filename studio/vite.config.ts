@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.env.JUNCO_ENV_DIR ?? '..', '');
   return {
     plugins: [react()],
-    define: { __AG_STUDIO_KEY__: JSON.stringify(env.AG_STUDIO_LICENSE_KEY ?? '') },
+    define: { __AG_STUDIO_KEY__: JSON.stringify(env.AG_STUDIO_LICENSE_KEY ?? ''), __STUDIO_AI__: JSON.stringify(env.STUDIO_AI === '1') },
     server: {
       port: 5173,
       // The desk server (src/desk.ts) sends no CORS headers, so the studio reaches it through this proxy.

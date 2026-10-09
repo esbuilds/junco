@@ -6,6 +6,7 @@ import { StartHere } from './widgets/StartHere';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
 import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
+import { aiSetup } from './studioAi';
 import type { CaseRow } from './api';
 import './styles.css';
 
@@ -70,13 +71,16 @@ const theme = studioTheme.withParams({
 } as any);
 
 // Studio shows no page tabs in view mode, so the desk has its own slim header to switch pages.
+// STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
+const ai = __STUDIO_AI__ ? aiSetup() : undefined;
+
 const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['try', 'Try it']] as const;
 
 export function App() {
   const [page, setPage] = useState<string>('desk');
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
   const cases = usePoll<CaseRow[]>('/api/cases', 15000);
-  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', data: toRows(cases.data ?? []), fields: FIELDS }] }), [cases.data]);
+  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [cases.data]);
   return (
     <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
       <header className="jd-topbar">
@@ -97,10 +101,11 @@ export function App() {
           data={data as any}
           widgets={widgets}
           initialState={{ ...layout, selectedPageId: page } as any}
-          mode="view"
+          mode={ai && page === 'desk' ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
-          panels={{ view: { left: [], right: [] } }}
+          panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}
+          {...(ai ? { ai } : {})}
         />}
       </div>
     </AgStudioProvider>
