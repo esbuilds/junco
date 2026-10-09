@@ -29,5 +29,7 @@ services:
         sync: false
       - key: UPS_CLIENT_SECRET
         sync: false
+      - key: HERO_DISPUTE
+        sync: false
       - key: AGENT_MODE
         value: "on"

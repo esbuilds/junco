@@ -257,9 +257,13 @@ httpServer(async (req, res) => {
       const hold = readHolds().find((h) => h.status === 'pending' && h.args?.dispute_id);
       const counts = new Map<string, number>();
       for (const a of acts) if (a.dispute_id.startsWith('PP-')) counts.set(a.dispute_id, (counts.get(a.dispute_id) ?? 0) + 1);
-      const replay = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-      const refusal = Object.entries(recs).find(([id, r]) => id !== hold?.args?.dispute_id && r.recommendation && ['wait', 'accept'].includes(r.recommendation.decision) && r.recommendation.would_change_mind)?.[0]
-        ?? Object.entries(recs).find(([id, r]) => id !== hold?.args?.dispute_id && r.recommendation && ['wait', 'accept'].includes(r.recommendation.decision))?.[0] ?? null;
+      // The hero case can be pinned per seed (HERO_DISPUTE); otherwise an item-not-received refusal that says what would
+      // change its mind, then any refusal. Each step points at a different case where it can.
+      const refusals = Object.entries(recs).filter(([id, r]) => id !== hold?.args?.dispute_id && r.recommendation && ['wait', 'accept'].includes(r.recommendation.decision));
+      const hero = process.env.HERO_DISPUTE && recs[process.env.HERO_DISPUTE] ? process.env.HERO_DISPUTE : null;
+      const refusal = hero ?? refusals.sort(([, a], [, b]) => Number(!!b.recommendation!.would_change_mind) - Number(!!a.recommendation!.would_change_mind))[0]?.[0] ?? null;
+      const ranked = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+      const replay = ranked.find((id) => id !== refusal && id !== hold?.args?.dispute_id) ?? ranked[0] ?? null;
       return json(res, 200, {
         hold: hold ? { id: hold.id, dispute_id: hold.args.dispute_id, method: hold.method } : null,
         refusal, replay, orders: Object.keys(readOrders()).length,

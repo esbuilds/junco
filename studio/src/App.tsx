@@ -3,6 +3,7 @@ import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
 import { StartHere } from './widgets/StartHere';
+import { ReplayDrawer } from './widgets/ReplayDrawer';
 import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
 import type { CaseRow } from './api';
@@ -87,6 +88,7 @@ export function App() {
           ))}
         </nav>
       </header>
+      <ReplayDrawer />
       <div className="jd-host">
         {/* Studio mounts once the first cases arrive: native widgets (filters, grid) build their first query on mount. */}
         {!cases.data && !cases.error ? <div className="jd-empty">Loading disputes from PayPal...</div> : <AgStudio
