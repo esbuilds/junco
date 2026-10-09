@@ -70,6 +70,8 @@ export async function studioAiTurn(body: any, res: ServerResponse, visitor: stri
     return res.end();
   }
   const { system, messages } = toMessages(body?.input ?? []);
+  // Current models take no assistant prefill; a turn Studio sends ending on the assistant gets a nudge to carry on.
+  if (messages.at(-1)?.role === 'assistant') messages.push({ role: 'user', content: [{ type: 'text', text: 'Continue.' }] });
   if (body?.instructions) system.unshift(body.instructions);
   const forced = toolChoice(body?.toolChoice);
   if (forced.note) system.push(forced.note);

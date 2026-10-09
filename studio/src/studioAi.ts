@@ -1,6 +1,8 @@
 // AG Studio's AI assistant, browser half. Studio runs its own agents and dashboard tools here; each model turn goes to
 // the desk (/api/studio-ai), which calls Claude and streams Studio's events back. No API key in the browser.
-import { AgStudioAiModule, AgStudioModuleRegistry, createAiHarness, type AgAiEvent, type AgLlmAdapter, type AgLlmResponse } from 'ag-studio';
+import { AgStudioAiModule, AgStudioModuleRegistry, createAiHarness, directLlmRunner, type AgAiEvent, type AgAiTool, type AgBuiltInAgentId, type AgLlmAdapter, type AgLlmResponse } from 'ag-studio';
+import { api as desk, money, type CaseDetail } from './api';
+import { selectCase } from './store';
 
 export const QUESTION = 'Which disputes am I about to lose this week?';
 // The starter button shows the question and sends it with the ask for a widget, so the answer lands on the Desk.
@@ -61,11 +63,78 @@ const adapter: AgLlmAdapter = {
   },
 };
 
+// JUNCO's own tools for the lead agent. Read-only: they call the same desk endpoints the widgets read, nothing writes.
+function juncoTools(api: any): AgAiTool[] {
+  const caseId = (s: any) => s.object({ dispute_id: s.string({ description: 'Dispute ID, for example PP-R-PBO-10190474' }) });
+  return [
+    api.defineAiTool({
+      name: 'junco_explain_case',
+      description: "Why JUNCO recommends what it does on one dispute: its decision, summary, each claim with the evidence it cites, the validator's problems, what would change its mind, and any held actions. Use this instead of guessing about a case.",
+      params: caseId,
+      async execute({ dispute_id }: { dispute_id: string }, ctx: any) {
+        try {
+          const c = await desk<CaseDetail>(`/api/cases/${encodeURIComponent(dispute_id)}`);
+          const rec = c.saved?.recommendation;
+          const ev = new Map(c.evidence.map((e) => [e.id, e]));
+          const lines = [
+            `${c.id}: ${c.reason}, ${money(c.amount, c.currency)}, status ${c.status}${c.due ? `, respond by ${c.due.slice(0, 10)}` : ''}.`,
+            rec ? `JUNCO says: ${rec.decision}. ${rec.summary}` : 'JUNCO has not reviewed this case yet.',
+            ...(rec?.claims ?? []).map((cl) => `- ${cl.text} [${cl.evidence_ids.map((id) => `${id}: ${ev.get(id)?.source ?? '?'} "${(ev.get(id)?.text ?? '').slice(0, 160)}"`).join('; ')}]`),
+            ...(c.saved?.problems.length ? [`Validator problems: ${c.saved.problems.join('; ')}`] : []),
+            ...(rec?.would_change_mind ? [`Would change its mind: ${rec.would_change_mind}`] : []),
+            ...c.holds.filter((h) => h.status === 'pending').map((h) => `Waiting for the owner: ${h.method.replace(/_/g, ' ')} (${h.reason})`),
+          ];
+          return ctx.success(lines.join('\n'));
+        } catch (e: any) { return ctx.error(`No case ${dispute_id}: ${e.message}`); }
+      },
+    }),
+    api.defineAiTool({
+      name: 'junco_policy_what_if',
+      description: "Replays JUNCO's saved recommendations through the owner's policy gate with a different auto-offer limit (USD) and says how many cases JUNCO would then handle without asking. Changes nothing.",
+      params: (s: any) => s.object({ offer_limit: s.number({ description: 'Auto-offer limit in USD, 0 to 500' }) }),
+      async execute({ offer_limit }: { offer_limit: number }, ctx: any) {
+        try {
+          const now = await desk<any>('/api/policy');
+          const w = await desk<any>('/api/policy/what-if', { method: 'POST', json: { ...now, offer_limit } });
+          const was = await desk<any>('/api/policy/what-if', { method: 'POST', json: now });
+          return ctx.success(`At a $${offer_limit} limit JUNCO would handle ${w.handled} of ${w.total} reviewed cases alone (today, at $${now.offer_limit}: ${was.handled} of ${was.total}).\n` +
+            w.cases.map((c: any) => `- ${c.id}: ${c.decision}, ${c.handled ? 'runs' : `held (${c.reason})`}`).join('\n'));
+        } catch (e: any) { return ctx.error(e.message); }
+      },
+    }),
+    api.defineAiTool({
+      name: 'junco_open_case',
+      description: "Opens one dispute in the Desk's Case panel so the owner can read the evidence and act on it.",
+      params: caseId,
+      execute({ dispute_id }: { dispute_id: string }, ctx: any) { selectCase(dispute_id); return ctx.success(`Opened ${dispute_id} in the Case panel.`); },
+    }),
+  ];
+}
+
+// How JUNCO's tools read in the assistant panel.
+export const aiToolDisplay = {
+  junco_explain_case: { label: ({ args }: any) => ({ text: `Read JUNCO's reasoning on ${args.dispute_id ?? 'a case'}` }) },
+  junco_policy_what_if: { label: ({ args }: any) => ({ text: 'Replay cases under a different limit', pill: args.offer_limit === undefined ? undefined : `$${args.offer_limit}` }) },
+  junco_open_case: { label: ({ args }: any) => ({ text: `Open ${args.dispute_id ?? 'a case'}` }) },
+};
+
+const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. To show a case, call junco_open_case. You cannot act on disputes: refunds, offers and evidence go through JUNCO's gate and the owner.";
+
 let registered = false;
 export function aiSetup() {
   if (!registered) { AgStudioModuleRegistry.registerModules([AgStudioAiModule]); registered = true; }
   return ({ api }: { api: any }) => {
     (window as any).__studio = api; // read by the reliability check (npm run check-studio-ai)
-    return createAiHarness(api, { adapter, primary: 'lead', promptStarters: [{ label: QUESTION, prompt: PROMPT }] });
+    const junco = juncoTools(api);
+    return createAiHarness(api, ({ builtIn }) => ({
+      // Turn limits stop a confused agent looping on paid calls (one cold run once took 63 calls and 4 minutes).
+      agents: (Object.keys(builtIn) as AgBuiltInAgentId[]).map((id) => directLlmRunner(id !== 'lead' ? { ...builtIn[id], adapter, maxTurns: 8 } : {
+        ...builtIn.lead, adapter, maxTurns: 10,
+        instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
+        tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []), ...junco],
+      })),
+      primary: 'lead',
+      promptStarters: [{ label: QUESTION, prompt: PROMPT }],
+    }));
   };
 }
