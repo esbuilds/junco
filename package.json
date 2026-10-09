@@ -20,7 +20,8 @@
     "check-persist": "tsx src/check-persist.ts",
     "check-plan": "tsx src/check-plan.ts",
     "check-watch": "tsx src/check-watch.ts",
-    "check-carrier": "tsx src/check-carrier.ts"
+    "check-carrier": "tsx src/check-carrier.ts",
+    "bench:export": "tsx evals/export.ts"
   },
   "keywords": [],
   "author": "",

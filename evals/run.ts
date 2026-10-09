@@ -1,13 +1,21 @@
 // Runs every scenario through the production prompt + validator and scores it in code (no model judges).
 //   npm run eval                 all scenarios
 //   npm run eval -- inr-         only ids starting with "inr-"
+//   npm run eval -- --agent ./my-agent.ts   DisputeBench: score any agent that exports decide(dispute, evidence)
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
-import { decide } from '../src/recommend.js';
+import { decide, validate } from '../src/recommend.js';
 import { scenarios, build } from './scenarios.js';
 
 try { process.loadEnvFile(); } catch {}
-const prefix = process.argv[2] ?? '';
+const args = process.argv.slice(2);
+const agentPath = args.includes('--agent') ? args[args.indexOf('--agent') + 1] : null;
+const prefix = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--agent') ?? '';
+// An outside agent returns { decision } or a full recommendation ({ decision, summary, claims: [{ text, evidence_ids }] }).
+// Full recommendations go through JUNCO's validator, so invented citations count against any agent.
+const external = agentPath ? (await import(pathToFileURL(resolve(agentPath)).href)).decide as (dispute: any, evidence: any[]) => Promise<any> : null;
 const picked = scenarios.filter((s) => s.id.startsWith(prefix));
 const client = new Anthropic();
 const CONCURRENCY = 4;
@@ -20,7 +28,11 @@ async function worker() {
     const s = picked[next++];
     const { dispute, evidence } = build(s);
     try {
-      const out = await decide(dispute, evidence, client);
+      const out = external ? await (async () => {
+        const raw = await external(dispute, evidence);
+        const rec = raw?.recommendation ?? (raw?.decision ? raw : null);
+        return { recommendation: rec, problems: raw?.problems ?? (rec?.claims ? validate(rec, evidence, dispute) : []), usage: raw?.usage ?? { input: 0, output: 0 } };
+      })() : await decide(dispute, evidence, client);
       const d = out.recommendation?.decision ?? 'none';
       const verdict = !out.recommendation ? 'error'
         : s.never?.includes(d as any) ? 'wrong'
@@ -52,5 +64,7 @@ const summary = {
 console.log('\n' + JSON.stringify(summary, null, 2));
 mkdirSync('evals/results', { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-writeFileSync(`evals/results/${stamp}.json`, JSON.stringify({ summary, rows }, null, 2));
-console.log(`saved evals/results/${stamp}.json`);
+const agentName = agentPath ? agentPath.split('/').pop()!.replace(/\.[^.]+$/, '') : 'junco';
+const file = `evals/results/${stamp}${agentPath ? `-${agentName}` : ''}.json`;
+writeFileSync(file, JSON.stringify({ agent: agentName, summary, rows }, null, 2));
+console.log(`saved ${file}`);

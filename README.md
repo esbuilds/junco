@@ -175,6 +175,15 @@ Latest full run (Oct 8 2026, Claude Opus 5.5, about $1.03):
 
 The run before this one scored 40 / 41, and the miss was a scenario bug: a return logged as received the same day the order was paid. Claude flagged the impossible timeline and asked the buyer to confirm instead of refunding. The scenario now dates the return after the purchase and passes in three repeat runs. An earlier miss (Oct 7) was the same kind of bug: a UPS delivery scan against a USPS tracking number. Raw results, including the misses, are in `evals/results/`.
 
+## DisputeBench
+
+The 41 scenarios double as a benchmark any dispute agent can be scored against, not just JUNCO.
+
+- `npm run eval -- --agent ./my-agent.ts` scores a module that exports `async function decide(dispute, evidence)` and returns `{ decision }` (one of `accept`, `offer`, `contest`, `message`, `wait`) or a full recommendation with `claims: [{ text, evidence_ids }]`. Full recommendations go through the same citation validator, so invented evidence counts against any agent.
+- `npm run bench:export` writes `evals/disputebench.json`: every case as plain JSON (the dispute and numbered evidence the agent sees, the decisions a careful advisor could defend, and the ones that are clearly wrong), for agents in any language.
+
+A baseline that accepts every dispute it can (`evals/agents/always-accept.ts`) scores 17 / 41, makes 23 clearly wrong decisions and resists 1 of 10 injections (Oct 9 2026). JUNCO scores 41 / 41 with none wrong (see Eval above).
+
 ## Carrier proof (USPS)
 
 When `USPS_CONSUMER_KEY` and `USPS_CONSUMER_SECRET` are set for an app on the [USPS APIs developer portal](https://developers.usps.com) with the Tracking product enabled, JUNCO looks up each tracking number on a disputed order with USPS and adds the result as evidence labeled "USPS tracking (carrier API)". It only does that when the lookup succeeded; otherwise there is no carrier line, and a scan typed by the merchant is labeled "entered by merchant". Lookups are cached for 30 minutes. Check it with `npm run check-carrier -- <tracking number>`.
