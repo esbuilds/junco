@@ -6,6 +6,7 @@
 import { chromium } from 'playwright';
 import { tmpdir } from 'node:os';
 
+try { process.loadEnvFile(new URL('../.env', import.meta.url)); } catch {} // DESK_PASSWORD for the hosted desk; real env vars win
 const DESK = process.env.DESK ?? 'http://localhost:5173';
 const RUNS = Number(process.argv[2] ?? 10);
 const httpCredentials = process.env.DESK_PASSWORD ? { username: 'judge', password: process.env.DESK_PASSWORD } : undefined;

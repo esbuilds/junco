@@ -132,11 +132,17 @@ export const aiToolDisplay = {
   junco_policy_what_if: { label: ({ args }: any) => ({ text: 'Replay cases under a different limit', pill: args.offer_limit === undefined ? undefined : `$${args.offer_limit}` }) },
   junco_open_case: { label: ({ args }: any) => ({ text: `Open ${args.dispute_id ?? 'a case'}` }) },
 };
-// PayPal tool calls read as their action and case: "make dispute offer, PP-R-...". Keyed lazily, so any tool name works.
-export const aiToolDisplayAll = new Proxy(aiToolDisplay as Record<string, any>, {
-  get: (t, name: string) => t[name] ?? ({ label: ({ args }: any) => ({ text: `${name.replace(/_/g, ' ')}${args?.dispute_id ? `, ${args.dispute_id}` : ''}`,
-    pill: args?.offer_amount?.value ? `$${args.offer_amount.value}` : undefined }) }),
-});
+// PayPal tool calls read as their action and case: "Accept dispute claim, PP-R-...". Studio looks labels up by name,
+// so the gated tool set is listed here (the names the desk's MCP server serves).
+const PAYPAL_TOOLS = ['list_disputes', 'get_dispute', 'accept_dispute_claim', 'provide_dispute_evidence', 'make_dispute_offer', 'send_dispute_message', 'provide_dispute_supporting_info', 'add_order_tracking'];
+const said = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
+export const aiToolDisplayAll: Record<string, any> = {
+  ...Object.fromEntries(PAYPAL_TOOLS.map((name) => [name, { label: ({ args }: any) => ({
+    text: `${said(name)}${args?.dispute_id ? `, ${args.dispute_id}` : ''}`,
+    pill: args?.offer_amount?.value ? `$${args.offer_amount.value}` : undefined,
+  }) }])),
+  ...aiToolDisplay,
+};
 
 const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. To show a case, call junco_open_case. You may act on a dispute only when the owner asks you to, and only with the PayPal tools listed. Every one of them passes through the owner's policy gate: an action the policy holds waits on the Desk for the owner's approval, and you must then say plainly that it is waiting for them and has not happened yet. Never claim money moved unless the tool result says it did.";
 
