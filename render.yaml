@@ -21,5 +21,9 @@ services:
         sync: false
       - key: AG_STUDIO_LICENSE_KEY
         sync: false
+      - key: USPS_CONSUMER_KEY
+        sync: false
+      - key: USPS_CONSUMER_SECRET
+        sync: false
       - key: AGENT_MODE
         value: "on"

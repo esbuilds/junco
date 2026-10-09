@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4'; // SDK output helper needs zod 4; dispute tools stay on zod 3 to match the toolkit
 import { paypal, type Ctx } from './disputes.js';
+import { carrierText, lookupUsps } from './carrier.js';
 
 export type Evidence = { id: string; source: string; text: string };
 
@@ -54,8 +55,13 @@ export async function gatherFromPayPal(ctx: Ctx, dispute: any): Promise<Omit<Evi
       const a = pu.shipping?.address;
       if (pu.items?.length) out.push({ source: `paypal order ${order.body.id}`, text: `Items: ${pu.items.map((i: any) => `${i.quantity} x ${i.name} @ ${i.unit_amount?.value}`).join('; ')}.` });
       if (a) out.push({ source: `paypal order ${order.body.id}`, text: `Ship to: ${pu.shipping.name?.full_name ?? ''}, ${a.address_line_1}, ${a.admin_area_2}, ${a.admin_area_1} ${a.postal_code}, ${a.country_code}.` });
-      for (const tr of pu.shipping?.trackers ?? [])
-        out.push({ source: `paypal order ${order.body.id} tracker`, text: `Tracking ${String(tr.id).split('-').slice(1).join('-')} status ${tr.status} (added by merchant on PayPal).` });
+      for (const tr of pu.shipping?.trackers ?? []) {
+        const number = String(tr.id).split('-').slice(1).join('-');
+        out.push({ source: `paypal order ${order.body.id} tracker`, text: `Tracking ${number} status ${tr.status} (added by merchant on PayPal).` });
+        // Carrier proof: added only when the carrier lookup actually succeeded (see carrier.ts).
+        const c = tr.status === 'SHIPPED' ? await lookupUsps(number) : null;
+        if (c) out.push({ source: c.source, text: carrierText(c) });
+      }
     }
   }
   return out;
