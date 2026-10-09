@@ -74,7 +74,7 @@ export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: stri
     if (!prev) log(next.order_id || captureId, trigger, next.status === 'protected' ? 'order protected' : next.status === 'at_risk' ? 'order at risk' : 'watching order',
       next.status === 'protected' ? `${what}: tracking ${next.trackers.at(-1)?.number} is on PayPal`
       : next.status === 'at_risk' ? `${what}: ${next.reason}`
-      : `${what}: ship with tracking by ${new Date(next.ship_by).toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit' })} (your policy)`);
+      : `${what}: add tracking within ${shipWithinDays()} day${shipWithinDays() === 1 ? '' : 's'} (your policy) so it has proof of shipment`);
     else if (prev.status !== next.status) log(next.order_id || captureId, trigger, next.status === 'protected' ? 'order protected' : next.status === 'at_risk' ? 'order at risk' : 'watching order', next.reason ?? (next.status === 'protected' ? `Tracking ${next.trackers.at(-1)?.number} is on PayPal` : 'Waiting for tracking'));
     return next;
   }
