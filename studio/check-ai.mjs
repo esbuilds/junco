@@ -1,7 +1,7 @@
 // Reliability check for AG Studio's AI assistant on the Desk: asks one question in a fresh browser N times (default 10)
 // and counts the runs that got it right. Bar: no more than 1 miss in 10. Needs a desk built with STUDIO_AI=1.
 //   npm run check-studio-ai                 10 runs of the scripted question (lose) against http://localhost:5173
-//   npm run check-studio-ai 3 explain       3 runs of another question: lose, explain, whatif, open
+//   npm run check-studio-ai 3 explain       3 runs of another question: lose, explain, whatif, open, did, tracking
 //   DESK=https://... npm run check-studio-ai 3
 import { chromium } from 'playwright';
 import { tmpdir } from 'node:os';
@@ -47,6 +47,25 @@ const QUESTIONS = {
       return has(handled) && (has(total) || has(total - handled)) ? [] : [`answer lacks ${handled} handled of ${total}`];
     },
   },
+  // JUNCO's own actions this week come from its activity log; every case it acted on alone is named.
+  did: {
+    starter: 'What did JUNCO do without me this week?',
+    judge(f) {
+      if (!f.calls.some((c) => c.name === 'junco_activity')) return ['never read the activity log'];
+      const missing = f.done.filter((id) => !f.panel.includes(id));
+      return missing.length ? [`answer misses ${missing.join(', ')}`] : [];
+    },
+  },
+  // Untracked orders come from the shipment watch; each is named, and with none the answer says so.
+  tracking: {
+    starter: 'Which orders have no tracking?',
+    judge(f) {
+      if (!f.calls.some((c) => c.name === 'junco_orders')) return ['never read the shipment watch'];
+      if (!f.untracked.length) return /\b(no|none|all)\b/i.test(f.panel.split('Which orders have no tracking?').pop()) ? [] : ['answer does not say none'];
+      const missing = f.untracked.filter((id) => !f.panel.includes(id));
+      return missing.length ? [`answer misses ${missing.join(', ')}`] : [];
+    },
+  },
   // The case opens in the Case panel.
   open: {
     typed: (f) => `Open ${f.accept[0]} for me.`,
@@ -63,10 +82,10 @@ for (let n = 1; n <= RUNS; n++) {
   // Each run is its own visitor for the local dev shim's question cap; the hosted desk caps by IP regardless.
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, httpCredentials, extraHTTPHeaders: { 'x-visitor': `check-${Date.now()}-${n}` } });
   const p = await ctx.newPage();
-  let inflight = 0, last = Date.now();
+  let inflight = 0, total = 0, last = Date.now();
   const sent = [];
   const mine = (r) => r.url().includes('/api/studio-ai');
-  p.on('request', (r) => { if (mine(r)) { inflight++; last = Date.now(); sent.push(r.postData()); } });
+  p.on('request', (r) => { if (mine(r)) { inflight++; total++; last = Date.now(); sent.push(r.postData()); } });
   for (const ev of ['requestfinished', 'requestfailed']) p.on(ev, (r) => { if (mine(r)) { inflight--; last = Date.now(); } });
   await p.goto(DESK);
   await p.waitForFunction(() => window.__studio, null, { timeout: 60000 });
@@ -74,7 +93,10 @@ for (let n = 1; n <= RUNS; n++) {
     const accept = (await (await fetch('/api/cases')).json()).filter((r) => r.status !== 'RESOLVED' && r.decision === 'accept').map((r) => r.id);
     const policy = await (await fetch('/api/policy')).json();
     const whatIf = await (await fetch('/api/policy/what-if', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...policy, offer_limit: 60 }) })).json();
-    return { accept, whatIf };
+    const week = Date.now() - 7 * 86400000;
+    const done = [...new Set((await (await fetch('/api/activity')).json()).items.filter((a) => a.step === 'done' && Date.parse(a.at) >= week && a.dispute_id !== 'sweep').map((a) => a.dispute_id))];
+    const untracked = (await (await fetch('/api/orders')).json()).items.filter((o) => !o.trackers?.length).map((o) => o.order_id || o.capture_id);
+    return { accept, whatIf, done, untracked };
   });
   const desk = () => p.evaluate(() => window.__studio.getState().pages.find((x) => x.id === 'desk'));
   const before = Object.keys((await desk()).widgets);
@@ -85,7 +107,8 @@ for (let n = 1; n <= RUNS; n++) {
   if (Q.starter) await p.getByText(Q.starter).last().click();
   else { await p.getByPlaceholder('Ask the AI Assistant...').fill(Q.typed(f)); await p.keyboard.press('Enter'); }
   // Done: at least one model call, none in flight, and 15 s of quiet (Studio pauses between agents). Cap 4 minutes.
-  while (!(await p.evaluate(() => window.__studioUsage.calls)) || inflight || Date.now() - last < 15000) {
+  // Counted from the network: the page's own usage tally has read 0 on a finished run.
+  while (!total || inflight || Date.now() - last < 15000) {
     if (Date.now() - t0 > 240000) { timedOut = true; break; }
     await p.waitForTimeout(500);
   }
