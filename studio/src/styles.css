@@ -154,6 +154,9 @@ body { margin: 0; background: var(--jd-bg); }
 .jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Inter, system-ui, sans-serif; }
 .jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; }
 .jd-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-info-bg); color: var(--jd-info); font-weight: 600; }
+.jd-tag-live { background: #e3f1ea; color: #1f5c4a; }
+.jd-tag-recorded { background: #fbefd9; color: #8a4b05; }
+.jd-tag-simulated { background: #ece9f5; color: #5a4387; }
 .jd-topbar nav { margin-left: auto; display: flex; gap: 4px; }
 .jd-tab { font: inherit; font-size: 14px; color: inherit; background: none; border: 1px solid transparent; border-radius: 8px; padding: 5px 12px; cursor: pointer; }
 .jd-tab:hover { background: var(--jd-surface-2); }

@@ -3,6 +3,7 @@ import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
 import { StartHere } from './widgets/StartHere';
+import { CaseBanner } from './widgets/CaseBanner';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
 import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
@@ -86,7 +87,7 @@ export function App() {
   return (
     <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
       <header className="jd-topbar">
-        <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><span className="jd-tag">PayPal sandbox</span>
+        <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><CaseBanner page={page} />
         <nav aria-label="Pages">
           <StartHere go={setPage} />
           {PAGES.map(([id, label]) => (

@@ -19,7 +19,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { actor, addToPool, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal, type Kind } from './store-dispute.js';
+import { actor, addToPool, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -326,7 +326,11 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
     if (req.method === 'GET' && url.pathname === '/api/start') {
       // "Start here" for judges, worked out from live state so it never points at something stale.
       const recs = readRecs(), acts = readActivity();
-      const hold = readHolds().find((h) => h.status === 'pending' && h.args?.dispute_id);
+      // v3.12: a visitor approves or rejects only on the case they lease, so their step 2 points there; the owner's at any hold.
+      const who = actor.getStore(), now = Date.now();
+      const own = readRuns().filter((r) => r.session && r.session === who?.session && leaseUntil(r) > now).at(-1)?.dispute_id ?? null;
+      const hold = readHolds().find((h) => h.status === 'pending' && h.args?.dispute_id && (who?.owner || h.args.dispute_id === own));
+      const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       const counts = new Map<string, number>();
       for (const a of acts) if (a.dispute_id.startsWith('PP-')) counts.set(a.dispute_id, (counts.get(a.dispute_id) ?? 0) + 1);
       // The hero case can be pinned per seed (HERO_DISPUTE); otherwise an item-not-received refusal that says what would
@@ -337,6 +341,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       const ranked = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).map(([id]) => id);
       const replay = ranked.find((id) => id !== refusal && id !== hold?.args?.dispute_id) ?? ranked[0] ?? null;
       return json(res, 200, {
+        own, own_ready: !kindRefusal(visitor, 'unshipped'),
         hold: hold ? { id: hold.id, dispute_id: hold.args.dispute_id, method: hold.method } : null,
         refusal, replay, orders: Object.keys(readOrders()).length,
       });
@@ -461,7 +466,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       const mine = runs.filter((r) => r.session === session).at(-1) ?? null;
       const acts = readActivity();
       const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, kind: r.kind ?? null, at: r.leased_at ?? r.at, lease_until: new Date(leaseUntil(r)).toISOString(), yours: !!session && r.session === session, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
-      const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: refusal(visitor, k) }]));
+      const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: kindRefusal(visitor, k) }]));
       return json(res, 200, { kinds, mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
     }
     if (req.method === 'POST' && url.pathname === '/api/pool') {
