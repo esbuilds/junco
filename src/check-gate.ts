@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { decide, loadPolicy, readHolds } from './gate.js';
+import { decide, loadPolicy, readHolds, staleReason, type Hold } from './gate.js';
 import { createServer, sandboxCtx } from './server.js';
 
 const policy = loadPolicy();
@@ -25,6 +25,16 @@ assert.equal(decide(policy, 'accept_dispute_claim', { dispute_id: 'PP-R-PBO-1019
 assert.equal(decide(policy, 'accept_dispute_claim', { dispute_id: 'PP-R-OTHER' }, budgets).verdict, 'hold'); // other disputes untouched
 console.log('standing approval: cap edge, full-amount accept, scoped to one dispute');
 
+// Approval binds to the case the owner saw: a moved, resized, resolved or no-longer-allowed case is not run.
+const held: Hold = { id: 'h', method: 'accept_dispute_claim', args: {}, reason: '', created: '', status: 'pending', case: { stage: 'INQUIRY', amount: '48.00 USD' } };
+const kase = (o: any = {}) => ({ status: 'WAITING_FOR_SELLER_RESPONSE', dispute_life_cycle_stage: 'INQUIRY', dispute_amount: { value: '48.00', currency_code: 'USD' }, links: [{ rel: 'accept_claim' }], ...o });
+assert.equal(staleReason(held, kase()), null);
+assert.match(staleReason(held, kase({ dispute_life_cycle_stage: 'CHARGEBACK' }))!, /moved from INQUIRY to CHARGEBACK/);
+assert.match(staleReason(held, kase({ dispute_amount: { value: '60.00', currency_code: 'USD' } }))!, /amount changed/);
+assert.match(staleReason(held, kase({ status: 'RESOLVED' }))!, /already resolved/);
+assert.match(staleReason(held, kase({ links: [] }))!, /no longer allows accept_claim/);
+console.log('stale approvals: stage, amount, resolved, PayPal links all refuse to run');
+
 const [a, b] = InMemoryTransport.createLinkedPair();
 const { server, holds } = await createServer(await sandboxCtx(), policy);
 await server.connect(a);
@@ -42,9 +52,9 @@ r = await call('accept_dispute_claim', { dispute_id: 'PP-R-PBO-10190474', note: 
 assert.equal(r.held, true); const acceptHold = r.hold_id; console.log('stock accept_dispute_claim -> held', acceptHold);
 
 assert(readHolds().some((h) => h.id === offerHold && h.status === 'pending'));
-const approved = await holds.approve(offerHold);
-assert.equal(approved.status, 'approved'); assert.match(approved.result ?? '', /action_not_allowed/);
-console.log('owner approves $40 offer -> ran, PayPal check result:', JSON.parse(approved.result!).error.message);
+await assert.rejects(holds.approve(offerHold), /no longer allows make_offer/);
+assert.equal(readHolds().find((h) => h.id === offerHold)?.status, 'stale');
+console.log('owner approves $40 offer on a case PayPal closed to offers -> not run, hold marked stale');
 
 assert.equal((await holds.reject(acceptHold)).status, 'rejected');
 await assert.rejects(holds.approve(acceptHold), /already rejected/);

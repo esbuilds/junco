@@ -1,7 +1,7 @@
 // MCP server: PayPal's stock toolkit plus the JUNCO dispute tools, on one server.
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { tools, run, type Ctx } from './disputes.js';
+import { tools, run, paypal, type Ctx } from './disputes.js';
 import { gate, loadActivePolicy, type Policy, type Hold } from './gate.js';
 import { hydrate } from './persist.js';
 import { trackingTool } from './watch.js';
@@ -46,7 +46,11 @@ export async function createServer(ctx: Ctx & { accessToken: string }, given?: P
   server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
-  return { server, policy, holds: gate(server, policy, onHold) }; // gate last, so it wraps every tool
+  return { server, policy, holds: gate(server, policy, onHold, async (id) => {
+    const d = await paypal(ctx, 'GET', `/v1/customer/disputes/${id}`);
+    if (d.status !== 200) throw new Error(`Could not re-read dispute ${id} (${d.status})`);
+    return d.body;
+  }) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {

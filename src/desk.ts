@@ -345,7 +345,7 @@ httpServer(async (req, res) => {
         agent.log(id, 'owner', 'standing approval', `Owner lets JUNCO handle this dispute on its own up to ${budget.limit} ${budget.currency}`);
         const ran = [];
         for (const h of holdsFor(id).filter((x) => x.status === 'pending' && movesMoney(x.method, x.args, budget) <= budget.limit)) {
-          const r = await holds.approve(h.id);
+          const r = await holds.approve(h.id).catch((e: Error) => ({ ...h, result: JSON.stringify({ error: { message: e.message } }) }));
           const failed = /"error"/.test(r.result ?? ''); // tool results are JSON text; PayPal failures carry an error object
           agent.log(id, 'owner', failed ? 'failed' : 'done', `${h.method.replace(/_/g, ' ')} ${failed ? 'failed' : 'ran'} under the standing approval${failed ? `: ${(r.result ?? '').slice(0, 200)}` : ''}`);
           ran.push(r);

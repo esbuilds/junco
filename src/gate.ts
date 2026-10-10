@@ -6,7 +6,26 @@ import { mirror } from './persist.js';
 export type Verdict = 'allow' | 'hold' | 'deny';
 export type Rule = Verdict | { max_amount: number; over: Verdict };
 export type Policy = { default: Verdict; tools: Record<string, Rule>; ship_within_days?: number };
-export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected'; result?: string };
+export type CaseState = { stage: string; amount: string };
+export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected' | 'stale'; result?: string; case?: CaseState };
+
+// PayPal link rel each dispute write needs. JUNCO's own tools check it again in run(); the stock accept does not.
+const REL: Record<string, string> = {
+  accept_dispute_claim: 'accept_claim', make_dispute_offer: 'make_offer', send_dispute_message: 'send_message',
+  provide_dispute_evidence: 'provide_evidence', provide_dispute_supporting_info: 'provide_supporting_info',
+};
+const caseState = (d: any): CaseState => ({ stage: d.dispute_life_cycle_stage, amount: `${d.dispute_amount?.value} ${d.dispute_amount?.currency_code}` });
+
+// Why an approval must not run now, or null. The owner approved the case as it was when held; a case that moved on needs asking again.
+export function staleReason(h: Hold, d: any): string | null {
+  if (d.status === 'RESOLVED') return `the case is already resolved`;
+  const now = caseState(d);
+  if (h.case && h.case.stage !== now.stage) return `the case moved from ${h.case.stage} to ${now.stage} since this was held`;
+  if (h.case && h.case.amount !== now.amount) return `the disputed amount changed from ${h.case.amount} to ${now.amount} since this was held`;
+  const rel = REL[h.method];
+  if (rel && !(d.links ?? []).some((l: any) => l.rel === rel)) return `PayPal no longer allows ${rel} on this case`;
+  return null;
+}
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -69,7 +88,8 @@ export function requestApproval(method: string, args: any, reason: string): Hold
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 
-export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void) {
+// getCase reads a dispute from PayPal; without it, approvals run the stored call with no re-read (offline checks).
+export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>) {
   // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
   const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void }> = server._registeredTools;
   const originals: Record<string, Handler> = {};
@@ -81,6 +101,7 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void) {
         if (verdict === 'allow') return originals[name](args, extra);
         if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
         const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending' };
+        if (getCase && args?.dispute_id) hold.case = await getCase(args.dispute_id).then(caseState, () => undefined);
         writeHolds([...readHolds(), hold]);
         onHold?.(hold);
         return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action.' });
@@ -93,6 +114,13 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void) {
     const h = holds.find((x) => x.id === id);
     if (!h) throw new Error(`No hold ${id}`);
     if (h.status !== 'pending') throw new Error(`Hold ${id} is already ${h.status}`);
+    // Approval runs only the stored method and args, and only if the case is still the one the owner was shown.
+    const stale = approve && getCase && h.args?.dispute_id ? staleReason(h, await getCase(h.args.dispute_id)) : null;
+    if (stale) {
+      h.status = 'stale'; h.result = JSON.stringify({ error: { type: 'stale_hold', message: `Not run: ${stale}` } });
+      writeHolds(holds);
+      throw Object.assign(new Error(`Not run: ${stale}. Nothing was sent to PayPal.`), { code: 400 });
+    }
     h.status = approve ? 'approved' : 'rejected';
     writeHolds(holds); // mark first so a crash mid-call can't run it twice
     if (approve) {
