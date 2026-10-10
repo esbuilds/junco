@@ -158,7 +158,7 @@ async function digestText() {
     `*JUNCO weekly* (${new Date(weekAgo).toDateString().slice(4, 10)} to ${new Date().toDateString().slice(4, 10)})`,
     `• Open disputes: ${open.length} (${money(open.reduce((t, r) => t + r.amount, 0))})${due.length ? `, ${due.length} due within 7 days` : ''}`,
     `• Waiting for you: ${holds} held action${holds === 1 ? '' : 's'}`,
-    resolved.length ? `• Resolved so far: ${resolved.length} (kept ${money(resolved.reduce((t, r) => t + r.amount, 0) - refunded)}, refunded ${money(refunded)}; sandbox verdicts, chosen by us)` : '• Resolved so far: none',
+    resolved.length ? `• Resolved so far: ${resolved.length}, refunded ${money(refunded)} (simulated lifecycle outcomes; sandbox verdicts chosen by us)` : '• Resolved so far: none',
     `• JUNCO acted on its own ${acted} time${acted === 1 ? '' : 's'} this week, inside your policy`,
     orders.length ? `• Shipment watch: ${orders.length} paid order${orders.length === 1 ? '' : 's'}, ${orders.filter((o) => o.status === 'at_risk').length} at risk` : '',
     `Open the desk: ${DESK_URL}`,

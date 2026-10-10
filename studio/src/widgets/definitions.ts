@@ -17,7 +17,7 @@ const form = ({ createDefaults }: { createDefaults: (p: object) => any }) => cre
 const defs = [
   { id: 'junco-stats', label: 'Summary stats', comp: StatsWidget, defaultSize: { width: 12, height: 4 }, minSize: { width: 6, height: 4 } },
   { id: 'junco-at-risk', label: 'At risk this week', comp: AtRiskWidget, defaultSize: { width: 7, height: 7 }, minSize: { width: 4, height: 4 } },
-  { id: 'junco-ledger', label: 'Outcomes', comp: LedgerWidget, defaultSize: { width: 3, height: 7 }, minSize: { width: 3, height: 4 } },
+  { id: 'junco-ledger', label: 'Simulated lifecycle outcomes', comp: LedgerWidget, defaultSize: { width: 3, height: 7 }, minSize: { width: 3, height: 4 } },
   { id: 'junco-policy', label: 'Policy', comp: PolicyWidget, defaultSize: { width: 6, height: 14 }, minSize: { width: 4, height: 8 } },
   { id: 'junco-orders', label: 'Shipment watch', comp: OrdersWidget, defaultSize: { width: 12, height: 20 }, minSize: { width: 6, height: 8 } },
   { id: 'junco-try', label: 'Try the brain', comp: TryWidget, defaultSize: { width: 8, height: 30 }, minSize: { width: 6, height: 10 } },

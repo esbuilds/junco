@@ -4,7 +4,7 @@
 // the rows change as the desk polls.
 import { daysLeft, DECISION_LABEL, human, REASONS, STATUS, type CaseRow } from './api';
 
-const KEPT = new Set(['RESOLVED_SELLER_FAVOUR', 'RESOLVED_WITH_PAYOUT', 'CANCELED_BY_BUYER', 'DENIED']); // same rule as the Outcomes widget
+const KEPT = new Set(['RESOLVED_SELLER_FAVOUR', 'RESOLVED_WITH_PAYOUT', 'CANCELED_BY_BUYER', 'DENIED']); // same rule as the Simulated lifecycle outcomes widget
 
 export const FIELDS = [
   { id: 'dispute', name: 'Dispute', format: 'textFormat' },
@@ -14,7 +14,7 @@ export const FIELDS = [
   { id: 'deadline', name: 'Deadline', format: 'textFormat', description: 'When the merchant must respond: Due this week (7 days or less), Due later, No deadline yet, or Resolved.' },
   { id: 'days_left', name: 'Days left', format: 'numberFormat', description: 'Days until the response deadline; empty when PayPal has set none. 7 or less means due this week.' },
   { id: 'amount', name: 'Amount', format: 'currencyFormat' },
-  { id: 'kept', name: 'Kept', format: 'currencyFormat' },
+  { id: 'kept', name: 'Not refunded', format: 'currencyFormat' },
   { id: 'refunded', name: 'Refunded', format: 'currencyFormat' },
 ];
 
@@ -46,7 +46,7 @@ export const insightsPage = {
     bySays: { id: 'bySays', type: 'button-filter', format: title('JUNCO says'), dataMapping: { value: [{ id: 'disputes.junco_says' }] } },
     byStatus: { id: 'byStatus', type: 'donut-chart', format: title('Money in dispute by status'), dataMapping: { categoryKey: [{ id: 'disputes.status' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
     byDeadline: { id: 'byDeadline', type: 'column-chart-grouped', format: title('Amount by deadline'), dataMapping: { categoryKey: [{ id: 'disputes.deadline' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
-    outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Kept vs refunded by reason (sandbox verdicts, chosen by us)'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
+    outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Simulated lifecycle outcomes by reason (sandbox verdicts chosen by us)'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
   },
   widgetLayout: {
     byReason: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 6 },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, DECISION_LABEL, foundQuote, QUOTE_FOUND, type Claim, type Decision, type Evidence } from '../api';
+import { api, DECISION_LABEL, claimSupport, QUOTE_NOTE, type Claim, type Decision, type Evidence } from '../api';
 import { usePoll } from '../store';
 import { Panel } from './Panel';
 
@@ -63,7 +63,8 @@ export function TryWidget() {
               {rec.offer_amount && <strong> ${rec.offer_amount}</strong>}
               {verdict && <span className={`jd-badge ${verdict === 'pass' ? 'jd-b-contest' : verdict === 'wrong' ? 'jd-b-accept' : 'jd-b-held'}`} style={{ marginLeft: 8 }}>{verdict === 'pass' ? 'Matches the eval' : verdict === 'wrong' ? 'Eval says wrong' : 'Outside the eval\'s expected answers'}</span>}
               <p>{rec.summary}</p>
-              <ul className="jd-claims">{rec.claims.map((c, i) => <li key={i}>{c.text} {c.evidence_ids.map((e) => <span key={e} className="jd-cite">{e}</span>)}{foundQuote(c, res.evidence) && <div className="jd-quote"><q>{foundQuote(c, res.evidence)}</q> <span className="jd-muted">{QUOTE_FOUND}</span></div>}</li>)}</ul>
+              <ul className="jd-claims">{rec.claims.map((c, i) => <li key={i}>{c.text} {c.evidence_ids.map((e) => <span key={e} className="jd-cite">{e}</span>)}{(() => { const s = claimSupport(c, res.evidence); return <>{s.quote && <div className="jd-quote"><q>{s.quote.text}</q> <span className="jd-muted">Quote found in {s.quote.where}.</span></div>}{s.facts.map((f) => <div key={f.id} className="jd-fact"><span className="jd-muted">From {f.from}:</span> {f.text}</div>)}</>; })()}</li>)}</ul>
+              {rec.claims.some((c) => claimSupport(c, res.evidence).quote) && <p className="jd-muted jd-note">{QUOTE_NOTE}</p>}
               {rec.would_change_mind && <div className="jd-flip"><strong>What would change my mind</strong><p>{rec.would_change_mind}</p></div>}
             </>
           ) : <p>No recommendation came back.</p>}

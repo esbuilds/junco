@@ -13,12 +13,26 @@ export interface Evidence { id: string; source: string; text: string; quotable?:
 
 export interface Claim { text: string; evidence_ids: string[]; quote?: string | null }
 
-// The quote to show under a claim, only when it cites source text and the quote is in it word for word (same rule as
-// validate() on the server). Labelled "quote found", never "verified": a found quote doesn't prove it supports the claim.
+// What the desk shows under a claim. Source-text items: the quote and where it was found word for word (same rule as
+// validate() on the server), never "verified". Everything else: the cited item as JUNCO rendered it from PayPal's or
+// the carrier's fields, so facts like amounts, dates and tracking status don't rest on the model's sentence.
 const norm = (t: string) => t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\s+/g, ' ').trim();
-export const foundQuote = (c: Claim, evidence: Evidence[]): string | null =>
-  c.quote && norm(c.quote).length >= 8 && evidence.some((e) => e.quotable && c.evidence_ids.includes(e.id) && norm(e.text).includes(norm(c.quote!))) ? c.quote : null;
-export const QUOTE_FOUND = 'quote found';
+export function whereFrom(e: Evidence, evidence: Evidence[]): string {
+  if (e.source.startsWith('paypal message')) {
+    const n = evidence.filter((x) => x.source.startsWith('paypal message')).indexOf(e) + 1;
+    return `${e.source.endsWith('buyer') ? 'buyer' : 'seller'} message ${n}`;
+  }
+  return e.source === 'paypal evidence on file' ? `the note on file (${e.id})` : `${e.source} (${e.id})`;
+}
+export function claimSupport(c: Claim, evidence: Evidence[]) {
+  const cited = evidence.filter((e) => c.evidence_ids.includes(e.id));
+  const hit = c.quote && norm(c.quote).length >= 8 ? cited.find((e) => e.quotable && norm(e.text).includes(norm(c.quote!))) : undefined;
+  return {
+    quote: hit ? { text: c.quote!, where: whereFrom(hit, evidence) } : null,
+    facts: cited.filter((e) => !e.quotable).map((e) => ({ id: e.id, from: e.source.startsWith('paypal') ? 'PayPal' : e.source.replace(/ tracking \(carrier API\)$/, ''), text: e.text })),
+  };
+}
+export const QUOTE_NOTE = "A found quote confirms the text exists; the interpretation is the AI's.";
 
 export interface Recommendation {
   decision: Decision; summary: string; claims: Claim[];

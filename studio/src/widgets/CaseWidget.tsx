@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ACTION_LABEL, api, DECISION_LABEL, foundQuote, human, QUOTE_FOUND, money, REASONS, STATUS, dueText, type CaseDetail, type Decision,
+  ACTION_LABEL, api, claimSupport, DECISION_LABEL, human, QUOTE_NOTE, money, REASONS, STATUS, dueText, type CaseDetail, type Decision,
 } from '../api';
 import { startReplay, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
@@ -65,7 +65,7 @@ export function CaseWidget() {
       const r = await api<ActResult>(`/api/cases/${encodeURIComponent(id)}/act`, { method: 'POST', json: { message: editable ? draft : undefined } });
       setFlash(r.held
         ? { kind: 'held', text: 'Waiting for your approval.', detail: r.reason }
-        : r.ok ? { kind: 'ok', text: `Done. PayPal accepted it (${r.status}).` }
+        : r.ok ? { kind: 'ok', text: `Done. PayPal accepted it (${r.status}).`, detail: "Allowed by the current case state and the owner's policy." }
         : { kind: 'err', text: 'Not done.', detail: r.error?.message ?? JSON.stringify(r) });
     } catch (e: any) {
       setFlash({ kind: 'err', text: 'Not done.', detail: e.message });
@@ -142,10 +142,14 @@ export function CaseWidget() {
               <li key={i}>
                 {cl.text}
                 {cl.evidence_ids.map((e) => <button type="button" key={e} className="jd-cite" {...litProps(e)}>{e}</button>)}
-                {foundQuote(cl, c.evidence) && <div className="jd-quote"><q>{foundQuote(cl, c.evidence)}</q> <span className="jd-muted">{QUOTE_FOUND}</span></div>}
+                {(() => { const s = claimSupport(cl, c.evidence); return <>
+                  {s.quote && <div className="jd-quote"><q>{s.quote.text}</q> <span className="jd-muted">Quote found in {s.quote.where}.</span></div>}
+                  {s.facts.map((f) => <div key={f.id} className="jd-fact"><span className="jd-muted">From {f.from}:</span> {f.text}</div>)}
+                </>; })()}
               </li>
             ))}
           </ul>
+          {rec.claims.some((cl) => claimSupport(cl, c.evidence).quote) && <p className="jd-muted jd-note">{QUOTE_NOTE}</p>}
           {rec.would_change_mind && (rec.decision === 'wait' || rec.decision === 'accept') && (
             <div className="jd-flip"><strong>What would change my mind</strong><p>{rec.would_change_mind}</p></div>
           )}
