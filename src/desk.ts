@@ -105,7 +105,10 @@ const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id ==
 // tagged with who asked, so the owner sees "asked by the dashboard assistant" on the hold. The tag lives beside the gate.
 const HOLD_TAGS = '.junco/hold-tags.json';
 const holdTags = (): Record<string, string> => { try { return JSON.parse(readFileSync(HOLD_TAGS, 'utf8')); } catch { return {}; } };
-const tagged = (h: Hold) => (holdTags()[h.id] ? { ...h, asked_by: holdTags()[h.id] } : h);
+// Holds from before T3 carry no tag; the activity entry logged with them (same case, within a second) names the caller.
+const loggedBy = (h: Hold) => { const a = readActivity().find((x) => x.dispute_id === h.args?.dispute_id && x.step === 'waiting for you' && Math.abs(Date.parse(x.at) - Date.parse(h.created)) < 1000);
+  return a && ({ mcp: 'MCP client', assistant: 'dashboard assistant' }[a.trigger] ?? 'desk agent'); };
+const tagged = (h: Hold) => { const by = holdTags()[h.id] ?? loggedBy(h); return by ? { ...h, asked_by: by } : h; };
 // T3: every hold says who asked, so one over-limit action held from three places reads as one rule, three callers.
 function tagHold(h: Hold, who: string) { const tags = { ...holdTags(), [h.id]: who }; writeFileSync(HOLD_TAGS, JSON.stringify(tags, null, 2)); mirror(HOLD_TAGS, tags); }
 // Models treat a JSON Schema pattern as a hint, so a first call often breaks it (accept_dispute_claim's note allows no
