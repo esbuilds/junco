@@ -26,6 +26,22 @@ export async function sandboxCtx(): Promise<Ctx & { accessToken: string }> {
   return { baseUrl, accessToken, token: async () => accessToken };
 }
 
+// JUNCO's dispute write tools (evidence, offer, message, supporting info), which PayPal's toolkits lack.
+export function addDisputeTools(server: any, ctx: Ctx) {
+  for (const t of tools) {
+    server.tool(t.method, t.description, t.parameters.shape, async (arg: any) => ({
+      content: [{ type: 'text' as const, text: await run(ctx, t.method, arg) }],
+    }));
+  }
+}
+
+// The gate's re-read before an approval runs.
+export const caseReader = (ctx: Ctx) => async (id: string) => {
+  const d = await paypal(ctx, 'GET', `/v1/customer/disputes/${id}`);
+  if (d.status !== 200) throw new Error(`Could not re-read dispute ${id} (${d.status})`);
+  return d.body;
+};
+
 let hydrated = false;
 export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void) {
   if (!hydrated) { // once per process: later servers (one per remote MCP request) share the files the first one restored
@@ -38,19 +54,11 @@ export async function createServer(ctx: Ctx & { accessToken: string }, given?: P
     accessToken: ctx.accessToken,
     configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true } } },
   });
-  for (const t of tools) {
-    server.tool(t.method, t.description, t.parameters.shape, async (arg: any) => ({
-      content: [{ type: 'text' as const, text: await run(ctx, t.method, arg) }],
-    }));
-  }
+  addDisputeTools(server, ctx);
   server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
-  return { server, policy, holds: gate(server, policy, onHold, async (id) => {
-    const d = await paypal(ctx, 'GET', `/v1/customer/disputes/${id}`);
-    if (d.status !== 200) throw new Error(`Could not re-read dispute ${id} (${d.status})`);
-    return d.body;
-  }) }; // gate last, so it wraps every tool
+  return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx)) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {

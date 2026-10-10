@@ -13,6 +13,31 @@ const ACTIONS: [string, string, string][] = [
   ['create_refund', 'Issue a refund', 'Moves money'],
 ];
 
+// T1: every tool the gate exposes, grouped by class. Anything without a class is denied.
+type ToolRow = { tool: string; class: string; on: string[] };
+const CLASS_ORDER = ['read', 'allowed write', 'hold', 'not exposed'];
+function ToolMatrix() {
+  const { data } = usePoll<{ hosted_connected: boolean; tools: ToolRow[] }>('/api/policy/tools', 300000);
+  if (!data) return null;
+  const groups = new Map<string, ToolRow[]>();
+  for (const t of data.tools) {
+    const key = t.class.startsWith('allowed write up to') ? 'allowed write' : t.class;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  const keys = [...groups.keys()].sort((a, b) => (CLASS_ORDER.indexOf(a) + 1 || 9) - (CLASS_ORDER.indexOf(b) + 1 || 9));
+  return (
+    <details className="jd-whatif">
+      <summary><strong>Every tool the gate knows ({data.tools.length})</strong> <span className="jd-muted">JUNCO's and PayPal's hosted MCP server's. A tool with no class is denied.{data.hosted_connected ? '' : " PayPal's hosted server isn't connected right now."}</span></summary>
+      {keys.map((k) => (
+        <div key={k} className="jd-matrix-row">
+          <strong>{k}</strong>
+          <span className="jd-whatif-cases">{groups.get(k)!.map((t) => <span key={t.tool} className="jd-badge jd-b-wait" title={`${t.class}; on ${t.on.join(' and ')}`}>{t.tool}</span>)}</span>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 export function PolicyWidget() {
   const { data, error, reload } = usePoll<PolicyView>('/api/policy', 30000);
   const [draft, setDraft] = useState<PolicyView | null>(null);
@@ -80,6 +105,7 @@ export function PolicyWidget() {
         <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>
       </div>
       {msg && <div className={`jd-result ${msg.ok ? 'jd-ok' : 'jd-err'}`}>{msg.text}</div>}
+      <ToolMatrix />
     </Panel>
   );
 }

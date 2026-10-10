@@ -1,5 +1,6 @@
 // Gate check: policy decisions offline, then held/approved/rejected calls through the real MCP server.
-// Uses PBO, where PayPal currently allows no merchant actions, so even approved calls cannot move sandbox money.
+// Uses PBO (under PayPal review: only supporting info is open since its accept ran on Oct 10). The only approval here is
+// an offer PayPal doesn't allow on PBO, so it is refused as stale. Check a case's links before approving anything on it.
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -12,9 +13,11 @@ assert.equal(decide(policy, 'make_dispute_offer', offer('25')).verdict, 'allow')
 assert.equal(decide(policy, 'make_dispute_offer', offer('25.01')).verdict, 'hold');
 assert.equal(decide(policy, 'make_dispute_offer', { dispute_id: 'x' }).verdict, 'hold');
 assert.equal(decide(policy, 'accept_dispute_claim', {}).verdict, 'hold');
-assert.equal(decide(policy, 'some_new_tool', {}).verdict, 'hold');
+assert.equal(decide(policy, 'some_new_tool', {}).verdict, 'deny'); // T1: unclassified tools are denied
+assert.equal(decide(policy, 'get_dispute', {}).verdict, 'allow'); // read
+assert.equal(decide(policy, 'pay_order', {}).verdict, 'deny'); // not exposed
 assert.equal(decide({ default: 'hold', tools: { create_refund: 'deny' } }, 'create_refund', {}).verdict, 'deny');
-console.log('policy: limit edge, missing amount, unknown tool, deny all decided correctly');
+console.log('policy: limit edge, missing amount, unclassified denied, read, not exposed, deny all decided correctly');
 
 // Standing approval: one dispute, capped at `limit`; accept counts as the full disputed amount.
 const budgets = { 'PP-R-PBO-10190474': { limit: 40, amount: 48, currency: 'USD', set_at: '' } };

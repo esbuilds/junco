@@ -7,9 +7,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer, sandboxCtx } from './server.js';
+import { createHostedServer, hosted } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, decide as gateDecide, type Hold, type Policy } from './gate.js';
+import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
@@ -86,6 +87,15 @@ const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agen
 const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, log: agent.log }, () => boundsFrom(policy));
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
+
+// PayPal's hosted MCP server behind the gate (M4). Its holds carry origin 'paypal-hosted' and are approved on one shared
+// hosted gate, so the stored call runs on the server it was asked of.
+const onMcpHold = (via: string) => (h: Hold) => { agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
+let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold> }> | null = null;
+const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'
+  ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
+  : Promise.resolve(holds);
+const resolveHold = async (id: string, verb: 'approve' | 'reject') => (await gateFor(id))[verb](id);
 
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map(tagged);
 
@@ -255,9 +265,12 @@ httpServer(async (req, res) => {
   if (req.method !== 'GET' && url.pathname !== '/api/studio-ai') dropCases(); // any owner action may change a case; the next list is fresh (the assistant only reads)
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
-  if (url.pathname === '/mcp') {
+  // /mcp/paypal is PayPal's own hosted MCP server behind that gate, plus JUNCO's dispute tools (hosted.ts).
+  if (url.pathname === '/mcp' || url.pathname === '/mcp/paypal') {
     try {
-      const { server: s } = await createServer(ctx, policy, (h) => { agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client: ${h.reason}`); void notifyHold(h); });
+      const { server: s } = url.pathname === '/mcp/paypal'
+        ? await createHostedServer(ctx, policy, onMcpHold(" via PayPal's hosted server"))
+        : await createServer(ctx, policy, onMcpHold(''));
       const t = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => { void t.close(); void s.close(); });
       await s.connect(t);
@@ -345,7 +358,7 @@ httpServer(async (req, res) => {
         agent.log(id, 'owner', 'standing approval', `Owner lets JUNCO handle this dispute on its own up to ${budget.limit} ${budget.currency}`);
         const ran = [];
         for (const h of holdsFor(id).filter((x) => x.status === 'pending' && movesMoney(x.method, x.args, budget) <= budget.limit)) {
-          const r = await holds.approve(h.id).catch((e: Error) => ({ ...h, result: JSON.stringify({ error: { message: e.message } }) }));
+          const r = await resolveHold(h.id, 'approve').catch((e: Error) => ({ ...h, result: JSON.stringify({ error: { message: e.message } }) }));
           const failed = /"error"/.test(r.result ?? ''); // tool results are JSON text; PayPal failures carry an error object
           agent.log(id, 'owner', failed ? 'failed' : 'done', `${h.method.replace(/_/g, ' ')} ${failed ? 'failed' : 'ran'} under the standing approval${failed ? `: ${(r.result ?? '').slice(0, 200)}` : ''}`);
           ran.push(r);
@@ -398,6 +411,13 @@ httpServer(async (req, res) => {
       const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       return await studioAiTurn(JSON.parse((await readRaw(req, 8_000_000)) || '{}'), res, visitor);
     }
+    if (req.method === 'GET' && url.pathname === '/api/policy/tools') {
+      // T1 matrix: every tool the gate exposes, on the desk's server and on PayPal's hosted one, with its class.
+      const desk = Object.keys((server as any)._registeredTools);
+      const remote = await hosted().then((c) => c.tools.map((t) => t.name), () => [] as string[]);
+      const all = [...new Set([...desk, ...remote])];
+      return json(res, 200, { default: policy.default, hosted_connected: remote.length > 0, tools: all.map((t) => ({ tool: t, class: toolClass(policy, t), on: [desk.includes(t) && 'desk', remote.includes(t) && 'PayPal hosted'].filter(Boolean) })) });
+    }
     if (url.pathname === '/api/policy/what-if' && req.method === 'POST') return json(res, 200, whatIf(buildPolicy(await readBody(req))));
     if (url.pathname === '/api/policy') {
       if (req.method === 'PUT') applyPolicy(await readBody(req));
@@ -407,7 +427,7 @@ httpServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending').map(tagged));
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject'))
-      return json(res, 200, await holds[p[3]](p[2]));
+      return json(res, 200, await resolveHold(p[2], p[3]));
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
     json(res, e.code === 404 || e.code === 400 ? e.code : 500, { error: { message: e.message } });

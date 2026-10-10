@@ -22,7 +22,8 @@ export function whereFrom(e: Evidence, evidence: Evidence[]): string {
     const n = evidence.filter((x) => x.source.startsWith('paypal message')).indexOf(e) + 1;
     return `${e.source.endsWith('buyer') ? 'buyer' : 'seller'} message ${n}`;
   }
-  return e.source === 'paypal evidence on file' ? `the note on file (${e.id})` : `${e.source} (${e.id})`;
+  if (e.source.startsWith('paypal note')) return e.source.includes('buyer') ? `the buyer's note filed with the case (${e.id})` : `the seller's note on file (${e.id})`;
+  return `${e.source} (${e.id})`;
 }
 export function claimSupport(c: Claim, evidence: Evidence[]) {
   const cited = evidence.filter((e) => c.evidence_ids.includes(e.id));

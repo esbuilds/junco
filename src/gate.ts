@@ -4,10 +4,12 @@ import { randomUUID } from 'node:crypto';
 import { mirror } from './persist.js';
 
 export type Verdict = 'allow' | 'hold' | 'deny';
-export type Rule = Verdict | { max_amount: number; over: Verdict };
+// Tool classes (T1): 'read' runs and changes nothing; 'allow' is an allowed write; 'hold' waits for the owner;
+// a limit runs up to max_amount; 'hidden' is not exposed at all. A tool with no entry gets the default, which is deny.
+export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
 export type Policy = { default: Verdict; tools: Record<string, Rule>; ship_within_days?: number };
 export type CaseState = { stage: string; amount: string };
-export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected' | 'stale'; result?: string; case?: CaseState };
+export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected' | 'stale'; result?: string; case?: CaseState; origin?: string };
 
 // PayPal link rel each dispute write needs. JUNCO's own tools check it again in run(); the stock accept does not.
 const REL: Record<string, string> = {
@@ -31,7 +33,18 @@ export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileS
 
 // Owner edits from the desk live in .junco/policy.json (mirrored to Postgres); policy.json in the repo stays the default.
 const SAVED_POLICY = '.junco/policy.json';
-export const loadActivePolicy = (): Policy => { try { return loadPolicy(SAVED_POLICY); } catch { return loadPolicy(); } };
+// Saved edits only cover owner-editable tools, so the repo's default and its newer tool entries always apply.
+export const loadActivePolicy = (): Policy => {
+  const repo = loadPolicy();
+  try { const saved = loadPolicy(SAVED_POLICY); return { ...saved, default: repo.default, tools: { ...repo.tools, ...saved.tools } }; } catch { return repo; }
+};
+// One line per tool for the Policy page matrix.
+export function toolClass(policy: Policy, name: string): string {
+  const r = policy.tools[name];
+  if (r === undefined) return policy.default === 'deny' ? 'denied (unclassified)' : `${policy.default} (unclassified)`;
+  if (typeof r === 'object') return `allowed write up to ${r.max_amount}, then ${r.over}`;
+  return { read: 'read', allow: 'allowed write', hold: 'hold', deny: 'denied', hidden: 'not exposed' }[r];
+}
 export function savePolicy(p: Policy | null) {
   mkdirSync('.junco', { recursive: true });
   const next = p ?? loadPolicy(); // null resets to the repo default
@@ -64,6 +77,8 @@ export function decide(policy: Policy, method: string, args: any, budgets: Recor
     return { verdict: 'allow', reason: `within the ${b.limit} ${b.currency} standing approval for ${args.dispute_id}` };
   const rule = policy.tools[method];
   if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };
+  if (rule === 'read') return { verdict: 'allow', reason: `policy: ${method} only reads` };
+  if (rule === 'hidden') return { verdict: 'deny', reason: `policy: ${method} is not exposed` };
   if (typeof rule === 'string') return { verdict: rule, reason: `policy: ${method} = ${rule}` };
   const amt = amountOf(args);
   if (amt === null || Number.isNaN(amt)) return { verdict: 'hold', reason: `${method} has an amount limit but no readable amount` };
@@ -89,18 +104,20 @@ type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 
 // getCase reads a dispute from PayPal; without it, approvals run the stored call with no re-read (offline checks).
-export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>) {
+// origin tags holds from a server other than the desk's own (PayPal hosted), so approval runs on the same server.
+export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string) {
   // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
   const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void }> = server._registeredTools;
   const originals: Record<string, Handler> = {};
   for (const [name, tool] of Object.entries(tools)) {
     originals[name] = tool.handler;
+    if (policy.tools[name] === 'hidden') (tool as any).disable(); // not listed; a direct call still gets the gate's deny
     tool.update({
       callback: async (args, extra) => {
         const { verdict, reason } = decide(policy, name, args, readBudgets());
         if (verdict === 'allow') return originals[name](args, extra);
         if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
-        const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending' };
+        const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending', ...(origin && { origin }) };
         if (getCase && args?.dispute_id) hold.case = await getCase(args.dispute_id).then(caseState, () => undefined);
         writeHolds([...readHolds(), hold]);
         onHold?.(hold);

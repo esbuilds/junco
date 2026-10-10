@@ -11,7 +11,7 @@ export type Evidence = { id: string; source: string; text: string; quotable?: bo
 // Source text: words someone else wrote (buyer and seller messages, notes on file, merchant records). Claims citing it
 // must quote it. Everything else is a sentence JUNCO writes from PayPal's or a carrier's structured fields.
 const isSourceText = (e: Omit<Evidence, 'id'>) =>
-  e.source.startsWith('paypal message') || (e.source === 'paypal evidence on file' && e.text.includes('note: "')) ||
+  e.source.startsWith('paypal message') || e.source.startsWith('paypal note') ||
   !(e.source.startsWith('paypal') || e.source.endsWith('(carrier API)'));
 
 export const Recommendation = z.object({
@@ -40,7 +40,7 @@ Recommend exactly one of: accept (refund in full), offer (partial refund to sett
 Only recommend an action PayPal currently allows on the dispute (listed in E1). If the merchant has already submitted evidence or made an offer and is waiting on the buyer, recommend message. If none of the allowed actions would help the merchant, recommend wait and say what to do outside PayPal, if anything.
 Rules:
 - Every claim must cite evidence IDs from the list you are given. Never cite an ID that is not in the list, and never state a fact that is not in the evidence.
-- Items marked [quote] are someone's own words. A claim citing one must include a quote copied exactly, character for character, from that item.
+- Items marked [quote] are someone's own words. A claim citing one must include a quote copied exactly, character for character, from that item, and the quoted words must state the fact the claim relies on. Cite a [quote] item only if it says what the claim says; never put a paraphrase in the quote.
 - Contest only when the evidence would actually persuade PayPal (for item not received: carrier tracking showing delivery). If the evidence is weak or missing, say so and prefer offer or accept.
 - Resolving before escalation avoids PayPal's dispute fee, so an early fair offer is often the cheapest outcome.
 - Stage CHARGEBACK with channel INTERNAL is a PayPal claim that PayPal decides, not a card chargeback; call it a claim. Only channel EXTERNAL is a card chargeback from the buyer's bank.
@@ -79,7 +79,7 @@ const amt = (m: any) => (m ? `${m.value} ${m.currency_code}` : 'n/a');
 function describeEvidence(e: any) {
   const kind = e.evidence_type === 'CREATE' ? 'Buyer filed the case' : `Submitted ${String(e.evidence_type).toLowerCase().replace(/_/g, ' ')}`;
   const tracking = (e.evidence_info?.tracking_info ?? []).map((t: any) => `${t.carrier_name ?? ''} ${t.tracking_number}`.trim());
-  return [kind, tracking.length && `tracking ${tracking.join(', ')}`, e.notes?.trim() && `note: "${e.notes.trim()}"`].filter(Boolean).join('; ') + '.';
+  return [kind, tracking.length && `tracking ${tracking.join(', ')}`].filter(Boolean).join('; ') + '.';
 }
 function describeOffer(o: any) {
   const hist = (o.history ?? []).map((h: any) => `${h.actor} ${String(h.event_type).toLowerCase()} ${amt(h.offer_amount)} on ${String(h.offer_time).slice(0, 10)}`);
@@ -91,7 +91,11 @@ export function collectEvidence(dispute: any, merchantRecords: Omit<Evidence, 'i
   const items: Omit<Evidence, 'id'>[] = [
     { source: 'paypal', text: `Reason: ${dispute.reason}. Amount: ${dispute.dispute_amount?.value} ${dispute.dispute_amount?.currency_code}. Stage: ${dispute.dispute_life_cycle_stage}. Channel: ${dispute.dispute_channel ?? 'unknown'}. Status: ${dispute.status}. Seller response due: ${dispute.seller_response_due_date ?? 'not set'}. PayPal currently allows: ${(dispute.links ?? []).map((l: any) => l.rel).filter((r: string) => r !== 'self').join(', ') || 'nothing'}.` },
     ...(dispute.messages ?? []).map((m: any) => ({ source: `paypal message from ${String(m.posted_by).toLowerCase()}`, text: `${String(m.time_posted).slice(0, 16).replace('T', ' ')} UTC: "${m.content}"` })),
-    ...(dispute.evidences ?? []).map((e: any) => ({ source: 'paypal evidence on file', text: describeEvidence(e) })),
+    // The note is someone's own words, so it is its own item (quoted); the rest is JUNCO's summary of PayPal's fields.
+    ...(dispute.evidences ?? []).flatMap((e: any) => [
+      { source: 'paypal evidence on file', text: describeEvidence(e) },
+      ...(e.notes?.trim() ? [{ source: e.evidence_type === 'CREATE' ? 'paypal note from the buyer, filed with the case' : 'paypal note on file from the seller', text: e.notes.trim() }] : []),
+    ]),
     ...(dispute.offer ? [{ source: 'paypal offer history', text: describeOffer(dispute.offer) }] : []),
     ...merchantRecords,
   ];
