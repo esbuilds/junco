@@ -169,6 +169,8 @@ async function loadCases() {
   $('#s-due').textContent = dues.length ? (dues[0] <= 0 ? 'Today' : `${dues[0]} days`) : 'None';
 }
 
+// T2: an approved hold is not done until PayPal says so.
+const HOLD_STATUS = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
 async function loadHolds() {
   const holds = await api('/api/holds');
   $('#s-holds').textContent = holds.length;
@@ -176,15 +178,18 @@ async function loadHolds() {
     <div class="hold">
       <div><strong>${esc(h.method.replace(/_/g, ' '))}</strong> on ${esc(h.args?.dispute_id)}
         ${h.args?.offer_amount ? ` for ${esc(money(h.args.offer_amount.value, h.args.offer_amount.currency_code))}` : ''}
-        <div class="why">Held: ${esc(h.reason)}</div></div>
-      <div class="row" style="margin:0"><button class="btn primary" data-approve="${esc(h.id)}">Approve</button><button class="btn danger" data-reject="${esc(h.id)}">Reject</button></div>
+        <div class="why">Held: ${esc(h.reason)}</div>${h.status === 'pending' ? '' : `<div class="why">Status: ${esc(HOLD_STATUS[h.status])}. It won't be sent again.</div>`}</div>
+      <div class="row" style="margin:0">${h.status === 'pending' ? `<button class="btn primary" data-approve="${esc(h.id)}">Approve</button><button class="btn danger" data-reject="${esc(h.id)}">Reject</button>` : `<button class="btn" data-settle="${esc(h.id)}">Re-check PayPal</button>`}</div>
     </div>`).join('');
 }
 $('#holds').addEventListener('click', async (e) => {
-  const id = e.target.dataset.approve ?? e.target.dataset.reject;
+  const { approve, reject, settle } = e.target.dataset, id = approve ?? reject ?? settle;
   if (!id) return;
   e.target.disabled = true;
-  try { await api(`/api/holds/${encodeURIComponent(id)}/${e.target.dataset.approve ? 'approve' : 'reject'}`, { method: 'POST' }); }
+  try {
+    const h = await api(`/api/holds/${encodeURIComponent(id)}/${approve ? 'approve' : reject ? 'reject' : 'settle'}`, { method: 'POST' });
+    if (['failed', 'unknown', 'executing'].includes(h.status)) alert(`${h.method.replace(/_/g, ' ')}: ${HOLD_STATUS[h.status]}.`);
+  }
   catch (err) { alert(err.message); }
   await refresh();
 });
@@ -228,7 +233,7 @@ function render(c, flash) {
 
     <h3>Evidence</h3>
     <ol class="evidence">${c.evidence.map((e) => `<li data-id="${esc(e.id)}"><span class="id">${esc(e.id)}</span><div>${esc(e.text)}<div class="src">${esc(e.source)}</div></div></li>`).join('')}</ol>
-    ${c.holds?.length ? `<h3>Gate history</h3>${c.holds.map((h) => `<div class="muted">${esc(h.method.replace(/_/g, ' '))}: held because ${esc(h.reason)}, then ${esc(h.status === 'pending' ? 'waiting for you' : h.status + ' by owner')}</div>`).join('')}` : ''}
+    ${c.holds?.length ? `<h3>Gate history</h3>${c.holds.map((h) => `<div class="muted">${esc(h.method.replace(/_/g, ' '))}: held because ${esc(h.reason)}, then ${esc(HOLD_STATUS[h.status] ?? h.status)}</div>`).join('')}` : ''}
   `;
   const hl = (id, on) => document.querySelectorAll(`ol.evidence li[data-id="${CSS.escape(id)}"]`).forEach((li) => li.classList.toggle('hl', on));
   document.querySelectorAll('.cite').forEach((el) => {

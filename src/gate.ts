@@ -9,7 +9,10 @@ export type Verdict = 'allow' | 'hold' | 'deny';
 export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
 export type Policy = { default: Verdict; tools: Record<string, Rule>; ship_within_days?: number };
 export type CaseState = { stage: string; amount: string };
-export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: 'pending' | 'approved' | 'rejected' | 'stale'; result?: string; case?: CaseState; origin?: string };
+// T2 lifecycle: pending, then rejected / stale, or executing then completed, failed or unknown. 'approved' is only on
+// holds from before the lifecycle; the desk never shows it as done. 'unknown' re-reads PayPal to settle, never re-runs.
+export type HoldStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'unknown' | 'approved' | 'rejected' | 'stale';
+export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: HoldStatus; result?: string; case?: CaseState; origin?: string; before?: Trail };
 
 // PayPal link rel each dispute write needs. JUNCO's own tools check it again in run(); the stock accept does not.
 const REL: Record<string, string> = {
@@ -28,6 +31,26 @@ export function staleReason(h: Hold, d: any): string | null {
   if (rel && !(d.links ?? []).some((l: any) => l.rel === rel)) return `PayPal no longer allows ${rel} on this case`;
   return null;
 }
+
+// What a write leaves on the case, read before it runs. If the call's outcome is unknown, a re-read compares against it.
+export type Trail = { status: string; messages: number; evidences: number; info: number; offers: number; rels: string[] };
+const trail = (d: any): Trail => ({ status: d.status, messages: d.messages?.length ?? 0, evidences: d.evidences?.length ?? 0,
+  info: d.supporting_info?.length ?? 0, offers: d.offer?.history?.length ?? 0, rels: (d.links ?? []).map((l: any) => l.rel) });
+// Did this write land? true / false from the re-read, null when the method leaves nothing on the case we can compare.
+export function landed(method: string, before: Trail, d: any): boolean | null {
+  const now = trail(d);
+  switch (method) {
+    case 'accept_dispute_claim': return now.status === 'RESOLVED' || now.status !== before.status || !now.rels.includes('accept_claim');
+    case 'send_dispute_message': return now.messages > before.messages;
+    case 'make_dispute_offer': return now.offers > before.offers || now.status !== before.status;
+    case 'provide_dispute_evidence': return now.evidences > before.evidences;
+    case 'provide_dispute_supporting_info': return now.info > before.info;
+    default: return null;
+  }
+}
+// A tool result is JSON text; a PayPal refusal carries an error object. A dropped connection means the write may have landed.
+const UNKNOWN = new Set(['hosted_unavailable']);
+const errorOf = (t?: string) => { try { return JSON.parse(t ?? '').error; } catch { return undefined; } };
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -131,21 +154,42 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, ge
     const h = holds.find((x) => x.id === id);
     if (!h) throw new Error(`No hold ${id}`);
     if (h.status !== 'pending') throw new Error(`Hold ${id} is already ${h.status}`);
+    if (!approve) { h.status = 'rejected'; writeHolds(holds); return h; }
     // Approval runs only the stored method and args, and only if the case is still the one the owner was shown.
-    const stale = approve && getCase && h.args?.dispute_id ? staleReason(h, await getCase(h.args.dispute_id)) : null;
+    const d = getCase && h.args?.dispute_id ? await getCase(h.args.dispute_id) : null;
+    const stale = d ? staleReason(h, d) : null;
     if (stale) {
       h.status = 'stale'; h.result = JSON.stringify({ error: { type: 'stale_hold', message: `Not run: ${stale}` } });
       writeHolds(holds);
       throw Object.assign(new Error(`Not run: ${stale}. Nothing was sent to PayPal.`), { code: 400 });
     }
-    h.status = approve ? 'approved' : 'rejected';
-    writeHolds(holds); // mark first so a crash mid-call can't run it twice
-    if (approve) {
+    h.status = 'executing'; if (d) h.before = trail(d);
+    writeHolds(holds); // mark first so a crash mid-call can't run it twice; a hold left executing settles like unknown
+    try {
       const r = await originals[h.method](h.args, {});
       h.result = r.content?.[0]?.text;
-      writeHolds(holds);
+      const err = errorOf(h.result);
+      h.status = UNKNOWN.has(err?.type) ? 'unknown' : err || r.isError ? 'failed' : 'completed';
+    } catch (e: any) {
+      h.status = 'unknown'; h.result = JSON.stringify({ error: { type: 'outcome_unknown', message: e.message } });
     }
+    writeHolds(holds);
+    return h.status === 'unknown' ? settle(id) : h;
+  }
+
+  // Re-read PayPal and settle an unknown (or crashed executing) hold to completed or failed. Never runs the call again.
+  async function settle(id: string): Promise<Hold> {
+    const holds = readHolds();
+    const h = holds.find((x) => x.id === id);
+    if (!h) throw new Error(`No hold ${id}`);
+    if (h.status !== 'unknown' && h.status !== 'executing') return h;
+    const d = getCase && h.args?.dispute_id && h.before ? await getCase(h.args.dispute_id).catch(() => null) : null;
+    const did = d ? landed(h.method, h.before!, d) : null;
+    if (did === null) return h; // nothing to compare: stays unknown, the owner checks PayPal
+    h.status = did ? 'completed' : 'failed';
+    h.result = JSON.stringify({ settled: `PayPal's re-read shows the ${h.method.replace(/_/g, ' ')} ${did ? 'landed' : 'did not land'}`, was: h.result });
+    writeHolds(holds);
     return h;
   }
-  return { approve: (id: string) => resolve(id, true), reject: (id: string) => resolve(id, false) };
+  return { approve: (id: string) => resolve(id, true), reject: (id: string) => resolve(id, false), settle };
 }

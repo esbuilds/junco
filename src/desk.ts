@@ -92,11 +92,11 @@ const AGENT_MODE = process.env.AGENT_MODE === 'on';
 // PayPal's hosted MCP server behind the gate (M4). Its holds carry origin 'paypal-hosted' and are approved on one shared
 // hosted gate, so the stored call runs on the server it was asked of.
 const onMcpHold = (via: string) => (h: Hold) => { agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
-let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold> }> | null = null;
+let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold>; settle: (id: string) => Promise<Hold> }> | null = null;
 const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'
   ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
   : Promise.resolve(holds);
-const resolveHold = async (id: string, verb: 'approve' | 'reject') => (await gateFor(id))[verb](id);
+const resolveHold = async (id: string, verb: 'approve' | 'reject' | 'settle') => (await gateFor(id))[verb](id);
 
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map(tagged);
 
@@ -360,8 +360,8 @@ httpServer(async (req, res) => {
         const ran = [];
         for (const h of holdsFor(id).filter((x) => x.status === 'pending' && movesMoney(x.method, x.args, budget) <= budget.limit)) {
           const r = await resolveHold(h.id, 'approve').catch((e: Error) => ({ ...h, result: JSON.stringify({ error: { message: e.message } }) }));
-          const failed = /"error"/.test(r.result ?? ''); // tool results are JSON text; PayPal failures carry an error object
-          agent.log(id, 'owner', failed ? 'failed' : 'done', `${h.method.replace(/_/g, ' ')} ${failed ? 'failed' : 'ran'} under the standing approval${failed ? `: ${(r.result ?? '').slice(0, 200)}` : ''}`);
+          const how = r.status === 'completed' ? 'done' : r.status === 'unknown' ? 'outcome unknown' : 'failed';
+          agent.log(id, 'owner', how, `${h.method.replace(/_/g, ' ')} ${how === 'done' ? 'ran' : how} under the standing approval${how === 'done' ? '' : `: ${(r.result ?? '').slice(0, 200)}`}`);
           ran.push(r);
         }
         return json(res, 200, { budget, ran });
@@ -447,8 +447,9 @@ httpServer(async (req, res) => {
       else if (req.method !== 'GET') return json(res, 405, { error: { message: 'Method not allowed' } });
       return json(res, 200, policyView());
     }
-    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => h.status === 'pending').map(tagged));
-    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject'))
+    // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
+    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
+    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
       return json(res, 200, await resolveHold(p[2], p[3]));
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {

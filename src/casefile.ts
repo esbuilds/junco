@@ -8,6 +8,9 @@ import type { Hold } from './gate.js';
 type Input = { d: any; evidence: Evidence[]; saved: Saved | null; holds: Hold[]; activity: Activity[] };
 const human = (s: string) => String(s ?? '').toLowerCase().replace(/_/g, ' ');
 
+// T2 wording, same as the desk's.
+const HOLD_STATUS: Record<string, string> = { pending: 'waiting for the owner', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
+
 export function caseMarkdown({ d, evidence, saved, holds, activity }: Input): string {
   const rec = saved?.recommendation;
   const lines = [
@@ -34,7 +37,7 @@ export function caseMarkdown({ d, evidence, saved, holds, activity }: Input): st
     if (saved?.problems.length) lines.push('', `Blocked by checks: ${saved.problems.join('; ')}`);
     lines.push('', `Checked ${saved!.at}. Every claim cites the evidence above; JUNCO's validator rejects claims that cite nothing or cite evidence that isn't there.`);
   }
-  if (holds.length) { lines.push('', '## Approvals', ''); for (const h of holds) lines.push(`- ${h.created}: ${human(h.method)} held (${h.reason}), ${h.status === 'pending' ? 'waiting for the owner' : `${h.status} by the owner`}`); }
+  if (holds.length) { lines.push('', '## Approvals', ''); for (const h of holds) lines.push(`- ${h.created}: ${human(h.method)} held (${h.reason}), ${HOLD_STATUS[h.status] ?? h.status}`); }
   if (activity.length) { lines.push('', '## Timeline', ''); for (const a of [...activity].sort((x, y) => x.at.localeCompare(y.at))) lines.push(`- ${a.at}: ${a.step}. ${a.detail}`); }
   return lines.join('\n') + '\n';
 }

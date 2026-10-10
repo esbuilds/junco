@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { decide, loadPolicy, readHolds, staleReason, type Hold } from './gate.js';
+import { decide, gate, landed, loadPolicy, readHolds, staleReason, type Hold } from './gate.js';
 import { createServer, sandboxCtx } from './server.js';
 
 const policy = loadPolicy();
@@ -38,6 +38,32 @@ assert.match(staleReason(held, kase({ status: 'RESOLVED' }))!, /already resolved
 assert.match(staleReason(held, kase({ links: [] }))!, /no longer allows accept_claim/);
 console.log('stale approvals: stage, amount, resolved, PayPal links all refuse to run');
 
+// T2: did an unknown-outcome write land? Compared against what was on the case before it ran.
+const before = { status: 'WAITING_FOR_SELLER_RESPONSE', messages: 1, evidences: 0, info: 0, offers: 0, rels: ['accept_claim', 'send_message'] };
+assert.equal(landed('send_dispute_message', before, kase({ messages: [{}, {}] })), true);
+assert.equal(landed('send_dispute_message', before, kase({ messages: [{}] })), false);
+assert.equal(landed('accept_dispute_claim', before, kase({ status: 'RESOLVED' })), true);
+assert.equal(landed('accept_dispute_claim', before, kase()), false);
+assert.equal(landed('provide_dispute_evidence', before, kase({ evidences: [{}] })), true);
+assert.equal(landed('create_refund', before, kase()), null);
+
+// Lifecycle through a fake tool: completed, failed (PayPal refused), unknown settled by re-read, never re-run.
+const open = (o: any = {}) => kase({ links: [{ rel: 'send_message' }], ...o });
+let calls = 0, reply: () => any = () => ({ content: [{ type: 'text', text: '{"ok":true}' }] }), now = open();
+const fake: any = { _registeredTools: { send_dispute_message: { handler: async () => { calls++; return reply(); }, update(u: any) { this.handler = u.callback; } } } };
+const g = gate(fake, { default: 'deny', tools: { send_dispute_message: 'hold' } }, undefined, async () => now);
+const ask = async () => JSON.parse((await fake._registeredTools.send_dispute_message.handler({ dispute_id: 'PP-T2' }, {})).content[0].text).hold_id;
+assert.equal((await g.approve(await ask())).status, 'completed');
+reply = () => ({ content: [{ type: 'text', text: '{"error":{"type":"action_not_allowed"}}' }] });
+assert.equal((await g.approve(await ask())).status, 'failed');
+reply = () => { now = open({ messages: [{}] }); throw new Error('socket hang up'); }; // landed, then the connection dropped
+assert.equal((await g.approve(await ask())).status, 'completed');
+now = open(); reply = () => { throw new Error('socket hang up'); }; // dropped before landing
+const lost = await ask();
+assert.equal((await g.approve(lost)).status, 'failed');
+assert.equal(calls, 4); await assert.rejects(g.approve(lost), /already failed/); assert.equal(calls, 4);
+console.log('lifecycle: completed, refused -> failed, dropped call settled by re-read both ways, never re-run');
+
 const [a, b] = InMemoryTransport.createLinkedPair();
 const { server, holds } = await createServer(await sandboxCtx(), policy);
 await server.connect(a);
@@ -55,9 +81,9 @@ r = await call('accept_dispute_claim', { dispute_id: 'PP-R-PBO-10190474', note: 
 assert.equal(r.held, true); const acceptHold = r.hold_id; console.log('stock accept_dispute_claim -> held', acceptHold);
 
 assert(readHolds().some((h) => h.id === offerHold && h.status === 'pending'));
-await assert.rejects(holds.approve(offerHold), /no longer allows make_offer/);
+await assert.rejects(holds.approve(offerHold), /Not run: (PayPal no longer allows make_offer|the case is already resolved)/);
 assert.equal(readHolds().find((h) => h.id === offerHold)?.status, 'stale');
-console.log('owner approves $40 offer on a case PayPal closed to offers -> not run, hold marked stale');
+console.log('owner approves $40 offer on a case PayPal closed to offers (now resolved) -> not run, hold marked stale');
 
 assert.equal((await holds.reject(acceptHold)).status, 'rejected');
 await assert.rejects(holds.approve(acceptHold), /already rejected/);
