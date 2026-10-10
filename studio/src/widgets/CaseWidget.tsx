@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ACTION_LABEL, api, claimSupport, DECISION_LABEL, human, QUOTE_NOTE, money, REASONS, STATUS, dueText, type CaseDetail, type Decision, HOLD_STATUS } from '../api';
+  ACTION_LABEL, api, claimSupport, DECISION_LABEL, human, QUOTE_NOTE, UNQUOTED_NOTE, money, REASONS, STATUS, dueText, type CaseDetail, type Decision, HOLD_STATUS } from '../api';
 import { startReplay, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
@@ -143,6 +143,7 @@ export function CaseWidget() {
                 {cl.evidence_ids.map((e) => <button type="button" key={e} className="jd-cite" {...litProps(e)}>{e}</button>)}
                 {(() => { const s = claimSupport(cl, c.evidence); return <>
                   {s.quote && <div className="jd-quote"><q>{s.quote.text}</q> <span className="jd-muted">Quote found in {s.quote.where}.</span></div>}
+                  {s.unquoted && <div className="jd-muted">{UNQUOTED_NOTE}</div>}
                   {s.facts.map((f) => <div key={f.id} className="jd-fact"><span className="jd-muted">From {f.from}:</span> {f.text}</div>)}
                 </>; })()}
               </li>

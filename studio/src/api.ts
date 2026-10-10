@@ -30,10 +30,12 @@ export function claimSupport(c: Claim, evidence: Evidence[]) {
   const hit = c.quote && norm(c.quote).length >= 8 ? cited.find((e) => e.quotable && norm(e.text).includes(norm(c.quote!))) : undefined;
   return {
     quote: hit ? { text: c.quote!, where: whereFrom(hit, evidence) } : null,
+    unquoted: !hit && cited.some((e) => e.quotable), // cites someone's words without quoting them (v3.12 call 5)
     facts: cited.filter((e) => !e.quotable).map((e) => ({ id: e.id, from: e.source.startsWith('paypal') ? 'PayPal' : e.source.replace(/ tracking \(carrier API\)$/, ''), text: e.text })),
   };
 }
 export const QUOTE_NOTE = "A found quote confirms the text exists; the interpretation is the AI's.";
+export const UNQUOTED_NOTE = 'Cited, not quoted: the evidence item exists; no quote was checked.';
 
 export interface Recommendation {
   decision: Decision; summary: string; claims: Claim[];

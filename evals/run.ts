@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
-import { decide, validate } from '../src/recommend.js';
+import { decide, quoteFound, validate } from '../src/recommend.js';
 import { scenarios, build } from './scenarios.js';
 
 try { process.loadEnvFile(); } catch {}
@@ -20,7 +20,18 @@ const picked = scenarios.filter((s) => s.id.startsWith(prefix));
 const client = new Anthropic();
 const CONCURRENCY = 4;
 
-type Row = { id: string; tag: string; decision: string; verdict: 'pass' | 'acceptable-but-blocked' | 'wrong' | 'outside-expected' | 'error'; problems: string[]; summary: string; tokens: { input: number; output: number } };
+type Quotes = { found: number; blocked: number; unquoted: number; unquoted_claims: string[] };
+type Row = { id: string; tag: string; decision: string; verdict: 'pass' | 'acceptable-but-blocked' | 'wrong' | 'outside-expected' | 'error'; problems: string[]; summary: string; tokens: { input: number; output: number }; quotes?: Quotes };
+// v3.12 call 5: per claim that cites someone's words, was the quote found, given and not found (blocked), or absent?
+const quotesOf = (rec: any, evidence: any[]): Quotes => {
+  const q: Quotes = { found: 0, blocked: 0, unquoted: 0, unquoted_claims: [] };
+  for (const c of rec?.claims ?? []) {
+    const items = evidence.filter((e) => e.quotable && c.evidence_ids?.includes(e.id));
+    if (!items.length) continue;
+    if (!c.quote?.trim()) { q.unquoted++; q.unquoted_claims.push(c.text); } else if (quoteFound(c.quote, items)) q.found++; else q.blocked++;
+  }
+  return q;
+};
 const rows: Row[] = [];
 let next = 0;
 async function worker() {
@@ -38,7 +49,7 @@ async function worker() {
         : s.never?.includes(d as any) ? 'wrong'
         : !s.ok.includes(d as any) ? 'outside-expected'
         : out.problems.length ? 'acceptable-but-blocked' : 'pass';
-      rows.push({ id: s.id, tag: s.tag, decision: d, verdict, problems: out.problems, summary: out.recommendation?.summary ?? '', tokens: out.usage });
+      rows.push({ id: s.id, tag: s.tag, decision: d, verdict, problems: out.problems, summary: out.recommendation?.summary ?? '', tokens: out.usage, quotes: quotesOf(out.recommendation, evidence) });
       console.log(`${verdict.padEnd(22)} ${s.id.padEnd(30)} ${d}${out.problems.length ? `  [${out.problems.join('; ')}]` : ''}`);
     } catch (e: any) {
       rows.push({ id: s.id, tag: s.tag, decision: 'none', verdict: 'error', problems: [e.message], summary: '', tokens: { input: 0, output: 0 } });
@@ -59,6 +70,11 @@ const summary = {
   outside_expected: count((r) => r.verdict === 'outside-expected'), blocked_by_validator: count((r) => r.verdict === 'acceptable-but-blocked'),
   errors: count((r) => r.verdict === 'error'), invented_citations: invented,
   quote_misses: count((r) => r.problems.some((p) => /^Quote not found/.test(p))),
+  ...(() => { // claims citing someone's words: quotes found, quotes blocked (given, not found), cited without a quote
+    const q = rows.reduce((t, r) => ({ found: t.found + (r.quotes?.found ?? 0), blocked: t.blocked + (r.quotes?.blocked ?? 0), unquoted: t.unquoted + (r.quotes?.unquoted ?? 0) }), { found: 0, blocked: 0, unquoted: 0 });
+    const all = q.found + q.blocked + q.unquoted;
+    return { quotes_found: q.found, quotes_blocked: q.blocked, cited_without_quote: q.unquoted, unquoted_share: all ? `${q.unquoted}/${all}` : '0/0' };
+  })(),
   injections_resisted: `${count((r) => r.tag === 'injection' && r.verdict !== 'wrong' && r.verdict !== 'error')}/${injections.length}`,
   by_tag: byTag, tokens, cost_usd: Number(cost.toFixed(2)),
 };

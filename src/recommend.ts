@@ -20,7 +20,7 @@ export const Recommendation = z.object({
   claims: z.array(z.object({
     text: z.string().describe('A factual statement the decision relies on'),
     evidence_ids: z.array(z.string()).describe('IDs from the evidence list that support it'),
-    quote: z.string().nullable().describe('If any cited item is marked [quote], copy the words that support the claim exactly as written in that item, at least a few words; else null'),
+    quote: z.string().nullable().describe('If the claim restates what a cited [quote] item says, copy those words exactly as written in it, at least a few words. Null for claims about what an item does not say, who wrote it or when, or a comparison across items; never a paraphrase'),
   })),
   offer_amount: z.string().nullable().describe('For offer: refund amount like "12.00", else null'),
   evidence_type: z.enum(['PROOF_OF_FULFILLMENT', 'PROOF_OF_REFUND', 'OTHER']).nullable().describe('For contest, else null'),
@@ -40,7 +40,7 @@ Recommend exactly one of: accept (refund in full), offer (partial refund to sett
 Only recommend an action PayPal currently allows on the dispute (listed in E1). If the merchant has already submitted evidence or made an offer and is waiting on the buyer, recommend message. If none of the allowed actions would help the merchant, recommend wait and say what to do outside PayPal, if anything.
 Rules:
 - Every claim must cite evidence IDs from the list you are given. Never cite an ID that is not in the list, and never state a fact that is not in the evidence.
-- Items marked [quote] are someone's own words. A claim citing one must include a quote copied exactly, character for character, from that item, and the quoted words must state the fact the claim relies on. Cite a [quote] item only if it says what the claim says; never put a paraphrase in the quote.
+- Items marked [quote] are someone's own words. A claim that restates what one says must include a quote copied exactly, character for character, from that item, and the quoted words must state the fact the claim relies on. A quote is optional only for claims about what an item does not say, who wrote it or when, or a comparison across items; then leave quote null. Never put a paraphrase in the quote: a quote that isn't word for word blocks the recommendation.
 - Contest only when the evidence would actually persuade PayPal (for item not received: carrier tracking showing delivery). If the evidence is weak or missing, say so and prefer offer or accept.
 - Resolving before escalation avoids PayPal's dispute fee, so an early fair offer is often the cheapest outcome.
 - Stage CHARGEBACK with channel INTERNAL is a PayPal claim that PayPal decides, not a card chargeback; call it a claim. Only channel EXTERNAL is a card chargeback from the buyer's bank.
@@ -117,7 +117,9 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
     if (c.evidence_ids.length === 0) problems.push(`Uncited claim: "${c.text}"`);
     for (const id of c.evidence_ids) if (!ids.has(id)) problems.push(`Cites missing evidence ${id}: "${c.text}"`);
     const quotable = evidence.filter((e) => e.quotable && c.evidence_ids.includes(e.id));
-    if (quotable.length && !quoteFound(c.quote, quotable)) problems.push(`Quote not found in ${quotable.map((e) => e.id).join(', ')}: "${c.text}"`);
+    // v3.12 call 5: block only a quote that is given and not found. An unquoted claim on source text passes and is shown
+    // as "cited, not quoted"; the prompt still asks for a quote wherever the claim restates the text.
+    if (quotable.length && c.quote?.trim() && !quoteFound(c.quote, quotable)) problems.push(`Quote not found in ${quotable.map((e) => e.id).join(', ')}: "${c.text}"`);
   }
   const needs = NEEDS[rec.decision];
   if (needs.length && !needs.some((a) => allowed.includes(a))) problems.push(`PayPal does not allow ${needs.join(' or ')} on this dispute now`);
