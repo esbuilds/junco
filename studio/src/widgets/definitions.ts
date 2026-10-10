@@ -10,11 +10,13 @@ import { PolicyWidget } from './PolicyWidget';
 import { TryWidget } from './TryWidget';
 import { QueueWidget } from './QueueWidget';
 import { StatsWidget } from './StatsWidget';
+import { StoreDisputeWidget } from './StoreDisputeWidget';
 
 // Widgets without a data mapping: the form is just the standard setup and title tabs.
 const form = ({ createDefaults }: { createDefaults: (p: object) => any }) => createDefaults({});
 
 const defs = [
+  { id: 'junco-store-dispute', label: 'Dispute this store', comp: StoreDisputeWidget, defaultSize: { width: 12, height: 8 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-stats', label: 'Summary stats', comp: StatsWidget, defaultSize: { width: 12, height: 4 }, minSize: { width: 6, height: 4 } },
   { id: 'junco-at-risk', label: 'At risk this week', comp: AtRiskWidget, defaultSize: { width: 7, height: 7 }, minSize: { width: 4, height: 4 } },
   { id: 'junco-ledger', label: 'Simulated lifecycle outcomes', comp: LedgerWidget, defaultSize: { width: 3, height: 7 }, minSize: { width: 3, height: 4 } },

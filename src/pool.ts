@@ -1,0 +1,74 @@
+// Fills the M1 pool: paid sandbox orders whose BUYER transaction ID is known, so "Dispute this store" can file live.
+// Runs locally (needs the sandbox buyer's login, which never goes to the hosted desk):
+//   npm run pool -- 5            five shipped orders (USPS tracking added), sent to the hosted desk's pool
+//   npm run pool -- 5 unshipped  five orders with no tracking (JUNCO should hold an accept on these)
+// Needs SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env, plus OWNER_TOKEN (same value as on the desk).
+// One order at a time; on a failed step it saves a screenshot to .junco/pool-fail.png and stops.
+import { createRequire } from 'node:module';
+import { paypal } from './disputes.js';
+import { sandboxCtx } from './server.js';
+
+const { chromium } = createRequire(new URL('../studio/package.json', import.meta.url))('playwright');
+const ctx = await sandboxCtx();
+const [n = '1', kind] = process.argv.slice(2);
+const email = process.env.SANDBOX_BUYER_EMAIL, password = process.env.SANDBOX_BUYER_PASSWORD;
+if (!email || !password) { console.error('Set SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env'); process.exit(1); }
+const DESK = process.env.DESK_URL ?? 'https://junco-desk.onrender.com';
+const SANDBOX = 'https://www.sandbox.paypal.com';
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+const fail = async (what: string) => { await page.screenshot({ path: '.junco/pool-fail.png', fullPage: true }); console.error(`${what} failed at ${page.url()}; see .junco/pool-fail.png`); await browser.close(); process.exit(1); };
+
+// Log in once; the session cookie covers checkout approvals and the Activity page.
+await page.goto(`${SANDBOX}/signin`);
+await page.fill('#email', email);
+await page.click('#btnNext').catch(() => {});
+await page.fill('#password', password);
+await page.click('#btnLogin');
+await page.waitForURL(/myaccount|summary/, { timeout: 60_000 }).catch(() => fail('Buyer login'));
+
+// Every buyer transaction already listed counts as seen, so only the payment just made is picked up.
+const activityIds = async () => {
+  await page.goto(`${SANDBOX}/myaccount/activities/`);
+  await page.waitForLoadState('networkidle').catch(() => {});
+  return (await page.$$eval('a[href*="/details/"]', (as: any[]) => as.map((a) => a.href.match(/details\/([A-Z0-9]{17})/)?.[1]).filter(Boolean))) as string[];
+};
+const seen = new Set<string>(await activityIds());
+console.log(`buyer activity shows ${seen.size} earlier transactions`);
+const entries = [];
+for (let i = 0; i < Number(n); i++) {
+  const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { json: {
+    intent: 'CAPTURE',
+    purchase_units: [{ amount: { currency_code: 'USD', value: '48.00', breakdown: { item_total: { currency_code: 'USD', value: '48.00' } } },
+      items: [{ name: 'Canvas tote', quantity: '1', unit_amount: { currency_code: 'USD', value: '48.00' } }] }],
+    payment_source: { paypal: { experience_context: { return_url: 'https://example.com/return', cancel_url: 'https://example.com/cancel', user_action: 'PAY_NOW' } } },
+  } });
+  if (o.status >= 300) { console.error('Order failed', o.status, JSON.stringify(o.body)); break; }
+  await page.goto(o.body.links.find((l: any) => l.rel === 'payer-action').href);
+  await page.getByRole('button', { name: /pay|complete purchase|continue/i }).first().click({ timeout: 60_000 }).catch(() => fail('Buyer approval'));
+  await page.waitForURL(/example\.com/, { timeout: 60_000 }).catch(() => fail('Buyer approval redirect'));
+
+  const c = await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/capture`, { json: {} });
+  const capture = c.body.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+  if (!capture) { console.error('Capture failed', c.status, JSON.stringify(c.body)); break; }
+  const tracked = kind !== 'unshipped';
+  if (tracked) await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/track`, { json: { capture_id: capture, tracking_number: `9400${String(Date.now()).padStart(18, '0')}`, carrier: 'USPS', notify_payer: false } });
+
+  // The buyer's transaction ID is only on the buyer's side: the newest activity row links to /activities/details/<id>.
+  let txn: string | undefined;
+  for (let tries = 0; !txn && tries < 6; tries++) {
+    txn = (await activityIds()).find((id) => !seen.has(id));
+    if (!txn) await page.waitForTimeout(10_000);
+  }
+  if (!txn) await fail('Reading the buyer transaction ID');
+  seen.add(txn!);
+  entries.push({ buyer_txn: txn, amount: '48.00', order_id: o.body.id, tracking: tracked });
+  console.log(`${i + 1}/${n}: order ${o.body.id}, capture ${capture}, buyer transaction ${txn}${tracked ? ', tracked' : ', no tracking'}`);
+}
+await browser.close();
+
+if (!process.env.OWNER_TOKEN) { console.log('No OWNER_TOKEN; add these by hand:', JSON.stringify(entries)); process.exit(0); }
+const r = await fetch(`${DESK}/api/pool`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Owner-Token': process.env.OWNER_TOKEN,
+  Authorization: `Basic ${Buffer.from(`owner:${process.env.DESK_PASSWORD}`).toString('base64')}` }, body: JSON.stringify({ entries }) });
+console.log('desk pool:', r.status, await r.text());

@@ -10,13 +10,14 @@ import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
 import './styles.css';
 
-// Pre-built desk layout: summary stats, then holds and activity, then at-risk, outcomes and queue on the left, case on the right.
+// Pre-built desk layout: summary stats, Dispute this store, then holds and activity, then at-risk, outcomes and queue on the left, case on the right.
 const layout = {
   pages: [{
     id: 'desk',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: {
       stats: { id: 'stats', type: 'junco-stats', dataMapping: {} },
+      store: { id: 'store', type: 'junco-store-dispute', dataMapping: {} },
       holds: { id: 'holds', type: 'junco-holds', dataMapping: {} },
       activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
       risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
@@ -26,12 +27,13 @@ const layout = {
     },
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 4 },
-      holds: { xTrack: 0, yTrack: 4, xSpan: 6, ySpan: 7 },
-      activity: { xTrack: 6, yTrack: 4, xSpan: 6, ySpan: 7 },
-      risk: { xTrack: 0, yTrack: 11, xSpan: 4, ySpan: 7 },
-      ledger: { xTrack: 4, yTrack: 11, xSpan: 3, ySpan: 7 },
-      queue: { xTrack: 0, yTrack: 18, xSpan: 7, ySpan: 15 },
-      case: { xTrack: 7, yTrack: 11, xSpan: 5, ySpan: 22 },
+      store: { xTrack: 0, yTrack: 4, xSpan: 12, ySpan: 8 },
+      holds: { xTrack: 0, yTrack: 12, xSpan: 6, ySpan: 7 },
+      activity: { xTrack: 6, yTrack: 12, xSpan: 6, ySpan: 7 },
+      risk: { xTrack: 0, yTrack: 19, xSpan: 4, ySpan: 7 },
+      ledger: { xTrack: 4, yTrack: 19, xSpan: 3, ySpan: 7 },
+      queue: { xTrack: 0, yTrack: 26, xSpan: 7, ySpan: 15 },
+      case: { xTrack: 7, yTrack: 19, xSpan: 5, ySpan: 22 },
     },
   }, insightsPage, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.

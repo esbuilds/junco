@@ -90,6 +90,14 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
       else log(id, trigger, 'failed', `${rec.decision}: ${r.error?.message ?? JSON.stringify(r)}`);
       // Our own action changes the dispute; record the new state so the UPDATED webhook it causes is a no-op.
       const after = await getDispute(id);
+      // Show what PayPal's own re-read changed, so a completed action is visibly confirmed (STRATEGY v3.9 rulings 1 and 5).
+      if (r.ok) {
+        const diff = [d.status !== after.status && `status ${d.status} to ${after.status}`,
+          (after.evidences ?? []).length !== (d.evidences ?? []).length && `evidence on file ${(d.evidences ?? []).length} to ${(after.evidences ?? []).length}`,
+          (after.messages ?? []).length !== (d.messages ?? []).length && `messages ${(d.messages ?? []).length} to ${(after.messages ?? []).length}`,
+          after.offer && JSON.stringify(after.offer) !== JSON.stringify(d.offer) && 'offer history updated'].filter(Boolean);
+        log(id, trigger, 'PayPal confirmed', diff.length ? `Re-read the case: ${diff.join(', ')}` : 'Re-read the case: PayPal accepted the call; nothing visible changed yet');
+      }
       write('.junco/handled.json', { ...handled(), [id]: { state: `${after.status}|${allowedOf(after).sort().join(',')}|${(after.messages ?? []).length}|${(after.evidences ?? []).length}`, acted_at: new Date().toISOString() } });
     } catch (e: any) {
       log(id, trigger, 'failed', e.message);

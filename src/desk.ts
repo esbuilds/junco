@@ -18,6 +18,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
+import { addToPool, fileDispute, liveLeft, readRuns, refusal } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -252,7 +253,7 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   // An owner-approved plan owns its dispute: it runs even with agent mode off, and the agent stays out so nothing acts twice.
   if (negotiations.isActive(id)) negotiations.step(id, event.event_type).catch((e) => console.error('[negotiate]', e));
   else if (plans.isActive(id)) plans.tick(id, event.event_type).catch((e) => console.error('[plan]', e));
-  else if (AGENT_MODE) agent.triage(id, event.event_type).catch((e) => console.error('[agent]', e));
+  else if (AGENT_MODE || readRuns().some((r) => r.dispute_id === id)) agent.triage(id, event.event_type) // store disputes always run.catch((e) => console.error('[agent]', e));
 }
 
 httpServer(async (req, res) => {
@@ -410,6 +411,27 @@ httpServer(async (req, res) => {
     if (STUDIO_AI && url.pathname === '/api/studio-ai' && req.method === 'POST') { // AG Studio's assistant; off unless STUDIO_AI=1
       const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       return await studioAiTurn(JSON.parse((await readRaw(req, 8_000_000)) || '{}'), res, visitor);
+    }
+    if (url.pathname === '/api/store-dispute') {
+      // M1: a visitor files a real sandbox dispute against the demo store and watches JUNCO work it.
+      const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
+      if (req.method === 'POST') {
+        const run = await fileDispute(ctx, visitor);
+        agent.log(run.dispute_id!, 'store dispute', 'filed', 'A visitor filed this dispute as the sandbox buyer (item not received). PayPal\'s sandbox turns API-filed disputes into chargebacks under review, so JUNCO can send supporting info or hold an accept; offers and buyer messages are not possible here.');
+        setTimeout(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e)), 10_000); // let PayPal finish creating it
+        return json(res, 200, run);
+      }
+      const runs = readRuns().filter((r) => r.dispute_id);
+      const mine = runs.filter((r) => r.visitor === visitor).at(-1) ?? null;
+      const acts = readActivity();
+      const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, at: r.at, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
+      return json(res, 200, { live_left: liveLeft(), can_run: refusal(visitor), mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/pool') {
+      // Prepared orders for M1 (scripts/pool.ts). Owner token, not the desk password: judges will share that.
+      if (!process.env.OWNER_TOKEN || req.headers['x-owner-token'] !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
+      const body = await readBody(req);
+      return json(res, 200, { added: addToPool(Array.isArray(body?.entries) ? body.entries : []), live_left: liveLeft() });
     }
     if (req.method === 'GET' && url.pathname === '/api/policy/tools') {
       // T1 matrix: every tool the gate exposes, on the desk's server and on PayPal's hosted one, with its class.
