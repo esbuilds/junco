@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { api, DECISION_LABEL, type Decision, type Evidence } from '../api';
+import { api, DECISION_LABEL, foundQuote, QUOTE_FOUND, type Claim, type Decision, type Evidence } from '../api';
 import { usePoll } from '../store';
 import { Panel } from './Panel';
 
 // "Try the brain": run JUNCO's real recommender and checks on a made-up case. Nothing reaches PayPal.
 type Result = {
   scenario: { id: string; why: string; expected: Decision[]; never: Decision[] };
-  recommendation: { decision: Decision; summary: string; claims: { text: string; evidence_ids: string[] }[]; offer_amount: string | null; would_change_mind?: string | null } | null;
+  recommendation: { decision: Decision; summary: string; claims: Claim[]; offer_amount: string | null; would_change_mind?: string | null } | null;
   problems: string[]; evidence: Evidence[];
 };
 
@@ -63,7 +63,7 @@ export function TryWidget() {
               {rec.offer_amount && <strong> ${rec.offer_amount}</strong>}
               {verdict && <span className={`jd-badge ${verdict === 'pass' ? 'jd-b-contest' : verdict === 'wrong' ? 'jd-b-accept' : 'jd-b-held'}`} style={{ marginLeft: 8 }}>{verdict === 'pass' ? 'Matches the eval' : verdict === 'wrong' ? 'Eval says wrong' : 'Outside the eval\'s expected answers'}</span>}
               <p>{rec.summary}</p>
-              <ul className="jd-claims">{rec.claims.map((c, i) => <li key={i}>{c.text} {c.evidence_ids.map((e) => <span key={e} className="jd-cite">{e}</span>)}</li>)}</ul>
+              <ul className="jd-claims">{rec.claims.map((c, i) => <li key={i}>{c.text} {c.evidence_ids.map((e) => <span key={e} className="jd-cite">{e}</span>)}{foundQuote(c, res.evidence) && <div className="jd-quote"><q>{foundQuote(c, res.evidence)}</q> <span className="jd-muted">{QUOTE_FOUND}</span></div>}</li>)}</ul>
               {rec.would_change_mind && <div className="jd-flip"><strong>What would change my mind</strong><p>{rec.would_change_mind}</p></div>}
             </>
           ) : <p>No recommendation came back.</p>}

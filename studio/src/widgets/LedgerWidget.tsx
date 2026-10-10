@@ -22,7 +22,7 @@ export function LedgerWidget() {
   const cur = done[0]?.currency ?? 'USD';
 
   return (
-    <Panel title="Outcomes" subtitle={!data ? 'Loading' : done.length ? `Kept ${money(kept, cur)} of ${money(total, cur)} disputed` : 'No resolved disputes yet'}>
+    <Panel title="Outcomes" subtitle={!data ? 'Loading' : done.length ? `Kept ${money(kept, cur)} of ${money(total, cur)} disputed (sandbox verdicts, chosen by us)` : 'No resolved disputes yet'}>
       {error && <div className="jd-result jd-err">{error}</div>}
       <ul className="jd-risk">
         {done.map((r) => {
@@ -35,6 +35,7 @@ export function LedgerWidget() {
                 <span className="jd-risk-amt">{won ? `Kept ${money(r.amount, r.currency)}` : `Refunded ${money(refunded, r.currency)}`}</span>
                 <span className="jd-risk-why">
                   <span className={`jd-badge ${won ? 'jd-b-contest' : 'jd-b-accept'}`}>{OUTCOME[r.outcome ?? ''] ?? human(r.outcome ?? 'resolved')}</span>
+                  {r.outcome === 'RESOLVED_SELLER_FAVOUR' && <span className="jd-muted">sandbox verdict, chosen by us</span>}
                   {r.stage === 'INQUIRY' && <a className="jd-badge jd-b-wait" href={FEE_PAGE} target="_blank" rel="noreferrer">Settled before a claim: no $15 dispute fee</a>}
                 </span>
               </button>

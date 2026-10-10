@@ -46,7 +46,7 @@ export const insightsPage = {
     bySays: { id: 'bySays', type: 'button-filter', format: title('JUNCO says'), dataMapping: { value: [{ id: 'disputes.junco_says' }] } },
     byStatus: { id: 'byStatus', type: 'donut-chart', format: title('Money in dispute by status'), dataMapping: { categoryKey: [{ id: 'disputes.status' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
     byDeadline: { id: 'byDeadline', type: 'column-chart-grouped', format: title('Amount by deadline'), dataMapping: { categoryKey: [{ id: 'disputes.deadline' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
-    outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Kept vs refunded by reason'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
+    outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Kept vs refunded by reason (sandbox verdicts, chosen by us)'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
   },
   widgetLayout: {
     byReason: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 6 },

@@ -58,6 +58,8 @@ button, input, textarea { font: inherit; color: inherit; }
 .jd-claims { margin: 10px 0 0; padding-left: 18px; }
 .jd-claims li { margin: 4px 0; }
 .jd-cite { font-size: 11px; font-weight: 600; padding: 0 6px; margin-left: 4px; border-radius: 4px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); cursor: default; }
+.jd-quote { margin-top: 2px; font-size: 12px; }
+.jd-quote q { font-style: italic; }
 .jd-cite:focus-visible { outline-color: var(--jd-focus); }
 .jd-problems { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--jd-danger-bg); color: var(--jd-danger); }
 .jd-problems ul { margin: 4px 0 0; padding-left: 18px; }

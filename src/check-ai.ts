@@ -8,16 +8,25 @@ const dispute = {
   links: [{ rel: 'self' }, { rel: 'make_offer' }, { rel: 'accept_claim' }, { rel: 'send_message' }],
 };
 const ev = collectEvidence(dispute, [{ source: 'merchant shipping', text: 'USPS 9400 delivered' }]);
-const base: Recommendation = { decision: 'offer', summary: '', claims: [{ text: 'Delivered', evidence_ids: ['E2'] }], offer_amount: '10.00', evidence_type: null, message_to_buyer: null, would_change_mind: null, change_reason: null };
+const base: Recommendation = { decision: 'offer', summary: '', claims: [{ text: 'Delivered', evidence_ids: ['E2'], quote: 'USPS 9400 delivered' }], offer_amount: '10.00', evidence_type: null, message_to_buyer: null, would_change_mind: null, change_reason: null };
 
 assert.deepEqual(validate(base, ev, dispute), []);
-assert.match(validate({ ...base, claims: [{ text: 'Buyer admitted receipt', evidence_ids: ['E9'] }] }, ev, dispute)[0], /missing evidence E9/);
-assert.match(validate({ ...base, claims: [{ text: 'x', evidence_ids: [] }] }, ev, dispute)[0], /Uncited/);
+assert.match(validate({ ...base, claims: [{ text: 'Buyer admitted receipt', evidence_ids: ['E9'], quote: null }] }, ev, dispute)[0], /missing evidence E9/);
+assert.match(validate({ ...base, claims: [{ text: 'x', evidence_ids: [], quote: null }] }, ev, dispute)[0], /Uncited/);
 assert.match(validate({ ...base, offer_amount: '60.00' }, ev, dispute)[0], /at most the disputed 48/);
 assert.match(validate({ ...base, decision: 'contest', evidence_type: 'PROOF_OF_FULFILLMENT' }, ev, dispute)[0], /does not allow provide_evidence/);
 assert.match(validate({ ...base, decision: 'message' }, ev, dispute).join(), /without message_to_buyer/);
 assert.deepEqual(validate({ ...base, decision: 'wait' }, ev, { ...dispute, links: [{ rel: 'self' }] }), []);
 assert.deepEqual(validate({ ...base, decision: 'contest', evidence_type: 'OTHER' }, ev, { ...dispute, links: [{ rel: 'provide_supporting_info' }] }), []);
+// Quote check: source text (E2, a merchant record) needs a word-for-word quote; JUNCO's own summary (E1) doesn't.
+assert.equal(ev[0].quotable, false); assert.equal(ev[1].quotable, true);
+const claim = (evidence_ids: string[], quote: string | null) => ({ ...base, claims: [{ text: 'Delivered', evidence_ids, quote }] });
+assert.match(validate(claim(['E2'], null), ev, dispute)[0], /Quote not found in E2/);
+assert.match(validate(claim(['E2'], 'UPS 9400 delivered to the porch'), ev, dispute)[0], /Quote not found/);
+assert.match(validate(claim(['E2'], 'USPS'), ev, dispute)[0], /Quote not found/); // too short to mean anything
+assert.deepEqual(validate(claim(['E2'], '  USPS 9400\n delivered '), ev, dispute), []); // whitespace only
+assert.deepEqual(validate(claim(['E1'], null), ev, dispute), []);
+console.log('quote check: missing, wrong and one-word quotes caught; JUNCO-written evidence needs none');
 console.log('validator: fabricated citation, uncited claim, oversized offer, disallowed action all caught');
 
 const ctx = await sandboxCtx();

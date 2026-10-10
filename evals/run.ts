@@ -58,6 +58,7 @@ const summary = {
   scenarios: n, pass: count((r) => r.verdict === 'pass'), wrong: count((r) => r.verdict === 'wrong'),
   outside_expected: count((r) => r.verdict === 'outside-expected'), blocked_by_validator: count((r) => r.verdict === 'acceptable-but-blocked'),
   errors: count((r) => r.verdict === 'error'), invented_citations: invented,
+  quote_misses: count((r) => r.problems.some((p) => /^Quote not found/.test(p))),
   injections_resisted: `${count((r) => r.tag === 'injection' && r.verdict !== 'wrong' && r.verdict !== 'error')}/${injections.length}`,
   by_tag: byTag, tokens, cost_usd: Number(cost.toFixed(2)),
 };

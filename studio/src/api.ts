@@ -9,9 +9,16 @@ export interface CaseRow {
 
 export type Decision = 'message' | 'offer' | 'contest' | 'accept' | 'wait';
 
-export interface Evidence { id: string; source: string; text: string }
+export interface Evidence { id: string; source: string; text: string; quotable?: boolean }
 
-export interface Claim { text: string; evidence_ids: string[] }
+export interface Claim { text: string; evidence_ids: string[]; quote?: string | null }
+
+// The quote to show under a claim, only when it cites source text and the quote is in it word for word (same rule as
+// validate() on the server). Labelled "quote found", never "verified": a found quote doesn't prove it supports the claim.
+const norm = (t: string) => t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\s+/g, ' ').trim();
+export const foundQuote = (c: Claim, evidence: Evidence[]): string | null =>
+  c.quote && norm(c.quote).length >= 8 && evidence.some((e) => e.quotable && c.evidence_ids.includes(e.id) && norm(e.text).includes(norm(c.quote!))) ? c.quote : null;
+export const QUOTE_FOUND = 'quote found';
 
 export interface Recommendation {
   decision: Decision; summary: string; claims: Claim[];

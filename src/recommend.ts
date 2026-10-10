@@ -6,7 +6,13 @@ import { z } from 'zod/v4'; // SDK output helper needs zod 4; dispute tools stay
 import { paypal, type Ctx } from './disputes.js';
 import { carrierText, lookupCarrier } from './carrier.js';
 
-export type Evidence = { id: string; source: string; text: string };
+export type Evidence = { id: string; source: string; text: string; quotable?: boolean };
+
+// Source text: words someone else wrote (buyer and seller messages, notes on file, merchant records). Claims citing it
+// must quote it. Everything else is a sentence JUNCO writes from PayPal's or a carrier's structured fields.
+const isSourceText = (e: Omit<Evidence, 'id'>) =>
+  e.source.startsWith('paypal message') || (e.source === 'paypal evidence on file' && e.text.includes('note: "')) ||
+  !(e.source.startsWith('paypal') || e.source.endsWith('(carrier API)'));
 
 export const Recommendation = z.object({
   decision: z.enum(['accept', 'offer', 'contest', 'message', 'wait']),
@@ -14,6 +20,7 @@ export const Recommendation = z.object({
   claims: z.array(z.object({
     text: z.string().describe('A factual statement the decision relies on'),
     evidence_ids: z.array(z.string()).describe('IDs from the evidence list that support it'),
+    quote: z.string().nullable().describe('If any cited item is marked [quote], copy the words that support the claim exactly as written in that item, at least a few words; else null'),
   })),
   offer_amount: z.string().nullable().describe('For offer: refund amount like "12.00", else null'),
   evidence_type: z.enum(['PROOF_OF_FULFILLMENT', 'PROOF_OF_REFUND', 'OTHER']).nullable().describe('For contest, else null'),
@@ -33,6 +40,7 @@ Recommend exactly one of: accept (refund in full), offer (partial refund to sett
 Only recommend an action PayPal currently allows on the dispute (listed in E1). If the merchant has already submitted evidence or made an offer and is waiting on the buyer, recommend message. If none of the allowed actions would help the merchant, recommend wait and say what to do outside PayPal, if anything.
 Rules:
 - Every claim must cite evidence IDs from the list you are given. Never cite an ID that is not in the list, and never state a fact that is not in the evidence.
+- Items marked [quote] are someone's own words. A claim citing one must include a quote copied exactly, character for character, from that item.
 - Contest only when the evidence would actually persuade PayPal (for item not received: carrier tracking showing delivery). If the evidence is weak or missing, say so and prefer offer or accept.
 - Resolving before escalation avoids PayPal's dispute fee, so an early fair offer is often the cheapest outcome.
 - Stage CHARGEBACK with channel INTERNAL is a PayPal claim that PayPal decides, not a card chargeback; call it a claim. Only channel EXTERNAL is a card chargeback from the buyer's bank.
@@ -87,7 +95,7 @@ export function collectEvidence(dispute: any, merchantRecords: Omit<Evidence, 'i
     ...(dispute.offer ? [{ source: 'paypal offer history', text: describeOffer(dispute.offer) }] : []),
     ...merchantRecords,
   ];
-  return items.map((e, i) => ({ id: `E${i + 1}`, ...e }));
+  return items.map((e, i) => ({ id: `E${i + 1}`, ...e, quotable: isSourceText(e) }));
 }
 
 // Deterministic checks. Any problem means the recommendation is not actionable as-is.
@@ -98,6 +106,8 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
   for (const c of rec.claims) {
     if (c.evidence_ids.length === 0) problems.push(`Uncited claim: "${c.text}"`);
     for (const id of c.evidence_ids) if (!ids.has(id)) problems.push(`Cites missing evidence ${id}: "${c.text}"`);
+    const quotable = evidence.filter((e) => e.quotable && c.evidence_ids.includes(e.id));
+    if (quotable.length && !quoteFound(c.quote, quotable)) problems.push(`Quote not found in ${quotable.map((e) => e.id).join(', ')}: "${c.text}"`);
   }
   const needs = NEEDS[rec.decision];
   if (needs.length && !needs.some((a) => allowed.includes(a))) problems.push(`PayPal does not allow ${needs.join(' or ')} on this dispute now`);
@@ -109,6 +119,12 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
   if (rec.decision === 'message' && !rec.message_to_buyer?.trim()) problems.push('Message decision without message_to_buyer');
   return problems;
 }
+
+// Word for word, ignoring only runs of whitespace and straight vs curly quotes.
+// ponytail: 8-character minimum stops one-word quotes; a found quote still doesn't prove it supports the claim
+const norm = (t: string) => t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\s+/g, ' ').trim();
+export const quoteFound = (quote: string | null | undefined, items: Evidence[]) =>
+  !!quote && norm(quote).length >= 8 && items.some((e) => norm(e.text).includes(norm(quote)));
 
 export type Previous = { decision: Recommendation['decision']; summary: string } | null;
 
@@ -131,7 +147,7 @@ export async function decide(dispute: any, evidence: Evidence[], client = new An
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system: SYSTEM,
-    messages: [{ role: 'user', content: `Evidence:\n${evidence.map((e) => `${e.id} [${e.source}] ${e.text}`).join('\n')}${prior}\n\nToday is ${today}.` }],
+    messages: [{ role: 'user', content: `Evidence:\n${evidence.map((e) => `${e.id} [${e.source}]${e.quotable ? ' [quote]' : ''} ${e.text}`).join('\n')}${prior}\n\nToday is ${today}.` }],
   });
   const usage = { input: res.usage.input_tokens, output: res.usage.output_tokens };
   if (res.stop_reason === 'refusal' || !res.parsed_output)

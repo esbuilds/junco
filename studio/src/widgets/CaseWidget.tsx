@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ACTION_LABEL, api, DECISION_LABEL, human, money, REASONS, STATUS, dueText, type CaseDetail, type Decision,
+  ACTION_LABEL, api, DECISION_LABEL, foundQuote, human, QUOTE_FOUND, money, REASONS, STATUS, dueText, type CaseDetail, type Decision,
 } from '../api';
 import { startReplay, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
@@ -142,6 +142,7 @@ export function CaseWidget() {
               <li key={i}>
                 {cl.text}
                 {cl.evidence_ids.map((e) => <button type="button" key={e} className="jd-cite" {...litProps(e)}>{e}</button>)}
+                {foundQuote(cl, c.evidence) && <div className="jd-quote"><q>{foundQuote(cl, c.evidence)}</q> <span className="jd-muted">{QUOTE_FOUND}</span></div>}
               </li>
             ))}
           </ul>
