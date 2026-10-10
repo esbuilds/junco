@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type Activity } from '../api';
 import { selectCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
 // M1 "Dispute this store": file a real sandbox dispute against the demo store as the buyer, then watch JUNCO work it.
 // Steps come from the agent's activity log for that case, including PayPal's own re-read after an action.
-type RunView = { dispute_id: string; at: string; steps: Activity[] };
+type RunView = { dispute_id: string; at: string; lease_until: string; yours: boolean; steps: Activity[] };
 type Status = { live_left: number; can_run: string | null; mine: RunView | null; recent: RunView[] };
 
 export function StoreDisputeWidget() {
@@ -22,6 +22,10 @@ export function StoreDisputeWidget() {
 
   const shown = data?.mine ?? data?.recent[0] ?? null;
   const recorded = !data?.mine && !!shown;
+  // D1: while your run's lease lasts, the desk opens on your case (once per page load).
+  const live = !!data?.mine?.yours && Date.parse(data.mine.lease_until) > Date.now();
+  const opened = useRef(false);
+  useEffect(() => { if (live && !opened.current) { opened.current = true; selectCase(data!.mine!.dispute_id); } }, [live, data]);
   return (
     <Panel title="Dispute this store" subtitle={data ? `${data.live_left} live run${data.live_left === 1 ? '' : 's'} left` : 'Loading'} live>
       <p className="jd-muted">
@@ -40,6 +44,9 @@ export function StoreDisputeWidget() {
         <div className="jd-store-run">
           <strong>{recorded ? 'Recorded: an earlier visitor\'s run' : 'Your case'}</strong>{' '}
           <button type="button" className="jd-linkish" onClick={() => selectCase(shown.dispute_id)}>{shown.dispute_id}</button>
+          {!recorded && <span className="jd-muted"> {live
+            ? `· yours to act on until ${new Date(shown.lease_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; nobody else can approve or send anything on it`
+            : shown.yours ? '· your 30 minutes are over; this run is read-only now' : '· read-only'}</span>}
           <ol className="jd-activity">
             {shown.steps.length === 0 && <li className="jd-muted">Filed {shown.at.slice(11, 16)} UTC. Waiting for PayPal's webhook.</li>}
             {shown.steps.map((s, i) => (

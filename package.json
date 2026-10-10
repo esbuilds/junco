@@ -11,6 +11,7 @@
     "check-ai": "tsx src/check-ai.ts",
     "holds": "tsx src/holds.ts",
     "check-gate": "tsx src/check-gate.ts",
+    "check-lease": "tsx src/check-lease.ts",
     "check-hosted": "tsx src/check-hosted.ts",
     "pool": "tsx src/pool.ts",
     "desk": "tsx src/desk.ts",

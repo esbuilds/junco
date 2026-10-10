@@ -4,11 +4,12 @@
 // PayPal's sandbox turns every API-filed dispute into a chargeback under review within about 30 s (verified Oct 9), so
 // offers and buyer messages aren't possible on these cases; JUNCO can send supporting info or hold an accept.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mirror } from './persist.js';
 import type { Ctx } from './disputes.js';
 
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; added: string };
-export type Run = { at: string; visitor: string; buyer_txn: string; dispute_id?: string; error?: string };
+export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; dispute_id?: string; error?: string };
 const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json';
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 const write = (f: string, v: unknown) => { mkdirSync('.junco', { recursive: true }); writeFileSync(f, JSON.stringify(v, null, 2)); mirror(f, v); };
@@ -25,6 +26,24 @@ export function addToPool(entries: any[]): number {
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking, added: new Date().toISOString() }));
   if (fresh.length) write(POOL, [...pool, ...fresh]);
   return fresh.length;
+}
+
+// D1 leases. A live run's case belongs to the session that filed it for 30 minutes; after that it's a past run, read-only
+// to visitors. Who's asking comes from the desk request: visitors are a cookie session behind the shared password, the
+// owner has the owner cookie, and anything outside a desk request (PayPal webhooks, timers) is the system. Only visitors
+// are checked, and only on pool cases; the gate and the desk's case routes both ask leaseRefusal.
+export type Actor = { owner: boolean; session: string };
+export const actor = new AsyncLocalStorage<Actor>();
+export const LEASE_MS = 30 * 60_000;
+export const leaseUntil = (r: Run) => Date.parse(r.at) + LEASE_MS;
+export function leaseRefusal(disputeId?: string): string | null {
+  const a = actor.getStore();
+  if (!a || a.owner || !disputeId) return null;
+  const run = readRuns().find((r) => r.dispute_id === disputeId);
+  if (!run) return null; // not a pool case
+  if (leaseUntil(run) < Date.now()) return 'this live run has ended; past runs are read-only';
+  if (run.session !== a.session) return 'case leased to another visitor';
+  return null;
 }
 
 // One live run per visitor per day; the pool is the overall cap (STRATEGY v3.9 ruling 10).
@@ -44,11 +63,11 @@ const assertion = (email: string) => {
   return `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ iss: process.env.PAYPAL_CLIENT_ID ?? process.env.client_id, email })}.`;
 };
 
-export async function fileDispute(ctx: Ctx, visitor: string): Promise<Run> {
+export async function fileDispute(ctx: Ctx, visitor: string, session?: string): Promise<Run> {
   const why = refusal(visitor);
   if (why) throw Object.assign(new Error(why), { code: 400 });
   const entry = readPool().find((p) => !used().has(p.buyer_txn))!;
-  const run: Run = { at: new Date().toISOString(), visitor, buyer_txn: entry.buyer_txn };
+  const run: Run = { at: new Date().toISOString(), visitor, session, buyer_txn: entry.buyer_txn };
   write(RUNS, [...readRuns(), run]); // claim the pool entry before calling PayPal, so two clicks can't use it twice
   const form = new FormData();
   form.append('input', new Blob([JSON.stringify({

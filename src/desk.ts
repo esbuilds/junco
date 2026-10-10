@@ -10,7 +10,8 @@ import { createServer, sandboxCtx } from './server.js';
 import { createHostedServer, hosted } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
-import { readHolds, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
+import { randomUUID } from 'node:crypto';
+import { guards, readHolds, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
@@ -18,7 +19,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { addToPool, fileDispute, liveLeft, readRuns, refusal } from './store-dispute.js';
+import { actor, addToPool, fileDispute, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -261,6 +262,20 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   else if (AGENT_MODE || readRuns().some((r) => r.dispute_id === id)) agent.triage(id, event.event_type) // store disputes always run.catch((e) => console.error('[agent]', e));
 }
 
+// D1: case leases are checked at the gate (tool calls from the assistant and MCP clients, hold approvals) and on the
+// desk's own case routes below.
+guards.push((_m, args) => leaseRefusal(args?.dispute_id));
+const cookies = (req: IncomingMessage) => Object.fromEntries(String(req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).filter(([k]) => k).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
+// Who is asking: the owner cookie (set once at /owner?token=...), else a visitor session cookie, made on first visit.
+// A local desk with no password is the owner's. MCP clients send no cookie, so they never hold a lease.
+function actorOf(req: IncomingMessage, res: ServerResponse) {
+  const c = cookies(req);
+  const owner = !PASSWORD || (!!process.env.OWNER_TOKEN && c.junco_owner === process.env.OWNER_TOKEN);
+  let session = c.junco_session;
+  if (!/^[a-f0-9-]{36}$/.test(session ?? '')) { session = randomUUID(); res.setHeader('Set-Cookie', `junco_session=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${process.env.RENDER ? '; Secure' : ''}`); }
+  return { owner, session };
+}
+
 httpServer(async (req, res) => {
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); } // for the host's health check, no data
   try {
@@ -268,6 +283,15 @@ httpServer(async (req, res) => {
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
+  if (url.pathname === '/owner') { // the owner's browser, once: everyone else shares the desk password
+    if (!process.env.OWNER_TOKEN || url.searchParams.get('token') !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
+    res.writeHead(302, { Location: '/', 'Set-Cookie': `junco_owner=${encodeURIComponent(process.env.OWNER_TOKEN)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=5184000${process.env.RENDER ? '; Secure' : ''}` });
+    return res.end();
+  }
+  return actor.run(actorOf(req, res), () => route(req, res, url));
+}).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
+
+async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (req.method !== 'GET' && url.pathname !== '/api/studio-ai') dropCases(); // any owner action may change a case; the next list is fresh (the assistant only reads)
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
@@ -319,6 +343,8 @@ httpServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/activity') return json(res, 200, { agent_mode: AGENT_MODE, items: readActivity().slice(-50).reverse() });
     if (p[0] === 'api' && p[1] === 'cases' && p[2]) {
       const id = p[2];
+      const leased = req.method !== 'GET' && leaseRefusal(id);
+      if (leased) return json(res, 403, { error: { message: `Not allowed: ${leased}.` } });
       if (req.method === 'GET' && (p[3] === 'file.md' || p[3] === 'file.html')) {
         const d = await agent.getDispute(id);
         const savedRec = readRecs()[id];
@@ -421,15 +447,16 @@ httpServer(async (req, res) => {
       // M1: a visitor files a real sandbox dispute against the demo store and watches JUNCO work it.
       const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       if (req.method === 'POST') {
-        const run = await fileDispute(ctx, visitor);
+        const run = await fileDispute(ctx, visitor, actor.getStore()?.session);
         agent.log(run.dispute_id!, 'store dispute', 'filed', 'A visitor filed this dispute as the sandbox buyer (item not received). PayPal\'s sandbox turns API-filed disputes into chargebacks under review, so JUNCO can send supporting info or hold an accept; offers and buyer messages are not possible here.');
-        setTimeout(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e)), 10_000); // let PayPal finish creating it
+        setTimeout(() => actor.exit(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e))), 10_000); // let PayPal finish creating it; the agent works for the owner, not the visitor
         return json(res, 200, run);
       }
       const runs = readRuns().filter((r) => r.dispute_id);
-      const mine = runs.filter((r) => r.visitor === visitor).at(-1) ?? null;
+      const session = actor.getStore()?.session;
+      const mine = runs.filter((r) => r.session === session).at(-1) ?? runs.filter((r) => r.visitor === visitor).at(-1) ?? null;
       const acts = readActivity();
-      const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, at: r.at, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
+      const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, at: r.at, lease_until: new Date(leaseUntil(r)).toISOString(), yours: !!session && r.session === session, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
       return json(res, 200, { live_left: liveLeft(), can_run: refusal(visitor), mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
     }
     if (req.method === 'POST' && url.pathname === '/api/pool') {
@@ -458,9 +485,9 @@ httpServer(async (req, res) => {
       return json(res, 200, await resolveHold(p[2], p[3]));
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
-    json(res, e.code === 404 || e.code === 400 ? e.code : 500, { error: { message: e.message } });
+    json(res, [400, 403, 404].includes(e.code) ? e.code : 500, { error: { message: e.message } });
   }
-}).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
+}
 
 // Watched orders cross their ship-by time without any event, so they are re-checked on a timer too.
 setInterval(() => void watch.refreshAll().catch((e) => console.error('[watch]', e)), 10 * 60_000);
