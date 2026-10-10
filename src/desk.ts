@@ -11,7 +11,7 @@ import { createHostedServer, hosted } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { randomUUID } from 'node:crypto';
-import { guards, readHolds, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
+import { guards, settleResolved, readHolds, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
@@ -19,7 +19,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { actor, addToPool, fileDispute, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal } from './store-dispute.js';
+import { actor, addToPool, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -85,7 +85,8 @@ const mcp = new Client({ name: 'desk', version: '0' });
 await mcp.connect(b);
 const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
-const agent = makeAgent(ctx, callTool);
+// Pre-filed pool cases wait untouched for a judge; their delivery record (if any) is on the case's evidence.
+const agent = makeAgent(ctx, callTool, { extra: extraFor, skip: isWaiting });
 const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
 const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, log: agent.log }, () => boundsFrom(policy));
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
@@ -264,7 +265,7 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
 
 // D1: case leases are checked at the gate (tool calls from the assistant and MCP clients, hold approvals) and on the
 // desk's own case routes below.
-guards.push((_m, args) => leaseRefusal(args?.dispute_id));
+guards.push((_m, args, phase) => (phase === 'decide' ? decideRefusal : leaseRefusal)(args?.dispute_id));
 const cookies = (req: IncomingMessage) => Object.fromEntries(String(req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).filter(([k]) => k).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
 // Who is asking: the owner cookie (set once at /owner?token=...), else a visitor session cookie, made on first visit.
 // A local desk with no password is the owner's. MCP clients send no cookie, so they never hold a lease.
@@ -444,26 +445,31 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       return await studioAiTurn(JSON.parse((await readRaw(req, 8_000_000)) || '{}'), res, visitor);
     }
     if (url.pathname === '/api/store-dispute') {
-      // M1: a visitor files a real sandbox dispute against the demo store and watches JUNCO work it.
+      // M1: a visitor leases a pre-filed sandbox dispute against the demo store (v3.12) and watches JUNCO work it.
       const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
       if (req.method === 'POST') {
-        const run = await fileDispute(ctx, visitor, actor.getStore()?.session);
-        agent.log(run.dispute_id!, 'store dispute', 'filed', 'A visitor filed this dispute as the sandbox buyer (item not received). PayPal\'s sandbox turns API-filed disputes into chargebacks under review, so JUNCO can send supporting info or hold an accept; offers and buyer messages are not possible here.');
-        setTimeout(() => actor.exit(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e))), 10_000); // let PayPal finish creating it; the agent works for the owner, not the visitor
+        const kind = (await readBody(req))?.kind as Kind;
+        if (!KINDS.includes(kind)) return json(res, 400, { error: { message: `kind must be ${KINDS.join(' or ')}` } });
+        const run = lease(visitor, actor.getStore()?.session, kind);
+        agent.log(run.dispute_id!, 'store dispute', 'yours', `${kind === 'unshipped' ? 'An order that was never shipped' : 'An order with a delivery record entered by this demo store'}, disputed by the sandbox buyer as not received. PayPal's sandbox makes API-filed disputes chargebacks under review: JUNCO can send supporting info or hold an accept; offers and buyer messages aren't possible here.`);
+        actor.exit(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e))); // the agent works for the owner, not the visitor
+        actor.exit(() => void kick()); // refill the ready set, as the system
         return json(res, 200, run);
       }
-      const runs = readRuns().filter((r) => r.dispute_id);
+      const runs = readRuns().filter((r) => r.dispute_id && (r.leased_at || r.visitor !== 'system'));
       const session = actor.getStore()?.session;
-      const mine = runs.filter((r) => r.session === session).at(-1) ?? runs.filter((r) => r.visitor === visitor).at(-1) ?? null;
+      const mine = runs.filter((r) => r.session === session).at(-1) ?? null;
       const acts = readActivity();
-      const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, at: r.at, lease_until: new Date(leaseUntil(r)).toISOString(), yours: !!session && r.session === session, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
-      return json(res, 200, { live_left: liveLeft(), can_run: refusal(visitor), mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
+      const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, kind: r.kind ?? null, at: r.leased_at ?? r.at, lease_until: new Date(leaseUntil(r)).toISOString(), yours: !!session && r.session === session, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
+      const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: refusal(visitor, k) }]));
+      return json(res, 200, { kinds, mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
     }
     if (req.method === 'POST' && url.pathname === '/api/pool') {
       // Prepared orders for M1 (scripts/pool.ts). Owner token, not the desk password: judges will share that.
       if (!process.env.OWNER_TOKEN || req.headers['x-owner-token'] !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
       const body = await readBody(req);
-      return json(res, 200, { added: addToPool(Array.isArray(body?.entries) ? body.entries : []), live_left: liveLeft() });
+      const added = addToPool(Array.isArray(body?.entries) ? body.entries : []); actor.exit(() => void kick());
+      return json(res, 200, { added, live_left: Object.fromEntries(KINDS.map((k) => [k, liveLeft(k)])) });
     }
     if (req.method === 'GET' && url.pathname === '/api/policy/tools') {
       // T1 matrix: every tool the gate exposes, on the desk's server and on PayPal's hosted one, with its class.
@@ -493,6 +499,20 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
 setInterval(() => void watch.refreshAll().catch((e) => console.error('[watch]', e)), 10 * 60_000);
 // Plans wait on time as well as events ("buyer silent for 48 hours"), so they also run on a timer.
 setInterval(() => void plans.tickAll().catch((e) => console.error('[plan]', e)), 10 * 60_000);
+
+// The M1 ready set (v3.12) and resolved-case holds, as the system, every 5 minutes. A case that ages out unleased is
+// handed to the agent.
+let kicking = false;
+async function kick() {
+  if (kicking || !process.env.SANDBOX_BUYER_EMAIL) return;
+  kicking = true;
+  try {
+    await keepReady(ctx, agent.getDispute, (id) => void agent.triage(id, 'retired from the ready set').catch(() => {}), (m) => console.log('[pool]', m));
+    await settleResolved(agent.getDispute);
+  } catch (e) { console.error('[pool]', e); } finally { kicking = false; }
+}
+setTimeout(() => void kick(), 15_000);
+setInterval(() => void kick(), 5 * 60_000);
 
 if (AGENT_MODE) { // backup for webhooks that never arrive
   const run = () => agent.sweep().catch((e) => console.error('[agent] sweep', e));

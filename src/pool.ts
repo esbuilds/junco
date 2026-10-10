@@ -1,6 +1,7 @@
 // Fills the M1 pool: paid sandbox orders whose BUYER transaction ID is known, so "Dispute this store" can file live.
 // Runs locally (needs the sandbox buyer's login, which never goes to the hosted desk):
-//   npm run pool -- 5            five shipped orders (USPS tracking added), sent to the hosted desk's pool
+//   npm run pool -- 5 delivered  five orders with USPS tracking plus a delivery record entered by the store (JUNCO should
+//                                send supporting info); PayPal itself never marks a sandbox order delivered
 //   npm run pool -- 5 unshipped  five orders with no tracking (JUNCO should hold an accept on these)
 // Needs SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env, plus OWNER_TOKEN (same value as on the desk).
 // One order at a time; on a failed step it saves a screenshot to .junco/pool-fail.png and stops.
@@ -10,7 +11,8 @@ import { sandboxCtx } from './server.js';
 
 const { chromium } = createRequire(new URL('../studio/package.json', import.meta.url))('playwright');
 const ctx = await sandboxCtx();
-const [n = '1', kind] = process.argv.slice(2);
+const [n = '1', kind = ''] = process.argv.slice(2);
+if (!['delivered', 'unshipped'].includes(kind)) { console.error('usage: npm run pool -- <n> delivered|unshipped'); process.exit(1); }
 const email = process.env.SANDBOX_BUYER_EMAIL, password = process.env.SANDBOX_BUYER_PASSWORD;
 if (!email || !password) { console.error('Set SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env'); process.exit(1); }
 const DESK = process.env.DESK_URL ?? 'https://junco-desk.onrender.com';
@@ -56,8 +58,11 @@ for (let i = 0; i < Number(n); i++) {
   const c = await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/capture`, { json: {} });
   const capture = c.body.purchase_units?.[0]?.payments?.captures?.[0]?.id;
   if (!capture) { console.error('Capture failed', c.status, JSON.stringify(c.body)); break; }
-  const tracked = kind !== 'unshipped';
-  if (tracked) await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/track`, { json: { capture_id: capture, tracking_number: `9400${String(Date.now()).padStart(18, '0')}`, carrier: 'USPS', notify_payer: false } });
+  const tracked = kind === 'delivered';
+  const number = `9400${String(Date.now()).padStart(18, '0')}`;
+  if (tracked) await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/track`, { json: { capture_id: capture, tracking_number: number, carrier: 'USPS', notify_payer: false } });
+  // The store's own delivery record, as a merchant would copy it from the carrier. Labelled on the desk as entered by the store.
+  const scan = tracked ? `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC` : undefined;
 
   // The buyer's transaction ID is only on the buyer's side: wait for a new top row in the buyer's activity.
   let txn: string | undefined;
@@ -67,8 +72,8 @@ for (let i = 0; i < Number(n); i++) {
   }
   if (!txn) await fail('Reading the buyer transaction ID');
   last = txn;
-  entries.push({ buyer_txn: txn, amount: '48.00', order_id: o.body.id, tracking: tracked });
-  console.log(`${i + 1}/${n}: order ${o.body.id}, capture ${capture}, buyer transaction ${txn}${tracked ? ', tracked' : ', no tracking'}`);
+  entries.push({ buyer_txn: txn, amount: '48.00', order_id: o.body.id, tracking: tracked, ...(scan && { scan }) });
+  console.log(`${i + 1}/${n}: order ${o.body.id}, capture ${capture}, buyer transaction ${txn}${tracked ? ', tracked with a delivery record' : ', no tracking'}`);
 }
 await browser.close();
 

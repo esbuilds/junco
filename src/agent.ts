@@ -19,9 +19,14 @@ export const readActivity = () => read<Activity[]>('.junco/activity.json', []);
 const handled = () => read<Record<string, { state: string; acted_at?: string }>>('.junco/handled.json', {});
 
 export const allowedOf = (d: any): string[] => (d.links ?? []).map((l: any) => l.rel).filter((r: string) => r !== 'self');
+// One triage per case per state (v3.12 call 3): stage, allowed links, messages and evidence on file. Status alone
+// changing (PayPal moving a new chargeback between review states) is not new work.
+const stateOf = (d: any) => `${d.status === 'RESOLVED' ? 'RESOLVED' : d.dispute_life_cycle_stage}|${allowedOf(d).sort().join(',')}|${(d.messages ?? []).length}|${(d.evidences ?? []).length}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: number; unlockTries?: number } = {}) {
+// extra: evidence the store holds for a case (a pool case's delivery record). skip: cases the agent must leave alone
+// for now (pre-filed pool cases waiting for a judge).
+export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: number; unlockTries?: number; extra?: (id: string) => Omit<Evidence, 'id'>[]; skip?: (id: string) => boolean } = {}) {
   const getDispute = async (id: string) => {
     const r = await paypal(ctx, 'GET', `/v1/customer/disputes/${encodeURIComponent(id)}`);
     if (r.status !== 200) throw Object.assign(new Error(`PayPal ${r.status} loading ${id}`), { code: r.status });
@@ -55,7 +60,7 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
 
   const busy = new Set<string>();
   async function triage(id: string, trigger: string) {
-    if (busy.has(id)) return; // one run per dispute at a time; webhooks often arrive in bursts
+    if (busy.has(id) || opts.skip?.(id)) return; // one run per dispute at a time; webhooks often arrive in bursts
     busy.add(id);
     try {
       let d = await getDispute(id);
@@ -65,12 +70,12 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
         await sleep(opts.unlockWaitMs ?? 60_000);
         d = await getDispute(id);
       }
-      const state = `${d.status}|${allowedOf(d).sort().join(',')}|${(d.messages ?? []).length}|${(d.evidences ?? []).length}`;
+      const state = stateOf(d);
       const prev = handled()[id];
       if (prev?.state === state) return; // nothing changed since the agent last looked, including our own updates
       if (d.status === 'RESOLVED') { write('.junco/handled.json', { ...handled(), [id]: { state } }); return log(id, trigger, 'closed', `Resolved: ${d.dispute_outcome?.outcome_code ?? 'unknown outcome'}`); }
 
-      const out = await recommend(ctx, id);
+      const out = await recommend(ctx, id, opts.extra?.(id) ?? []);
       saveRec(id, { recommendation: out.recommendation, problems: out.problems, at: new Date().toISOString(), evidence: out.evidence });
       const rec = out.recommendation;
       write('.junco/handled.json', { ...handled(), [id]: { ...prev, state } });
@@ -98,7 +103,7 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
           after.offer && JSON.stringify(after.offer) !== JSON.stringify(d.offer) && 'offer history updated'].filter(Boolean);
         log(id, trigger, 'PayPal confirmed', diff.length ? `Re-read the case: ${diff.join(', ')}` : 'Re-read the case: PayPal accepted the call; nothing visible changed yet');
       }
-      write('.junco/handled.json', { ...handled(), [id]: { state: `${after.status}|${allowedOf(after).sort().join(',')}|${(after.messages ?? []).length}|${(after.evidences ?? []).length}`, acted_at: new Date().toISOString() } });
+      write('.junco/handled.json', { ...handled(), [id]: { state: stateOf(after), acted_at: new Date().toISOString() } });
     } catch (e: any) {
       log(id, trigger, 'failed', e.message);
     } finally {

@@ -123,10 +123,27 @@ export function requestApproval(method: string, args: any, reason: string): Hold
   return hold;
 }
 
-// Extra checks that can refuse a write before policy is asked (the desk adds case leases). Reads are never guarded.
+// Extra checks that can refuse before policy is asked (the desk adds case leases). 'call' is a tool call, before policy;
+// 'decide' is the owner approving or rejecting a hold. Reads are never guarded.
 // ponytail: one process-wide list; pass guards per gate if a process ever runs two unrelated desks.
-export const guards: ((method: string, args: any) => string | null)[] = [];
-const guarded = (method: string, args: any) => { for (const g of guards) { const why = g(method, args); if (why) return why; } return null; };
+export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
+export const guards: Guard[] = [];
+const guarded = (method: string, args: any, phase: 'call' | 'decide') => { for (const g of guards) { const why = g(method, args, phase); if (why) return why; } return null; };
+
+// Pending holds on cases PayPal has resolved can never run (T2 would mark them stale on approval). The system settles
+// them so they stop asking the owner.
+export async function settleResolved(getCase: (id: string) => Promise<any>) {
+  const holds = readHolds();
+  let changed = 0;
+  for (const h of holds.filter((x) => x.status === 'pending' && x.args?.dispute_id)) {
+    const d = await getCase(h.args.dispute_id).catch(() => null);
+    if (d?.status !== 'RESOLVED') continue;
+    h.status = 'stale'; h.result = JSON.stringify({ settled: 'by the system: the case was resolved, so this can never run. Nothing was sent to PayPal.' });
+    changed++;
+  }
+  if (changed) writeHolds(holds);
+  return changed;
+}
 
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
@@ -142,7 +159,7 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, ge
     if (policy.tools[name] === 'hidden') (tool as any).disable(); // not listed; a direct call still gets the gate's deny
     tool.update({
       callback: async (args, extra) => {
-        const refused = policy.tools[name] !== 'read' && guarded(name, args);
+        const refused = policy.tools[name] !== 'read' && guarded(name, args, 'call');
         if (refused) return text({ error: { type: 'denied_by_guard', message: `Not allowed: ${refused}` } });
         const { verdict, reason } = decide(policy, name, args, readBudgets());
         if (verdict === 'allow') return originals[name](args, extra);
@@ -161,7 +178,7 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, ge
     const h = holds.find((x) => x.id === id);
     if (!h) throw new Error(`No hold ${id}`);
     if (h.status !== 'pending') throw new Error(`Hold ${id} is already ${h.status}`);
-    const refused = guarded(h.method, h.args);
+    const refused = guarded(h.method, h.args, 'decide');
     if (refused) throw Object.assign(new Error(`Not allowed: ${refused}.`), { code: 403 });
     if (!approve) { h.status = 'rejected'; writeHolds(holds); return h; }
     // Approval runs only the stored method and args, and only if the case is still the one the owner was shown.
