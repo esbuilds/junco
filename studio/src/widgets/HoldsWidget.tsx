@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, human, money, type Hold } from '../api';
+import { api, human, money, HOLD_STATUS, type Hold } from '../api';
 import { selectCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
@@ -8,9 +8,12 @@ export function HoldsWidget() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const decide = async (h: Hold, verb: 'approve' | 'reject') => {
+  const decide = async (h: Hold, verb: 'approve' | 'reject' | 'settle') => {
     setBusy(h.id); setErr(null);
-    try { await api(`/api/holds/${encodeURIComponent(h.id)}/${verb}`, { method: 'POST' }); }
+    try {
+      const r = await api<Hold>(`/api/holds/${encodeURIComponent(h.id)}/${verb}`, { method: 'POST' });
+      if (['failed', 'unknown', 'executing'].includes(r.status)) setErr(`${human(r.method)}: ${HOLD_STATUS[r.status]}.`);
+    }
     catch (e: any) { setErr(e.message); }
     finally { setBusy(null); reload(); }
   };
@@ -37,10 +40,13 @@ export function HoldsWidget() {
             {h.args?.offer_amount ? ` for ${money(h.args.offer_amount.value, h.args.offer_amount.currency_code)}` : ''}
             <div className="jd-held-why">Held: {h.reason}</div>
             {h.asked_by && <div className="jd-held-why">Asked by the {h.asked_by}</div>}
+            {h.status !== 'pending' && <div className="jd-held-why">Status: {HOLD_STATUS[h.status] ?? h.status}. It won't be sent again.</div>}
           </div>
           <div className="jd-row">
-            <button type="button" className="jd-btn jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>Approve</button>
-            <button type="button" className="jd-btn jd-danger" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
+            {h.status === 'pending' ? <>
+              <button type="button" className="jd-btn jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>Approve</button>
+              <button type="button" className="jd-btn jd-danger" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
+            </> : <button type="button" className="jd-btn" disabled={busy === h.id} onClick={() => decide(h, 'settle')}>Re-check PayPal</button>}
           </div>
         </div>
       ))}

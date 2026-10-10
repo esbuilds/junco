@@ -38,7 +38,8 @@ async function notifyHold(h: Hold) {
   } catch (e: any) { console.warn('[notify] failed', e.message); }
 }
 
-const { server, holds, policy } = await createServer(ctx, undefined, (h) => void notifyHold(h));
+// The desk's own server: the agent, negotiation and plans call through it, so its holds are the desk agent's (T3).
+const { server, holds, policy } = await createServer(ctx, undefined, (h) => { tagHold(h, 'desk agent'); void notifyHold(h); });
 
 // Owner-editable slice of the gate policy: the auto-offer limit and, per money-moving action, run it or hold it.
 const AUTO = ['send_dispute_message', 'provide_dispute_evidence', 'provide_dispute_supporting_info', 'accept_dispute_claim', 'create_refund'];
@@ -91,7 +92,7 @@ const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
 // PayPal's hosted MCP server behind the gate (M4). Its holds carry origin 'paypal-hosted' and are approved on one shared
 // hosted gate, so the stored call runs on the server it was asked of.
-const onMcpHold = (via: string) => (h: Hold) => { agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
+const onMcpHold = (via: string) => (h: Hold) => { tagHold(h, `MCP client${via}`); agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
 let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold>; settle: (id: string) => Promise<Hold> }> | null = null;
 const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'
   ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
@@ -105,6 +106,8 @@ const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id ==
 const HOLD_TAGS = '.junco/hold-tags.json';
 const holdTags = (): Record<string, string> => { try { return JSON.parse(readFileSync(HOLD_TAGS, 'utf8')); } catch { return {}; } };
 const tagged = (h: Hold) => (holdTags()[h.id] ? { ...h, asked_by: holdTags()[h.id] } : h);
+// T3: every hold says who asked, so one over-limit action held from three places reads as one rule, three callers.
+function tagHold(h: Hold, who: string) { const tags = { ...holdTags(), [h.id]: who }; writeFileSync(HOLD_TAGS, JSON.stringify(tags, null, 2)); mirror(HOLD_TAGS, tags); }
 // Models treat a JSON Schema pattern as a hint, so a first call often breaks it (accept_dispute_claim's note allows no
 // spaces) and the chat shows a failed step. Spelling the pattern out in the field's description gets it right first time.
 const spellOutPatterns = (schema: any) => ({
@@ -115,8 +118,7 @@ const spellOutPatterns = (schema: any) => ({
 let assistantMcp: Promise<Client> | null = null;
 const assistantTools = () => (assistantMcp ??= (async () => {
   const { server: s } = await createServer(ctx, policy, (h) => {
-    const tags = { ...holdTags(), [h.id]: 'dashboard assistant' };
-    writeFileSync(HOLD_TAGS, JSON.stringify(tags, null, 2)); mirror(HOLD_TAGS, tags);
+    tagHold(h, 'dashboard assistant');
     agent.log(h.args?.dispute_id ?? 'assistant', 'assistant', 'waiting for you', `${h.method.replace(/_/g, ' ')} asked by the dashboard assistant: ${h.reason}`);
     void notifyHold(h);
   });
