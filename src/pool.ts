@@ -28,14 +28,18 @@ await page.fill('#password', password);
 await page.click('#btnLogin');
 await page.waitForURL(/myaccount|summary/, { timeout: 60_000 }).catch(() => fail('Buyer login'));
 
-// Every buyer transaction already listed counts as seen, so only the payment just made is picked up.
-const activityIds = async () => {
+// Activity rows aren't links: clicking one expands it in place with "Transaction ID <id>". The top row is the newest.
+const newestTxn = async () => {
   await page.goto(`${SANDBOX}/myaccount/activities/`);
   await page.waitForLoadState('networkidle').catch(() => {});
-  return (await page.$$eval('a[href*="/details/"]', (as: any[]) => as.map((a) => a.href.match(/details\/([A-Z0-9]{17})/)?.[1]).filter(Boolean))) as string[];
+  const row = page.locator('[data-testid="trans_overview_root_container"]').first();
+  if (!(await row.count())) return undefined;
+  await row.click();
+  await page.getByText('Transaction ID').first().waitFor({ timeout: 15_000 }).catch(() => {});
+  return (await page.innerText('body')).match(/Transaction ID\s+([A-Z0-9]{17})/)?.[1];
 };
-const seen = new Set<string>(await activityIds());
-console.log(`buyer activity shows ${seen.size} earlier transactions`);
+let last = await newestTxn();
+console.log(`buyer's newest earlier transaction: ${last ?? 'none'}`);
 const entries = [];
 for (let i = 0; i < Number(n); i++) {
   const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { json: {
@@ -55,14 +59,14 @@ for (let i = 0; i < Number(n); i++) {
   const tracked = kind !== 'unshipped';
   if (tracked) await paypal(ctx, 'POST', `/v2/checkout/orders/${o.body.id}/track`, { json: { capture_id: capture, tracking_number: `9400${String(Date.now()).padStart(18, '0')}`, carrier: 'USPS', notify_payer: false } });
 
-  // The buyer's transaction ID is only on the buyer's side: the newest activity row links to /activities/details/<id>.
+  // The buyer's transaction ID is only on the buyer's side: wait for a new top row in the buyer's activity.
   let txn: string | undefined;
   for (let tries = 0; !txn && tries < 6; tries++) {
-    txn = (await activityIds()).find((id) => !seen.has(id));
-    if (!txn) await page.waitForTimeout(10_000);
+    const top = await newestTxn();
+    if (top && top !== last) txn = top; else await page.waitForTimeout(10_000);
   }
   if (!txn) await fail('Reading the buyer transaction ID');
-  seen.add(txn!);
+  last = txn;
   entries.push({ buyer_txn: txn, amount: '48.00', order_id: o.body.id, tracking: tracked });
   console.log(`${i + 1}/${n}: order ${o.body.id}, capture ${capture}, buyer transaction ${txn}${tracked ? ', tracked' : ', no tracking'}`);
 }

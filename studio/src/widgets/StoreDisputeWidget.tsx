@@ -25,7 +25,7 @@ export function StoreDisputeWidget() {
   return (
     <Panel title="Dispute this store" subtitle={data ? `${data.live_left} live run${data.live_left === 1 ? '' : 's'} left` : 'Loading'} live>
       <p className="jd-muted">
-        File a real PayPal sandbox dispute against our demo store, as the buyer, and watch JUNCO work it in under a few minutes.
+        File a real PayPal sandbox dispute against our demo store, as the buyer, and watch JUNCO work it. PayPal takes about five minutes to open a new case to the seller, so JUNCO's first step comes then.
         PayPal's sandbox turns disputes filed this way into chargebacks under review, so JUNCO can send PayPal supporting
         information or hold an accept for the owner. Offers and buyer messages aren't possible on this case.
       </p>

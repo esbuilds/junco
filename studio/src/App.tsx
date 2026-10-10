@@ -27,13 +27,13 @@ const layout = {
     },
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 4 },
-      store: { xTrack: 0, yTrack: 4, xSpan: 12, ySpan: 8 },
-      holds: { xTrack: 0, yTrack: 12, xSpan: 6, ySpan: 7 },
-      activity: { xTrack: 6, yTrack: 12, xSpan: 6, ySpan: 7 },
-      risk: { xTrack: 0, yTrack: 19, xSpan: 4, ySpan: 7 },
-      ledger: { xTrack: 4, yTrack: 19, xSpan: 3, ySpan: 7 },
-      queue: { xTrack: 0, yTrack: 26, xSpan: 7, ySpan: 15 },
-      case: { xTrack: 7, yTrack: 19, xSpan: 5, ySpan: 22 },
+      store: { xTrack: 0, yTrack: 4, xSpan: 12, ySpan: 14 },
+      holds: { xTrack: 0, yTrack: 18, xSpan: 6, ySpan: 7 },
+      activity: { xTrack: 6, yTrack: 18, xSpan: 6, ySpan: 7 },
+      risk: { xTrack: 0, yTrack: 25, xSpan: 4, ySpan: 7 },
+      ledger: { xTrack: 4, yTrack: 25, xSpan: 3, ySpan: 7 },
+      queue: { xTrack: 0, yTrack: 32, xSpan: 7, ySpan: 15 },
+      case: { xTrack: 7, yTrack: 25, xSpan: 5, ySpan: 22 },
     },
   }, insightsPage, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
