@@ -39,8 +39,8 @@ export function StoreDisputeWidget() {
         Take a real PayPal sandbox dispute against our demo store, filed by the sandbox buyer as "item not received", and
         watch JUNCO work it. The case is yours for 30 minutes; nobody else can approve or send anything on it. Never
         shipped: JUNCO should hold an accept for you to approve or reject. Delivered: the store has a delivery record it
-        entered itself, and JUNCO should send it to PayPal on its own. PayPal's sandbox makes these chargebacks under
-        review, so offers and buyer messages aren't possible here.
+        entered itself, and JUNCO should send it to PayPal on its own. PayPal's sandbox opens some of these as ordinary
+        cases and some as chargebacks under review, where only supporting info or an accept is possible.
       </p>
       <div className="jd-row">
         {KINDS.map((k) => (

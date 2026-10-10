@@ -55,7 +55,7 @@ runs.push({ at: iso(60_000), visitor: 'system', buyer_txn: 'C', kind: 'delivered
   { at: iso(RETIRE_MS + 60_000), visitor: 'system', buyer_txn: 'D', kind: 'unshipped', dispute_id: 'PP-OLD', unlocked_at: iso(RETIRE_MS) });
 writeFileSync('.junco/store-runs.json', JSON.stringify(runs));
 assert.equal(isWaiting('PP-READY'), true);
-assert.match(refusal('ip2', 'delivered')!, /No live cases of this kind left/); // filed but not unlocked yet, pool empty
+assert.match(refusal('ip2', 'delivered')!, /being filed/); // filed, PayPal hasn't unlocked it yet
 const retired: string[] = [];
 await keepReady({} as any, async (id) => ({ links: [{ rel: 'self' }, { rel: id === 'PP-READY' ? 'provide_supporting_info' : 'x' }] }), (id) => retired.push(id), () => {});
 assert.deepEqual(retired, ['PP-OLD']);
@@ -67,5 +67,12 @@ assert.equal(isWaiting('PP-READY'), false);
 assert.equal(as(bob, () => leaseRefusal('PP-READY')), null);
 assert.match(refusal('ip2', 'delivered')!, /One case of each kind/);
 assert.deepEqual(extraFor('PP-READY').map((e) => e.source), ['carrier delivery scan (entered by merchant)']);
-console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached');
+// Cases must look their age: a never-shipped order paid an hour ago isn't offered; a delivery record is timed 44 h after payment.
+const young = new Date(now - 3600_000).toISOString(), paid = new Date(now - 50 * 3600_000).toISOString();
+writeFileSync('.junco/pool.json', JSON.stringify([{ buyer_txn: 'C', amount: '48.00', tracking: true, scan: 'x', added: paid }, { buyer_txn: 'E', amount: '48.00', tracking: false, added: young }]));
+const r2 = readRuns(); r2.push({ at: young, visitor: 'system', buyer_txn: 'E', kind: 'unshipped', dispute_id: 'PP-YOUNG', unlocked_at: young });
+writeFileSync('.junco/store-runs.json', JSON.stringify(r2));
+assert.match(refusal('ip3', 'unshipped')!, /too recent/);
+assert.match(extraFor('PP-READY')[0].text, new RegExp(`Delivered, ${new Date(Date.parse(paid) + 44 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} UTC$`));
+console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back');
 console.log('ok');

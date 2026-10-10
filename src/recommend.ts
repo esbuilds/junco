@@ -77,7 +77,13 @@ export async function gatherFromPayPal(ctx: Ctx, dispute: any): Promise<Omit<Evi
 
 const amt = (m: any) => (m ? `${m.value} ${m.currency_code}` : 'n/a');
 function describeEvidence(e: any) {
-  const kind = e.evidence_type === 'CREATE' ? 'Buyer filed the case' : `Submitted ${String(e.evidence_type).toLowerCase().replace(/_/g, ' ')}`;
+  // PayPal lists requests next to submissions; REQUESTED_FROM_SELLER means PayPal is asking, not that anything was sent
+  // (Oct 10: a "Submitted proof of fulfillment" misreading led JUNCO to tell a buyer an unshipped order had shipped).
+  const what = String(e.evidence_type).toLowerCase().replace(/_/g, ' ');
+  const kind = e.evidence_type === 'CREATE' ? 'Buyer filed the case'
+    : /^REQUESTED_FROM_(\w+)/.test(e.source ?? '') ? `PayPal asked the ${e.source.slice(15).toLowerCase()} for ${what}; not provided yet`
+    : /^SUBMITTED_BY_(\w+)/.test(e.source ?? '') ? `The ${e.source.slice(13).toLowerCase()} submitted ${what}`
+    : `${what} (source not stated by PayPal)`;
   const tracking = (e.evidence_info?.tracking_info ?? []).map((t: any) => `${t.carrier_name ?? ''} ${t.tracking_number}`.trim());
   return [kind, tracking.length && `tracking ${tracking.join(', ')}`].filter(Boolean).join('; ') + '.';
 }

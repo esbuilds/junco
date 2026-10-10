@@ -82,7 +82,7 @@ export function build(s: Scenario): { dispute: any; evidence: Evidence[] } {
     dispute_amount: { value: s.amount, currency_code: 'USD' },
     links: [{ rel: 'self' }, ...s.allowed.map((rel) => ({ rel }))],
     messages: (s.messages ?? []).map(([posted_by, content], i) => ({ posted_by, content, time_posted: `2026-10-0${3 + i}T15:00:00Z` })),
-    evidences: [{ evidence_type: 'CREATE', notes: s.messages?.[0]?.[1] ?? 'Opened by buyer' }, ...(s.evidences ?? []).map((e) => ({ evidence_type: e.type, notes: e.notes, evidence_info: e.tracking ? { tracking_info: [{ carrier_name: e.tracking.split(' ')[0], tracking_number: e.tracking.split(' ')[1] }] } : {} }))],
+    evidences: [{ evidence_type: 'CREATE', source: 'SUBMITTED_BY_BUYER', notes: s.messages?.[0]?.[1] ?? 'Opened by buyer' }, ...(s.evidences ?? []).map((e) => ({ evidence_type: e.type, source: 'SUBMITTED_BY_SELLER', notes: e.notes, evidence_info: e.tracking ? { tracking_info: [{ carrier_name: e.tracking.split(' ')[0], tracking_number: e.tracking.split(' ')[1] }] } : {} }))],
     ...(s.offer && { offer: { buyer_requested_amount: { value: s.offer.requested, currency_code: 'USD' }, ...(s.offer.offered && { seller_offered_amount: { value: s.offer.offered, currency_code: 'USD' } }), offer_type: 'REFUND', history: s.offer.history ? [{ actor: s.offer.history.split(' ')[0], event_type: 'REJECTED', offer_amount: { value: s.offer.offered, currency_code: 'USD' }, offer_time: s.offer.history.split(' on ')[1] }] : [] } }),
   };
   const paypal: [string, string][] = [

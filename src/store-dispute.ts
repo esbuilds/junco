@@ -1,7 +1,7 @@
 // M1 "Dispute this store": a visitor gets a real sandbox dispute against the demo store and watches JUNCO work it.
 // PayPal's buyer-side API needs the BUYER's transaction ID for a paid order, which only the buyer's Activity page shows,
-// so paid orders are prepared ahead into a pool (src/pool.ts). PayPal's sandbox turns every API-filed dispute into a
-// chargeback under review, and takes about five minutes to unlock merchant actions (Oct 10), so cases are filed ahead
+// so paid orders are prepared ahead into a pool (src/pool.ts). PayPal's sandbox opens API-filed disputes either as an
+// ordinary inquiry (PP-R-GJF, Oct 10) or as a chargeback under review (AAU, OEM, SCP, LQC), and takes about five minutes to unlock merchant actions (Oct 10), so cases are filed ahead
 // into a ready set (STRATEGY v3.12): a visitor leases one that is already unlocked and JUNCO starts on it at once.
 // Two kinds: an order never shipped (JUNCO holds an accept for the visitor) and an order with a delivery record entered
 // by this demo store (JUNCO sends supporting info). PayPal itself never says "delivered" for a sandbox order.
@@ -27,16 +27,29 @@ const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 const kindOf = (p: PoolEntry): Kind | null => (!p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
 const unused = (kind: Kind) => readPool().filter((p) => kindOf(p) === kind && !used().has(p.buyer_txn));
 
+// Cases must look their age (Oct 10: a same-day order made JUNCO say "too early to expect delivery", and a delivery
+// record timed at the minute of payment was rightly called implausible). A never-shipped order is offered once it's past
+// the store's 2-day ship-by window; a delivered one once its record (44 hours after payment) is in the past. Payment
+// time is when the pool entry was added (the filler adds it minutes after paying).
+const DAY = 24 * 3600_000;
+const MIN_AGE: Record<Kind, number> = { unshipped: 3 * DAY, delivered: 2 * DAY };
+const DELIVERED_AFTER = 44 * 3600_000;
+const paidAt = (buyer_txn: string) => Date.parse(readPool().find((p) => p.buyer_txn === buyer_txn)?.added ?? '') || 0;
+const oldEnough = (kind: Kind, buyer_txn: string) => Date.now() - paidAt(buyer_txn) >= MIN_AGE[kind];
+const fileable = (kind: Kind) => unused(kind).filter((p) => oldEnough(kind, p.buyer_txn));
+
 export const READY_PER_KIND = Number(process.env.STORE_READY_PER_KIND ?? 2);
-export const RETIRE_MS = 3 * 24 * 3600_000; // a judge must never get a case whose response window is closing
+export const RETIRE_MS = 3 * DAY; // after a case becomes offerable; a judge must never get one whose window is closing
 const waiting = (r: Run) => !!r.dispute_id && !r.leased_at && !r.retired_at;
-export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at);
+export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at && oldEnough(kind, r.buyer_txn));
 // Pre-filed cases waiting for a judge: the agent leaves them alone until leased (or retired).
 export const isWaiting = (id: string) => readRuns().some((r) => r.dispute_id === id && waiting(r));
 // The demo store's own delivery record for a delivered case, as a merchant record on the case's evidence.
 export const extraFor = (id: string) => {
-  const scan = readRuns().find((r) => r.dispute_id === id)?.scan;
-  return scan ? [{ source: 'carrier delivery scan (entered by merchant)', text: scan }] : [];
+  const run = readRuns().find((r) => r.dispute_id === id);
+  if (!run?.scan) return [];
+  const at = new Date(paidAt(run.buyer_txn) + DELIVERED_AFTER).toISOString().slice(0, 16).replace('T', ' ');
+  return [{ source: 'carrier delivery scan (entered by merchant)', text: `${run.scan.replace(/, \d{4}-\d\d-\d\d \d\d:\d\d UTC$/, '')}, ${at} UTC` }];
 };
 export const liveLeft = (kind: Kind) => ready(kind).length + unused(kind).length;
 
@@ -86,9 +99,11 @@ export function refusal(visitor: string, kind: Kind): string | null {
   const today = new Date().toISOString().slice(0, 10);
   if (readRuns().filter((r) => r.visitor === visitor && r.kind === kind && r.leased_at?.startsWith(today)).length >= PER_VISITOR)
     return 'One case of each kind per visitor a day. Yours is below.';
-  if (!ready(kind).length) return unused(kind).length
+  if (!ready(kind).length) return fileable(kind).length || readRuns().some((r) => r.kind === kind && waiting(r) && oldEnough(kind, r.buyer_txn))
     ? 'No case of this kind is ready right now. A new one is being filed; PayPal takes about five minutes to open it.'
-    : 'No live cases of this kind left right now. The recorded run below shows the same thing.';
+    : unused(kind).length || readRuns().some((r) => r.kind === kind && waiting(r))
+      ? 'No case of this kind is ready yet: the next order is too recent to be overdue. The recorded run below shows the same thing.'
+      : 'No live cases of this kind left right now. The recorded run below shows the same thing.';
   return null;
 }
 
@@ -111,7 +126,7 @@ const assertion = (email: string) => {
 
 // File one pool order of a kind as a dispute, as the sandbox buyer. The system does this ahead of any visitor.
 export async function fileOne(ctx: Ctx, kind: Kind): Promise<Run> {
-  const entry = unused(kind)[0];
+  const entry = fileable(kind)[0];
   if (!entry) throw new Error(`No ${kind} pool orders left`);
   const run: Run = { at: new Date().toISOString(), visitor: 'system', buyer_txn: entry.buyer_txn, kind, ...(entry.scan && { scan: entry.scan }) };
   write(RUNS, [...readRuns(), run]); // claim the pool entry before calling PayPal, so two timers can't use it twice
@@ -143,7 +158,7 @@ export async function fileOne(ctx: Ctx, kind: Kind): Promise<Run> {
 export async function keepReady(ctx: Ctx, getDispute: (id: string) => Promise<any>, retire: (id: string) => void, log: (msg: string) => void) {
   const runs = readRuns();
   for (const r of runs.filter(waiting)) {
-    if (Date.now() - Date.parse(r.at) > RETIRE_MS) { r.retired_at = new Date().toISOString(); retire(r.dispute_id!); continue; }
+    if (Date.now() - Math.max(Date.parse(r.at), paidAt(r.buyer_txn) + MIN_AGE[r.kind ?? 'unshipped']) > RETIRE_MS) { r.retired_at = new Date().toISOString(); retire(r.dispute_id!); continue; }
     if (!r.unlocked_at) {
       const d = await getDispute(r.dispute_id!).catch(() => null);
       if ((d?.links ?? []).some((l: any) => l.rel !== 'self')) r.unlocked_at = new Date().toISOString();
@@ -152,7 +167,7 @@ export async function keepReady(ctx: Ctx, getDispute: (id: string) => Promise<an
   write(RUNS, runs);
   for (const kind of KINDS) {
     const need = READY_PER_KIND - readRuns().filter((r) => r.kind === kind && waiting(r)).length;
-    for (let i = 0; i < need && unused(kind).length; i++) {
+    for (let i = 0; i < need && fileable(kind).length; i++) {
       try { const r = await fileOne(ctx, kind); log(`filed ${kind} case ${r.dispute_id} for the ready set`); }
       catch (e: any) { log(`filing a ${kind} case failed: ${e.message}`); break; }
     }

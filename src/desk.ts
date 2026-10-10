@@ -451,7 +451,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
         const kind = (await readBody(req))?.kind as Kind;
         if (!KINDS.includes(kind)) return json(res, 400, { error: { message: `kind must be ${KINDS.join(' or ')}` } });
         const run = lease(visitor, actor.getStore()?.session, kind);
-        agent.log(run.dispute_id!, 'store dispute', 'yours', `${kind === 'unshipped' ? 'An order that was never shipped' : 'An order with a delivery record entered by this demo store'}, disputed by the sandbox buyer as not received. PayPal's sandbox makes API-filed disputes chargebacks under review: JUNCO can send supporting info or hold an accept; offers and buyer messages aren't possible here.`);
+        agent.log(run.dispute_id!, 'store dispute', 'yours', `${kind === 'unshipped' ? 'An order that was never shipped' : 'An order with a delivery record entered by this demo store'}, disputed by the sandbox buyer as not received. PayPal's sandbox opens some API-filed disputes as ordinary cases and some as chargebacks under review (supporting info or an accept only).`);
         actor.exit(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e))); // the agent works for the owner, not the visitor
         actor.exit(() => void kick()); // refill the ready set, as the system
         return json(res, 200, run);
