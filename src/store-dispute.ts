@@ -117,8 +117,8 @@ export function refusal(visitor: string, kind: Kind): string | null {
   if (!ready(kind).length) return fileable(kind).length || readRuns().some((r) => r.kind === kind && waiting(r) && oldEnough(kind, r.buyer_txn))
     ? 'No case of this kind is ready right now. A new one is being filed; PayPal takes about five minutes to open it.'
     : unused(kind).length || readRuns().some((r) => r.kind === kind && waiting(r))
-      ? 'No case of this kind is ready yet: the next order is too recent to be overdue. The recorded run below shows the same thing.'
-      : 'No live cases of this kind left right now. The recorded run below shows the same thing.';
+      ? 'No case of this kind is ready yet: the next order is too recent to be overdue. The recorded run below shows an earlier one.'
+      : 'No live cases of this kind left right now. The recorded run below shows an earlier one.';
   return null;
 }
 
