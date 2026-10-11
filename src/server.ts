@@ -2,6 +2,7 @@
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { tools, run, paypal, type Ctx } from './disputes.js';
+import type { Decision } from '../packages/junco-gate/src/index.js';
 import { gate, loadActivePolicy, type Policy, type Hold } from './gate.js';
 import { hydrate } from './persist.js';
 import { trackingTool } from './watch.js';
@@ -43,7 +44,7 @@ export const caseReader = (ctx: Ctx) => async (id: string) => {
 };
 
 let hydrated = false;
-export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void) {
+export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void, log?: (d: Decision) => void) {
   if (!hydrated) { // once per process: later servers (one per remote MCP request) share the files the first one restored
     hydrated = true;
     const restored = await hydrate(); // restore holds, recs, agent state and owner policy edits before anything reads them
@@ -58,7 +59,7 @@ export async function createServer(ctx: Ctx & { accessToken: string }, given?: P
   server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
-  return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx)) }; // gate last, so it wraps every tool
+  return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx), undefined, log) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {

@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { mirror } from './persist.js';
-import { decide as policyDecide, gate as wrap, jsonStore, type Guard, type Hold as PkgHold, type Policy as PkgPolicy, type Verdict } from '../packages/junco-gate/src/index.js';
+import { decide as policyDecide, gate as wrap, jsonStore, type Decision, type Guard, type Hold as PkgHold, type Policy as PkgPolicy, type Verdict } from '../packages/junco-gate/src/index.js';
 
 export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
 export type Policy = PkgPolicy & { ship_within_days?: number };
@@ -124,10 +124,11 @@ export async function settleResolved(getCase: (id: string) => Promise<any>) {
 
 // getCase reads a dispute from PayPal; without it, approvals run the stored call with no re-read (offline checks).
 // origin tags holds from a server other than the desk's own (PayPal hosted), so approval runs on the same server.
-export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string) {
+// log: the action log (every allow, hold and deny); the desk records MCP clients' allowed writes from it.
+export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string, log?: (d: Decision) => void) {
   const read = (h: PkgHold) => (getCase && h.args?.dispute_id ? getCase(h.args.dispute_id) : null);
   return wrap(server, policy, {
-    store, guards, origin, onHold: onHold as (h: PkgHold) => void,
+    store, guards, origin, log, onHold: onHold as (h: PkgHold) => void,
     allow: (method, args) => standing(method, args),
     snapshot: async (h) => { const d = await read(h); return d ? caseState(d) : undefined; },
     beforeRun: async (h) => { const d = await read(h); return d ? { refuse: staleReason(h as Hold, d), trail: trail(d) } : {}; },

@@ -7,6 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Decision } from '../packages/junco-gate/src/index.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createServer, sandboxCtx } from './server.js';
@@ -101,6 +102,11 @@ const AGENT_MODE = process.env.AGENT_MODE === 'on';
 // PayPal's hosted MCP server behind the gate (M4). Its holds carry origin 'paypal-hosted' and are approved on one shared
 // hosted gate, so the stored call runs on the server it was asked of.
 const onMcpHold = (via: string) => (h: Hold) => { tagHold(h, `MCP client${via}`); agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
+// MCP clients' allowed writes go in the activity log too, so a held action and a completed one show side by side.
+const onMcpWrite = (via: string) => (d: Decision) => {
+  if (d.verdict !== 'allow' || policy.tools[d.method] === 'read') return;
+  agent.log(d.args?.dispute_id ?? d.args?.order_id ?? d.args?.capture_id ?? 'mcp', 'mcp', 'done', `${d.method.replace(/_/g, ' ')} from an MCP client${via}: allowed (${d.reason})`);
+};
 let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold>; settle: (id: string) => Promise<Hold> }> | null = null;
 const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'
   ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
@@ -344,8 +350,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (url.pathname === '/mcp' || url.pathname === '/mcp/paypal') {
     try {
       const { server: s } = url.pathname === '/mcp/paypal'
-        ? await createHostedServer(ctx, policy, onMcpHold(" via PayPal's hosted server"))
-        : await createServer(ctx, policy, onMcpHold(''));
+        ? await createHostedServer(ctx, policy, onMcpHold(" via PayPal's hosted server"), onMcpWrite(" via PayPal's hosted server"))
+        : await createServer(ctx, policy, onMcpHold(''), onMcpWrite(''));
       const t = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => { void t.close(); void s.close(); });
       await s.connect(t);

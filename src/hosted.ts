@@ -6,6 +6,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { Ctx } from './disputes.js';
 import { gate, type Policy, type Hold } from './gate.js';
+import type { Decision } from '../packages/junco-gate/src/index.js';
 import { mirror } from '../packages/junco-gate/src/mirror.js';
 import { addDisputeTools, caseReader } from './server.js';
 
@@ -51,9 +52,9 @@ export function hosted(): Promise<Conn> {
 
 // PayPal's tools are mirrored onto a local server (junco-gate's mirror: pass-through arguments, PayPal's own schemas in
 // tools/list, a mid-flight failure reported as upstream_unavailable and never retried), then JUNCO's tools, then the gate.
-export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: Hold) => void) {
+export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: Hold) => void, log?: (d: Decision) => void) {
   const { server } = await mirror(async () => (await hosted()).client, 'junco-gate-paypal-hosted', () => { conn = null; });
   addDisputeTools(server, ctx);
-  const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted');
+  const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted', log);
   return { server, holds };
 }
