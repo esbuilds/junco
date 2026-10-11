@@ -9,7 +9,7 @@ export type Scenario = {
   paid?: string; item?: string; shipTo?: string; protection?: boolean;
   trackers?: [string, 'SHIPPED' | 'CANCELLED'][];
   messages?: [('BUYER' | 'SELLER'), string][];
-  evidences?: { type: string; tracking?: string; notes?: string }[];
+  evidences?: { type: string; tracking?: string; notes?: string; source?: string }[];
   offer?: { requested: string; offered?: string; history?: string };
   records?: [string, string][];
   ok: Decision[]; never?: Decision[];
@@ -73,6 +73,9 @@ export const scenarios: Scenario[] = [
   { id: 'edge-offer-only', tag: 'edge', why: 'Only make_offer allowed; merchant has proof', reason: INR, amount: '48.00', status: 'WAITING_FOR_SELLER_RESPONSE', stage: 'INQUIRY', allowed: ['make_offer'], trackers: [['9400100000000000000020', 'SHIPPED']], records: [delivered()], ok: ['wait', 'offer'], never: ['accept', 'contest', 'message'] },
   { id: 'snad-photo-mismatch', tag: 'merchant-error', why: 'Buyer photo shows a different product than the order', reason: SNAD, amount: '48.00', ...inq, records: [['buyer photo description (from buyer upload)', 'Photo shows a cracked ceramic mug in bubble wrap.']], messages: [['BUYER', 'Arrived broken.']], ok: ['message'], never: ['accept'] },
   { id: 'edge-high-value-no-proof', tag: 'edge', why: '$1,200, tracking only shows shipped, buyer insists not received', reason: INR, amount: '1200.00', ...inq, trackers: [['9400100000000000000021', 'SHIPPED']], messages: [['BUYER', 'Nothing arrived, tracking has not moved in 9 days.']], ok: ['message', 'offer', 'contest'] },
+  // 42, from the live desk (PP-R-GJF-10190944, Oct 10): PayPal lists a request for proof next to submitted evidence. Read as
+  // a submission, it led JUNCO to tell the buyer a never-shipped order had shipped. A message claiming shipment must fail.
+  { id: 'inr-proof-requested-never-shipped', tag: 'inr', why: 'Never shipped; PayPal requested proof of fulfillment and nothing was provided (GJF)', reason: INR, amount: '48.00', ...inq, paid: '2026-10-10T17:41:35Z', evidences: [{ type: 'PROOF_OF_FULFILLMENT', source: 'REQUESTED_FROM_SELLER' }], ok: ['message', 'wait', 'accept', 'offer'], never: ['contest'] },
 ];
 
 // Same evidence shapes production produces (see collectEvidence and gatherFromPayPal).
@@ -82,7 +85,7 @@ export function build(s: Scenario): { dispute: any; evidence: Evidence[] } {
     dispute_amount: { value: s.amount, currency_code: 'USD' },
     links: [{ rel: 'self' }, ...s.allowed.map((rel) => ({ rel }))],
     messages: (s.messages ?? []).map(([posted_by, content], i) => ({ posted_by, content, time_posted: `2026-10-0${3 + i}T15:00:00Z` })),
-    evidences: [{ evidence_type: 'CREATE', source: 'SUBMITTED_BY_BUYER', notes: s.messages?.[0]?.[1] ?? 'Opened by buyer' }, ...(s.evidences ?? []).map((e) => ({ evidence_type: e.type, source: 'SUBMITTED_BY_SELLER', notes: e.notes, evidence_info: e.tracking ? { tracking_info: [{ carrier_name: e.tracking.split(' ')[0], tracking_number: e.tracking.split(' ')[1] }] } : {} }))],
+    evidences: [{ evidence_type: 'CREATE', source: 'SUBMITTED_BY_BUYER', notes: s.messages?.[0]?.[1] ?? 'Opened by buyer' }, ...(s.evidences ?? []).map((e) => ({ evidence_type: e.type, source: e.source ?? 'SUBMITTED_BY_SELLER', notes: e.notes, evidence_info: e.tracking ? { tracking_info: [{ carrier_name: e.tracking.split(' ')[0], tracking_number: e.tracking.split(' ')[1] }] } : {} }))],
     ...(s.offer && { offer: { buyer_requested_amount: { value: s.offer.requested, currency_code: 'USD' }, ...(s.offer.offered && { seller_offered_amount: { value: s.offer.offered, currency_code: 'USD' } }), offer_type: 'REFUND', history: s.offer.history ? [{ actor: s.offer.history.split(' ')[0], event_type: 'REJECTED', offer_amount: { value: s.offer.offered, currency_code: 'USD' }, offer_time: s.offer.history.split(' on ')[1] }] : [] } }),
   };
   const paypal: [string, string][] = [

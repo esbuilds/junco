@@ -54,6 +54,20 @@ export const extraFor = (id: string) => {
 // Filed cases still waiting (unlocking or aging) count too: they will be offered.
 export const liveLeft = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r)).length + unused(kind).length;
 
+// The recorded run the panel shows (v3.12 update R3): pinned by the owner, else the newest aged run (one leased once its
+// order was old enough), else the newest leased run. A pin can be set to last only until an aged run exists.
+const PIN = '.junco/store-pin.json';
+type Pin = { dispute_id: string; until_aged: boolean } | null;
+export const readPin = () => read<Pin>(PIN, null);
+export const setPin = (p: Pin) => write(PIN, p);
+const aged = (r: Run) => !!r.kind && !!r.leased_at && Date.parse(r.leased_at) - paidAt(r.buyer_txn) >= MIN_AGE[r.kind];
+export function recordedRun(): Run | null {
+  const runs = readRuns().filter((r) => r.dispute_id && (r.leased_at || r.visitor !== 'system'));
+  const newestAged = runs.filter(aged).at(-1) ?? null, pin = readPin();
+  const pinned = pin && !(pin.until_aged && newestAged) ? runs.find((r) => r.dispute_id === pin.dispute_id) : undefined;
+  return pinned ?? newestAged ?? runs.at(-1) ?? null;
+}
+
 // Owner adds prepared orders. Entries already in the pool are skipped.
 export function addToPool(entries: any[]): number {
   const pool = readPool(), have = new Set(pool.map((p) => p.buyer_txn));

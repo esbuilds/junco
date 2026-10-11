@@ -19,7 +19,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { actor, addToPool, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addToPool, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -467,7 +467,14 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       const acts = readActivity();
       const view = (r: typeof runs[number]) => ({ dispute_id: r.dispute_id, kind: r.kind ?? null, at: r.leased_at ?? r.at, lease_until: new Date(leaseUntil(r)).toISOString(), yours: !!session && r.session === session, steps: acts.filter((a) => a.dispute_id === r.dispute_id) });
       const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: kindRefusal(visitor, k) }]));
-      return json(res, 200, { kinds, mine: mine && view(mine), recent: runs.slice(-5).reverse().map(view) });
+      const rec = recordedRun();
+      return json(res, 200, { kinds, mine: mine && view(mine), recent: rec ? [view(rec)] : [] });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/store-dispute/pin') { // owner picks the recorded run judges see
+      if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
+      const b = await readBody(req);
+      setPin(b?.dispute_id ? { dispute_id: String(b.dispute_id), until_aged: !!b.until_aged } : null);
+      return json(res, 200, { recorded: recordedRun()?.dispute_id ?? null });
     }
     if (req.method === 'POST' && url.pathname === '/api/pool') {
       // Prepared orders for M1 (scripts/pool.ts). Owner token, not the desk password: judges will share that.

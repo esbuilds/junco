@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 process.chdir(mkdtempSync(join(tmpdir(), 'junco-lease-')));
 delete process.env.DATABASE_URL; // nothing mirrored
-const { actor, leaseRefusal, decideRefusal, LEASE_MS, RETIRE_MS, isWaiting, keepReady, lease, refusal, extraFor, readRuns } = await import('./store-dispute.js');
+const { actor, recordedRun, setPin, leaseRefusal, decideRefusal, LEASE_MS, RETIRE_MS, isWaiting, keepReady, lease, refusal, extraFor, readRuns } = await import('./store-dispute.js');
 const { gate, guards } = await import('./gate.js');
 
 mkdirSync('.junco');
@@ -75,4 +75,16 @@ writeFileSync('.junco/store-runs.json', JSON.stringify(r2));
 assert.match(refusal('ip3', 'unshipped')!, /too recent/);
 assert.match(extraFor('PP-READY')[0].text, new RegExp(`Delivered, ${new Date(Date.parse(paid) + 44 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} UTC$`));
 console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back');
+
+// Recorded run (v3.12 update R3): a pin until an aged run exists, then the newest aged run.
+setPin({ dispute_id: 'PP-PAST', until_aged: true });
+const recRuns = readRuns().filter((r) => r.dispute_id !== 'PP-READY'); // only young or unleased runs: no aged run yet
+writeFileSync('.junco/store-runs.json', JSON.stringify(recRuns));
+assert.equal(recordedRun()?.dispute_id, 'PP-PAST');
+recRuns.push({ at: iso(1000), leased_at: iso(500), visitor: 'v', session: 's', buyer_txn: 'C', kind: 'delivered', dispute_id: 'PP-AGED' }); // C paid 50 h ago
+writeFileSync('.junco/store-runs.json', JSON.stringify(recRuns));
+assert.equal(recordedRun()?.dispute_id, 'PP-AGED');
+setPin({ dispute_id: 'PP-PAST', until_aged: false });
+assert.equal(recordedRun()?.dispute_id, 'PP-PAST');
+console.log('recorded run: pin holds until an aged run lands, then the aged run; a firm pin always wins');
 console.log('ok');

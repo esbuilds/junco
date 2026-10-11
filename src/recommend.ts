@@ -41,6 +41,7 @@ Only recommend an action PayPal currently allows on the dispute (listed in E1). 
 Rules:
 - Every claim must cite evidence IDs from the list you are given. Never cite an ID that is not in the list, and never state a fact that is not in the evidence.
 - Items marked [quote] are someone's own words. A claim that restates what one says must include a quote copied exactly, character for character, from that item, and the quoted words must state the fact the claim relies on. A quote is optional only for claims about what an item does not say, who wrote it or when, or a comparison across items; then leave quote null. Never put a paraphrase in the quote: a quote that isn't word for word blocks the recommendation.
+- The message to the buyer states only what the evidence shows. Never say or imply that the order shipped, is on its way, has tracking or was delivered unless a tracker or delivery record is in the evidence; a request from PayPal for proof is not proof. Every tracking number or date in the message must appear in the evidence.
 - Contest only when the evidence would actually persuade PayPal (for item not received: carrier tracking showing delivery). If the evidence is weak or missing, say so and prefer offer or accept.
 - Resolving before escalation avoids PayPal's dispute fee, so an early fair offer is often the cheapest outcome.
 - Stage CHARGEBACK with channel INTERNAL is a PayPal claim that PayPal decides, not a card chargeback; call it a claim. Only channel EXTERNAL is a card chargeback from the buyer's bank.
@@ -129,6 +130,35 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
   }
   if (rec.decision === 'contest' && !rec.evidence_type) problems.push('Contest without an evidence_type');
   if (rec.decision === 'message' && !rec.message_to_buyer?.trim()) problems.push('Message decision without message_to_buyer');
+  if (rec.message_to_buyer?.trim()) problems.push(...messageProblems(rec.message_to_buyer, evidence));
+  return problems;
+}
+
+// The message to the buyer is checked against the evidence like a claim (STRATEGY v3.12 update R2). On GJF (Oct 10) JUNCO
+// told a buyer a never-shipped order "has been shipped" with tracking. (1) A sentence asserting shipping, tracking or
+// delivery needs a tracker or delivery record in the evidence; (2) every tracking-number-shaped token and every date in
+// the message must appear in the evidence. A failure blocks the recommendation; the message is never edited silently.
+// ponytail: keyword and negation heuristics, sentence by sentence; a softer phrasing can slip through. The upgrade is a
+// claims list for the message itself, cited like the recommendation's claims.
+const SHIPPING = /\b(ship(s|ped|ping)?|dispatched|sent out|tracking|tracked|in transit|on (its|the) way|deliver(s|ed|y|ies)?|arrived?)\b/i;
+const NEGATED = /\b(not|never|no|yet to|haven't|hasn't|didn't|isn't|wasn't|won't|can't|unable)\b|n't\b/i;
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const dayKeys = (t: string) => new Set([
+  ...[...t.matchAll(/\b\d{4}-(\d{2})-(\d{2})(?!\d)/g)].map((m) => `${Number(m[1])}-${Number(m[2])}`),
+  ...[...t.matchAll(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.? (\d{1,2})(?!\d)/gi)].map((m) => `${MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1}-${Number(m[2])}`),
+]);
+export function messageProblems(message: string, evidence: Evidence[]): string[] {
+  const problems: string[] = [];
+  const text = evidence.map((e) => e.text).join('\n');
+  // A tracker or delivery record: a tracking-number-shaped token anywhere, or a source that names tracking, a carrier or a scan.
+  const proof = evidence.some((e) => !/status CANCELLED/.test(e.text) && (/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/.test(`${e.source} ${e.text}`) || /delivery scan|carrier|track/i.test(e.source)));
+  for (const sentence of message.split(/(?<=[.!?])\s+/))
+    if (!proof && SHIPPING.test(sentence) && !NEGATED.test(sentence))
+      problems.push(`Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: "${sentence.trim()}"`);
+  for (const token of message.match(/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/g) ?? [])
+    if (!text.includes(token)) problems.push(`Message gives tracking-like number ${token}, which is not in the evidence`);
+  const known = dayKeys(text);
+  for (const day of dayKeys(message)) if (!known.has(day)) problems.push(`Message gives a date (${day.replace('-', '/')}) that is not in the evidence`);
   return problems;
 }
 

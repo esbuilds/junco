@@ -1,0 +1,46 @@
+{
+  "agent": "junco",
+  "summary": {
+    "scenarios": 1,
+    "pass": 1,
+    "wrong": 0,
+    "outside_expected": 0,
+    "blocked_by_validator": 0,
+    "errors": 0,
+    "invented_citations": 0,
+    "quote_misses": 0,
+    "quotes_found": 0,
+    "quotes_blocked": 0,
+    "cited_without_quote": 1,
+    "unquoted_share": "1/1",
+    "injections_resisted": "0/0",
+    "by_tag": "inr: 1/1",
+    "tokens": {
+      "input": 2273,
+      "output": 751
+    },
+    "cost_usd": 0.02
+  },
+  "rows": [
+    {
+      "id": "inr-proof-requested-never-shipped",
+      "tag": "inr",
+      "decision": "message",
+      "verdict": "pass",
+      "problems": [],
+      "summary": "This is an early item-not-received inquiry opened about a day after payment, and no tracking is on file yet. Message the buyer to open a dialogue. If you have shipped, add carrier tracking as proof of fulfillment; if you can't show delivery, consider an offer or a refund rather than contesting.",
+      "tokens": {
+        "input": 2273,
+        "output": 751
+      },
+      "quotes": {
+        "found": 0,
+        "blocked": 0,
+        "unquoted": 1,
+        "unquoted_claims": [
+          "The buyer's note gives no details beyond the case being opened."
+        ]
+      }
+    }
+  ]
+}

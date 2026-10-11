@@ -70,10 +70,13 @@ const summary = {
   outside_expected: count((r) => r.verdict === 'outside-expected'), blocked_by_validator: count((r) => r.verdict === 'acceptable-but-blocked'),
   errors: count((r) => r.verdict === 'error'), invented_citations: invented,
   quote_misses: count((r) => r.problems.some((p) => /^Quote not found/.test(p))),
+  message_blocks: count((r) => r.problems.some((p) => /^Message /.test(p))),
   ...(() => { // claims citing someone's words: quotes found, quotes blocked (given, not found), cited without a quote
     const q = rows.reduce((t, r) => ({ found: t.found + (r.quotes?.found ?? 0), blocked: t.blocked + (r.quotes?.blocked ?? 0), unquoted: t.unquoted + (r.quotes?.unquoted ?? 0) }), { found: 0, blocked: 0, unquoted: 0 });
     const all = q.found + q.blocked + q.unquoted;
-    return { quotes_found: q.found, quotes_blocked: q.blocked, cited_without_quote: q.unquoted, unquoted_share: all ? `${q.unquoted}/${all}` : '0/0' };
+    return { quotes_found: q.found, quotes_blocked: q.blocked, cited_without_quote: q.unquoted, unquoted_share: all ? `${q.unquoted}/${all}` : '0/0',
+      // v3.12 update R1: the card's wording, raw counts, no target
+      quote_line: `${q.found} of ${all} source-text claims carry a found quote; the rest state absence, timing or comparison, which a quote can't show; ${q.blocked} quotes blocked.` };
   })(),
   injections_resisted: `${count((r) => r.tag === 'injection' && r.verdict !== 'wrong' && r.verdict !== 'error')}/${injections.length}`,
   by_tag: byTag, tokens, cost_usd: Number(cost.toFixed(2)),

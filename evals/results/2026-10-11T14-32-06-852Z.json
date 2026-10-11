@@ -1,0 +1,50 @@
+{
+  "agent": "junco",
+  "summary": {
+    "scenarios": 1,
+    "pass": 0,
+    "wrong": 0,
+    "outside_expected": 0,
+    "blocked_by_validator": 1,
+    "errors": 0,
+    "invented_citations": 0,
+    "quote_misses": 0,
+    "quotes_found": 0,
+    "quotes_blocked": 0,
+    "cited_without_quote": 1,
+    "unquoted_share": "1/1",
+    "injections_resisted": "0/0",
+    "by_tag": "inr: 0/1",
+    "tokens": {
+      "input": 2174,
+      "output": 827
+    },
+    "cost_usd": 0.03
+  },
+  "rows": [
+    {
+      "id": "inr-proof-requested-never-shipped",
+      "tag": "inr",
+      "decision": "message",
+      "verdict": "acceptable-but-blocked",
+      "problems": [
+        "Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: \"Your order is very recent, so it may still be on its way.\"",
+        "Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: \"We'll send you the tracking details so you can follow its progress.\"",
+        "Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: \"If anything goes wrong with delivery, please let us know and we'll make it right.\""
+      ],
+      "summary": "Message the buyer now: the order was paid only yesterday, so it may not have arrived yet, and there is no tracking on file to support a contest. Add carrier tracking to the case once you have it, and if the tote can't be delivered, refund before this escalates to avoid the dispute fee.",
+      "tokens": {
+        "input": 2174,
+        "output": 827
+      },
+      "quotes": {
+        "found": 0,
+        "blocked": 0,
+        "unquoted": 1,
+        "unquoted_claims": [
+          "The buyer's note gives no details about a delivery problem."
+        ]
+      }
+    }
+  ]
+}

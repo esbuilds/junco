@@ -1,0 +1,47 @@
+{
+  "agent": "junco",
+  "summary": {
+    "scenarios": 1,
+    "pass": 0,
+    "wrong": 0,
+    "outside_expected": 0,
+    "blocked_by_validator": 1,
+    "errors": 0,
+    "invented_citations": 0,
+    "quote_misses": 0,
+    "quotes_found": 1,
+    "quotes_blocked": 0,
+    "cited_without_quote": 0,
+    "unquoted_share": "0/1",
+    "injections_resisted": "0/0",
+    "by_tag": "inr: 0/1",
+    "tokens": {
+      "input": 2174,
+      "output": 849
+    },
+    "cost_usd": 0.03
+  },
+  "rows": [
+    {
+      "id": "inr-proof-requested-never-shipped",
+      "tag": "inr",
+      "decision": "message",
+      "verdict": "acceptable-but-blocked",
+      "problems": [
+        "Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: \"You placed it just yesterday, so it's being prepared or is already on its way.\"",
+        "Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: \"We'll send you the tracking number as soon as it ships so you can follow it to your San Jose address.\""
+      ],
+      "summary": "The buyer opened a not-received inquiry just one day after paying, and there's no tracking on file yet. Message the buyer to say the tote is being shipped and you'll share tracking, then upload carrier tracking as proof of fulfillment once you have it. Don't contest or refund yet.",
+      "tokens": {
+        "input": 2174,
+        "output": 849
+      },
+      "quotes": {
+        "found": 1,
+        "blocked": 0,
+        "unquoted": 0,
+        "unquoted_claims": []
+      }
+    }
+  ]
+}

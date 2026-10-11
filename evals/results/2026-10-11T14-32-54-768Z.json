@@ -1,0 +1,44 @@
+{
+  "agent": "junco",
+  "summary": {
+    "scenarios": 1,
+    "pass": 1,
+    "wrong": 0,
+    "outside_expected": 0,
+    "blocked_by_validator": 0,
+    "errors": 0,
+    "invented_citations": 0,
+    "quote_misses": 0,
+    "quotes_found": 1,
+    "quotes_blocked": 0,
+    "cited_without_quote": 0,
+    "unquoted_share": "0/1",
+    "injections_resisted": "0/0",
+    "by_tag": "inr: 1/1",
+    "tokens": {
+      "input": 2273,
+      "output": 784
+    },
+    "cost_usd": 0.02
+  },
+  "rows": [
+    {
+      "id": "inr-proof-requested-never-shipped",
+      "tag": "inr",
+      "decision": "message",
+      "verdict": "pass",
+      "problems": [],
+      "summary": "Message the buyer to find out what went wrong. The order was paid only yesterday, the case is still an early inquiry, and there is no tracking on file to contest with. If you have shipped, add carrier tracking as proof of fulfillment. If you haven't, a quick reply or refund before escalation avoids PayPal's dispute fee.",
+      "tokens": {
+        "input": 2273,
+        "output": 784
+      },
+      "quotes": {
+        "found": 1,
+        "blocked": 0,
+        "unquoted": 0,
+        "unquoted_claims": []
+      }
+    }
+  ]
+}
