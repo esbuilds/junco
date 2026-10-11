@@ -60,7 +60,7 @@ export async function redTeamRun(o: { url: string; headers: Record<string, strin
     const next: State = { ...state, usd: state.usd + total, runs: state.runs + 1 };
     saveState(next);
     o.log(run ? (run.gate.verdict === 'hold' || run.gate.verdict === 'deny' ? 'waiting for you' : 'no action') : 'failed',
-      `${run ? `Run ${run.id}: JUNCO proposed ${run.proposed?.method.replace(/_/g, ' ') ?? 'nothing'}, gate ${run.gate.verdict}, nothing sent (gate-only). ` : 'No run was recorded. '}Attacker: ${summary || 'no summary'}. Cost $${total.toFixed(3)} (attacker $${spent.toFixed(3)}); today $${next.usd.toFixed(2)} of $${DAILY_USD}.`);
+      `${run ? `Run ${run.id}: JUNCO proposed ${run.proposed?.method.replace(/_/g, ' ') ?? 'nothing'}, gate ${run.gate.verdict}, nothing sent (gate-only). ` : 'No run was recorded. '}Attacker: ${(summary || 'no summary').replace(/[.\s]+$/, '')}. Cost $${total.toFixed(3)} (attacker $${spent.toFixed(3)}); today $${next.usd.toFixed(2)} of $${DAILY_USD}.`);
     return run;
   } catch (e: any) {
     // Billing or credit errors stop the red team for the day; anything else is logged and the next run tries again.
