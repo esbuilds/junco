@@ -24,7 +24,7 @@ const client = new Client({ name: 'check-hosted', version: '0' });
 await client.connect(b);
 const listed = (await client.listTools()).tools;
 const names = new Set(listed.map((t) => t.name));
-assert(!names.has('pay_order') && !names.has('create_invoice'), 'hidden tools must not be listed');
+assert(!names.has('pay_order') && !names.has('delete_invoice'), 'hidden tools must not be listed');
 assert(names.has('accept_dispute_claim') && names.has('make_dispute_offer'), 'PayPal accept plus JUNCO offer');
 const accept = listed.find((t) => t.name === 'accept_dispute_claim')!;
 assert.deepEqual(accept.inputSchema, remote.find((t) => t.name === 'accept_dispute_claim')!.inputSchema, "PayPal's schema is listed");
