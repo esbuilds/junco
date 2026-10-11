@@ -51,7 +51,8 @@ export const extraFor = (id: string) => {
   const at = new Date(paidAt(run.buyer_txn) + DELIVERED_AFTER).toISOString().slice(0, 16).replace('T', ' ');
   return [{ source: 'carrier delivery scan (entered by merchant)', text: `${run.scan.replace(/, \d{4}-\d\d-\d\d \d\d:\d\d UTC$/, '')}, ${at} UTC` }];
 };
-export const liveLeft = (kind: Kind) => ready(kind).length + unused(kind).length;
+// Filed cases still waiting (unlocking or aging) count too: they will be offered.
+export const liveLeft = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r)).length + unused(kind).length;
 
 // Owner adds prepared orders. Entries already in the pool are skipped.
 export function addToPool(entries: any[]): number {
