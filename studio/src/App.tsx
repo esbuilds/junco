@@ -37,6 +37,12 @@ const layout = {
       case: { xTrack: 7, yTrack: 25, xSpan: 5, ySpan: 22 },
     },
   }, insightsPage, {
+    // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
+    id: 'mandate',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { mandate: { id: 'mandate', type: 'junco-challenge', dataMapping: {} } },
+    widgetLayout: { mandate: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 40 } },
+  }, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
     id: 'try',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -77,7 +83,7 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['try', 'Try it']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 export function App() {
   const [page, setPage] = useState<string>('desk');

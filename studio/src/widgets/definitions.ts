@@ -8,6 +8,7 @@ import { LedgerWidget } from './LedgerWidget';
 import { OrdersWidget } from './OrdersWidget';
 import { PolicyWidget } from './PolicyWidget';
 import { TryWidget } from './TryWidget';
+import { ChallengeWidget } from './ChallengeWidget';
 import { QueueWidget } from './QueueWidget';
 import { StatsWidget } from './StatsWidget';
 import { StoreDisputeWidget } from './StoreDisputeWidget';
@@ -22,6 +23,7 @@ const defs = [
   { id: 'junco-ledger', label: 'Simulated lifecycle outcomes', comp: LedgerWidget, defaultSize: { width: 3, height: 7 }, minSize: { width: 3, height: 4 } },
   { id: 'junco-policy', label: 'Policy', comp: PolicyWidget, defaultSize: { width: 6, height: 14 }, minSize: { width: 4, height: 8 } },
   { id: 'junco-orders', label: 'Shipment watch', comp: OrdersWidget, defaultSize: { width: 12, height: 20 }, minSize: { width: 6, height: 8 } },
+  { id: 'junco-challenge', label: 'Break the mandate', comp: ChallengeWidget, defaultSize: { width: 8, height: 34 }, minSize: { width: 6, height: 10 } },
   { id: 'junco-try', label: 'Try the brain', comp: TryWidget, defaultSize: { width: 8, height: 30 }, minSize: { width: 6, height: 10 } },
   { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 7, height: 12 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 5, height: 12 }, minSize: { width: 4, height: 8 } },

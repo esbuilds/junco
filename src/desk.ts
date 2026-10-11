@@ -19,7 +19,8 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { actor, addToPool, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { capsLeft, makeChallenge, PERSONAS, readChallengeRuns, runPage } from './challenge.js';
+import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -86,9 +87,11 @@ await mcp.connect(b);
 const callTool = async (name: string, args: any) =>
   JSON.parse(((await mcp.callTool({ name, arguments: args })) as any).content[0].text);
 // Pre-filed pool cases wait untouched for a judge; their delivery record (if any) is on the case's evidence.
-const agent = makeAgent(ctx, callTool, { extra: extraFor, skip: isWaiting });
+// The agent also leaves Break the mandate's paired cases alone: the challenge acts on them, once per visitor message.
+const agent = makeAgent(ctx, callTool, { extra: extraFor, skip: (id) => isWaiting(id) || isChallenge(id) });
 const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
 const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, log: agent.log }, () => boundsFrom(policy));
+const challenge = makeChallenge({ ctx, policy: () => policy, callTool, getDispute: agent.getDispute, act: agent.act, log: agent.log });
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
 const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
@@ -469,6 +472,29 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: kindRefusal(visitor, k) }]));
       const rec = recordedRun();
       return json(res, 200, { kinds, mine: mine && view(mine), recent: rec ? [view(rec)] : [] });
+    }
+    if (url.pathname === '/api/challenge') {
+      // Break the mandate: the visitor's paired case, the visible policy, personas, caps, and their own runs.
+      const visitor = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
+      const session = actor.getStore()!.session;
+      if (req.method === 'POST') {
+        const b = await readBody(req);
+        const r = await challenge.run({ visitor, session, text: b?.text, persona: b?.persona, faulty: !!b?.faulty, public: !!b?.public });
+        if (r.gate.hold_id) tagHold({ id: r.gate.hold_id } as Hold, 'Break the mandate (simulated buyer)');
+        return json(res, 200, r);
+      }
+      const now = Date.now(), lease = readRuns().filter((r) => r.challenge && r.session === session && leaseUntil(r) > now).at(-1);
+      return json(res, 200, {
+        policy: { offer_limit: policyView().offer_limit, accept: 'held for the owner' },
+        personas: Object.entries(PERSONAS).map(([id, p]) => ({ id, ...p })), caps: capsLeft(session),
+        case: lease ? { dispute_id: lease.dispute_id, until: new Date(leaseUntil(lease)).toISOString() } : null,
+        runs: readChallengeRuns().filter((r) => r.session === session).slice(-10).reverse(),
+      });
+    }
+    if (req.method === 'GET' && p[0] === 'run' && p[1] && !p[2]) { // a run's shareable page (permalink)
+      const r = readChallengeRuns().find((x) => x.id === p[1]);
+      if (!r) return json(res, 404, { error: { message: 'No such run' } });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(runPage(r));
     }
     if (req.method === 'POST' && url.pathname === '/api/store-dispute/pin') { // owner picks the recorded run judges see
       if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });

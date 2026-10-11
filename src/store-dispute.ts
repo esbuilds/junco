@@ -15,7 +15,7 @@ export const KINDS: Kind[] = ['unshipped', 'delivered'];
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
-export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; kind?: Kind; scan?: string; dispute_id?: string; error?: string;
+export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; kind?: Kind; scan?: string; dispute_id?: string; error?: string; challenge?: boolean;
   unlocked_at?: string; leased_at?: string; retired_at?: string };
 const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json';
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
@@ -36,9 +36,12 @@ const MIN_AGE: Record<Kind, number> = { unshipped: 3 * DAY, delivered: 2 * DAY }
 const DELIVERED_AFTER = 44 * 3600_000;
 const paidAt = (buyer_txn: string) => Date.parse(readPool().find((p) => p.buyer_txn === buyer_txn)?.added ?? '') || 0;
 const oldEnough = (kind: Kind, buyer_txn: string) => Date.now() - paidAt(buyer_txn) >= MIN_AGE[kind];
-const fileable = (kind: Kind) => unused(kind).filter((p) => oldEnough(kind, p.buyer_txn));
+// Filed as soon as they're in the pool: the age rule applies when Dispute this store offers a case (ready), and the
+// challenge doesn't need an aged order. Retirement counts from when a case becomes offerable.
+const fileable = (kind: Kind) => unused(kind);
 
-export const READY_PER_KIND = Number(process.env.STORE_READY_PER_KIND ?? 2);
+// Never-shipped cases also serve Break the mandate (v3.12 update 2 ruling 3), so more of them are kept ready.
+export const READY_PER_KIND: Record<Kind, number> = { unshipped: Number(process.env.STORE_READY_UNSHIPPED ?? 4), delivered: Number(process.env.STORE_READY_DELIVERED ?? 2) };
 export const RETIRE_MS = 3 * DAY; // after a case becomes offerable; a judge must never get one whose window is closing
 const waiting = (r: Run) => !!r.dispute_id && !r.leased_at && !r.retired_at;
 export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at && oldEnough(kind, r.buyer_txn));
@@ -102,6 +105,8 @@ export function decideRefusal(disputeId?: string): string | null {
   const a = actor.getStore();
   if (!a || a.owner) return null;
   const run = readRuns().find((r) => r.dispute_id === disputeId);
+  // In Break the mandate the visitor plays the buyer: a concession they talked JUNCO into waits for the owner, not them.
+  if (run?.challenge) return 'holds from Break the mandate are approved or rejected only by the owner';
   if (holdsLease(a, run)) return null;
   return run ? leaseRefusal(disputeId) ?? 'case leased to another visitor'
     : 'only the owner approves or rejects on shared demo cases; use Dispute this store to get a case of your own';
@@ -112,7 +117,7 @@ const PER_VISITOR = Number(process.env.STORE_DISPUTES_PER_VISITOR ?? 1);
 export function refusal(visitor: string, kind: Kind): string | null {
   if (!process.env.SANDBOX_BUYER_EMAIL) return 'Live runs are not set up on this desk (no sandbox buyer configured).';
   const today = new Date().toISOString().slice(0, 10);
-  if (readRuns().filter((r) => r.visitor === visitor && r.kind === kind && r.leased_at?.startsWith(today)).length >= PER_VISITOR)
+  if (readRuns().filter((r) => r.visitor === visitor && r.kind === kind && !r.challenge && r.leased_at?.startsWith(today)).length >= PER_VISITOR)
     return 'One case of each kind per visitor a day. Yours is below.';
   if (!ready(kind).length) return fileable(kind).length || readRuns().some((r) => r.kind === kind && waiting(r) && oldEnough(kind, r.buyer_txn))
     ? 'No case of this kind is ready right now. A new one is being filed; PayPal takes about five minutes to open it.'
@@ -129,6 +134,26 @@ export function lease(visitor: string, session: string | undefined, kind: Kind):
   const runs = readRuns();
   const r = runs.filter((x) => x.kind === kind && waiting(x) && x.unlocked_at).sort((a, b) => a.at.localeCompare(b.at))[0];
   Object.assign(r, { visitor, session, leased_at: new Date().toISOString() });
+  write(RUNS, runs);
+  return r;
+}
+
+// Break the mandate: the visitor's paired case, a never-shipped INQUIRY from the ready set (the seller can message and
+// offer there, so JUNCO's writes are real). Order age doesn't matter here, so the youngest unlocked case goes first and
+// the aged ones stay for Dispute this store. A live lease is reused for every message in the session.
+export const isChallenge = (id: string) => readRuns().some((r) => r.dispute_id === id && r.challenge);
+const CASES_PER_VISITOR = Number(process.env.CHALLENGE_CASES_PER_VISITOR ?? 1);
+export function challengeCase(visitor: string, session: string): Run {
+  const runs = readRuns(), now = Date.now();
+  const mine = runs.filter((r) => r.challenge && r.session === session && leaseUntil(r) > now).at(-1);
+  if (mine) return mine;
+  if (!process.env.SANDBOX_BUYER_EMAIL) throw Object.assign(new Error('The challenge is not set up on this desk (no sandbox buyer configured).'), { code: 400 });
+  const today = new Date().toISOString().slice(0, 10);
+  if (runs.filter((r) => r.challenge && r.visitor === visitor && r.leased_at?.startsWith(today)).length >= CASES_PER_VISITOR)
+    throw Object.assign(new Error('One challenge case per visitor a day; your earlier runs and their pages are below.'), { code: 400 });
+  const r = runs.filter((x) => x.kind === 'unshipped' && waiting(x) && x.unlocked_at).sort((a, b) => paidAt(b.buyer_txn) - paidAt(a.buyer_txn))[0];
+  if (!r) throw Object.assign(new Error('No case is ready for the challenge right now. A new one is being filed; PayPal takes about five minutes to open it.'), { code: 400 });
+  Object.assign(r, { visitor, session, leased_at: new Date().toISOString(), challenge: true });
   write(RUNS, runs);
   return r;
 }
@@ -181,7 +206,7 @@ export async function keepReady(ctx: Ctx, getDispute: (id: string) => Promise<an
   }
   write(RUNS, runs);
   for (const kind of KINDS) {
-    const need = READY_PER_KIND - readRuns().filter((r) => r.kind === kind && waiting(r)).length;
+    const need = READY_PER_KIND[kind] - readRuns().filter((r) => r.kind === kind && waiting(r)).length;
     for (let i = 0; i < need && fileable(kind).length; i++) {
       try { const r = await fileOne(ctx, kind); log(`filed ${kind} case ${r.dispute_id} for the ready set`); }
       catch (e: any) { log(`filing a ${kind} case failed: ${e.message}`); break; }

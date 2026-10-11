@@ -40,19 +40,20 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
   };
 
   // Recommendation -> one gated tool call. Contest uses the tracking PayPal already has on the order.
-  async function act(id: string, rec: Recommendation, message?: string, actor = 'owner') {
+  // call: the tool caller; the challenge passes one that records the exact call and the gate's decision.
+  async function act(id: string, rec: Recommendation, message?: string, actor = 'owner', call: CallTool = callTool) {
     if (rec.decision === 'wait') return { error: { message: 'JUNCO recommends no PayPal action right now' } };
-    if (rec.decision === 'message') return callTool('send_dispute_message', { dispute_id: id, message: message ?? rec.message_to_buyer });
+    if (rec.decision === 'message') return call('send_dispute_message', { dispute_id: id, message: message ?? rec.message_to_buyer });
     const d = await getDispute(id);
     if (rec.decision === 'offer')
-      return callTool('make_dispute_offer', { dispute_id: id, offer_type: 'REFUND', offer_amount: { currency_code: d.dispute_amount.currency_code, value: rec.offer_amount }, note: message ?? rec.message_to_buyer ?? rec.summary });
+      return call('make_dispute_offer', { dispute_id: id, offer_type: 'REFUND', offer_amount: { currency_code: d.dispute_amount.currency_code, value: rec.offer_amount }, note: message ?? rec.message_to_buyer ?? rec.summary });
     // ponytail: stock accept_dispute_claim rejects notes with spaces (toolkit 1.11 bug, see PLAN.md), so the note is one token
-    if (rec.decision === 'accept') return callTool('accept_dispute_claim', { dispute_id: id, note: `accepted_via_junco_${actor}` });
+    if (rec.decision === 'accept') return call('accept_dispute_claim', { dispute_id: id, note: `accepted_via_junco_${actor}` });
     if (!allowedOf(d).includes('provide_evidence')) // under PayPal review: supporting info is the only way to make the case
-      return callTool('provide_dispute_supporting_info', { dispute_id: id, notes: [rec.summary, ...rec.claims.map((c) => c.text)].join(' ').slice(0, 2000) });
+      return call('provide_dispute_supporting_info', { dispute_id: id, notes: [rec.summary, ...rec.claims.map((c) => c.text)].join(' ').slice(0, 2000) });
     const tracker = (await gatherFromPayPal(ctx, d)).map((e) => e.text.match(/^Tracking (\S+) status SHIPPED/)?.[1]).find(Boolean);
     if (rec.evidence_type === 'PROOF_OF_FULFILLMENT' && !tracker) return { error: { message: 'No shipped tracking on the PayPal order to submit as proof of fulfillment' } };
-    return callTool('provide_dispute_evidence', {
+    return call('provide_dispute_evidence', {
       dispute_id: id, evidence_type: rec.evidence_type ?? 'OTHER', notes: rec.summary,
       ...(tracker && { carrier_name: isUps(tracker) ? 'UPS' : 'USPS', tracking_number: tracker }), // carrier picked from the number (1Z is UPS)
     });
