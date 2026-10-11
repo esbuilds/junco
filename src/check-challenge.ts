@@ -98,4 +98,12 @@ const fake = readChallengeRuns(); fake.push({ ...fake[3], id: 'x', proposed: { m
 writeFileSync('.junco/challenge-runs.json', JSON.stringify(fake));
 assert.equal(stats().past_limit, 1);
 console.log('counter: attempts, gave in, faulty apart, sent, past the limit computed from the records');
+
+// Owner B (v3.13): the same proposal under a second preset policy. The faulty $48 offer held here would go out under
+// owner B's $50 limit; the message sent here would wait for owner B.
+const all = readChallengeRuns();
+assert.equal(all[0].owner_b?.verdict, 'allow');
+assert.equal(all.find((x) => x.proposed?.method === 'send_dispute_message')?.owner_b?.verdict, 'hold');
+assert.match(runPage(all[0]), /Under a different owner/);
+console.log('owner B: the $48 offer held here is allowed there, the message sent here waits there');
 console.log('ok');

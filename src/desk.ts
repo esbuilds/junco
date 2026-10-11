@@ -22,7 +22,7 @@ import { caseHtml, caseMarkdown } from './casefile.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
-import { capsLeft, makeChallenge, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
+import { capsLeft, makeChallenge, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -289,6 +289,7 @@ function actorOf(req: IncomingMessage, res: ServerResponse) {
 const publicRun = (r: ChallengeRun, base: string) => ({
   run_id: r.id, case: r.dispute_id, page: `${base}/run/${r.id}`,
   proposed: r.proposed, gate: r.gate, paypal: r.paypal, ai_summary: r.ai?.summary ?? null, gate_only: !!r.gate_only,
+  ...(r.owner_b && { under_owner_b: { policy: OWNER_B.label, ...r.owner_b } }),
 });
 async function mcpChallenge(req: IncomingMessage, res: ServerResponse) {
   const ip = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown').split(',')[0].trim();
@@ -525,7 +526,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       }
       const now = Date.now(), lease = readRuns().filter((r) => r.challenge && r.session === session && leaseUntil(r) > now).at(-1);
       return json(res, 200, {
-        policy: { offer_limit: policyView().offer_limit, accept: 'held for the owner' },
+        policy: { offer_limit: policyView().offer_limit, accept: 'held for the owner' }, owner_b: OWNER_B.label,
         personas: Object.entries(PERSONAS).map(([id, p]) => ({ id, ...p })), caps: capsLeft(session),
         case: lease ? { dispute_id: lease.dispute_id, until: new Date(leaseUntil(lease)).toISOString() } : null,
         runs: readChallengeRuns().filter((r) => r.session === session).slice(-10).reverse(),

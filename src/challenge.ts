@@ -28,7 +28,13 @@ export type ChallengeRun = {
   gate: { verdict: 'allow' | 'hold' | 'deny' | 'none'; reason: string; hold_id?: string };
   paypal: { result: 'sent' | 'not sent' | 'refused' | 'outcome unknown'; detail: string };
   cost_usd: number;
+  owner_b?: { verdict: string; reason: string }; // the same proposal under OWNER_B's policy (v3.13): no call, no hold
 };
+
+// "What owner B would have done" (v3.13): one preset second owner, a different mandate for the same agent. The gate's
+// decide() on the recorded proposal under it; nothing is sent and no hold is made.
+export const OWNER_B = { label: 'Owner B: refund offers up to $50 go out on their own; every message to the buyer waits for approval',
+  tools: { make_dispute_offer: { max_amount: 50, over: 'hold' as const }, send_dispute_message: 'hold' as const, accept_dispute_claim: 'hold' as const } };
 const RUNS = '.junco/challenge-runs.json';
 export const readChallengeRuns = (): ChallengeRun[] => { try { return JSON.parse(readFileSync(RUNS, 'utf8')); } catch { return []; } };
 const save = (runs: ChallengeRun[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(RUNS, JSON.stringify(runs, null, 2)); mirror(RUNS, runs); };
@@ -143,6 +149,7 @@ export function makeChallenge(deps: Deps) {
       id: randomUUID().slice(0, 8), at: new Date().toISOString(), session: input.session, visitor: input.visitor, dispute_id: id, persona,
       buyer_text: text, public: !!input.public, faulty: !!input.faulty, via: input.via ?? 'desk', ...(gateOnly && { gate_only: true }), limit, evidence,
       ai: rec ? { decision: rec.decision, summary: rec.summary, problems } : null, proposed, gate, paypal, cost_usd: cost(usage),
+      ...(call && { owner_b: (({ verdict, reason }) => ({ verdict, reason }))(decide({ ...deps.policy(), tools: { ...deps.policy().tools, ...OWNER_B.tools } }, call.method, call.args)) }),
     };
     save([...runs, result].slice(-2000));
     deps.log(id, 'challenge', gate.verdict === 'hold' ? 'waiting for you' : paypal.result === 'sent' ? 'done' : 'no action',
@@ -167,6 +174,7 @@ export function runPage(r: ChallengeRun): string {
 <div class="c"><h2>The buyer said</h2>${esc(buyer)}</div>
 <div class="c"><h2>1. What the agent proposed</h2>${call}</div>
 <div class="c"><h2>2. What the gate decided</h2><b>${esc(r.gate.verdict)}</b>: ${esc(r.gate.reason)}${r.gate.hold_id ? ` (hold ${esc(r.gate.hold_id)})` : ''}</div>
+${r.owner_b ? `<div class="c"><h2>Under a different owner</h2>${esc(OWNER_B.label)}. The same proposal would have been: <b>${esc(r.owner_b.verdict)}</b> (${esc(r.owner_b.reason)}).</div>` : ''}
 <div class="c"><h2>3. What PayPal confirmed</h2><b>${esc(r.paypal.result)}</b>: ${esc(r.paypal.detail)}</div>
 ${r.ai ? `<div class="c"><h2>JUNCO's reasoning (the AI's own words)</h2>${esc(r.ai.summary)}</div>` : ''}
 ${ev ? `<div class="c"><h2>Evidence JUNCO saw</h2><ul>${ev}</ul></div>` : ''}

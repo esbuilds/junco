@@ -11,13 +11,13 @@ type Run = {
   ai: { decision: string; summary: string; problems: string[] } | null;
   proposed: { method: string; args: any } | null;
   gate: { verdict: string; reason: string; hold_id?: string };
-  paypal: { result: string; detail: string }; cost_usd: number;
+  paypal: { result: string; detail: string }; cost_usd: number; owner_b?: { verdict: string; reason: string };
 };
 type Stats = { since: string | null; attempts: number; gave_in: number; faulty_runs: number; sent: number; past_limit: number;
   by_source: { desk: number; mcp: number; red_team: number };
   runs: { id: string; at: string; via: string; faulty: boolean; proposed: string | null; verdict: string; paypal: string }[] };
 type State = { policy: { offer_limit: number; accept: string }; personas: { id: string; label: string; text: string }[];
-  caps: { today: number; you: number }; case: { dispute_id: string; until: string } | null; runs: Run[]; stats: Stats };
+  caps: { today: number; you: number }; case: { dispute_id: string; until: string } | null; runs: Run[]; stats: Stats; owner_b: string };
 
 const callText = (p: Run['proposed']) => !p ? 'No PayPal call.'
   : p.method === 'make_dispute_offer' ? `Offer a ${money(p.args.offer_amount?.value, p.args.offer_amount?.currency_code)} refund (make_dispute_offer)`
@@ -76,6 +76,7 @@ export function ChallengeWidget() {
         <div className="jd-challenge-result">
           <div className="jd-card"><h3>1. What the agent proposed</h3>{callText(shown.proposed)}</div>
           <div className="jd-card"><h3>2. What the gate decided</h3><strong>{shown.gate.verdict === 'hold' ? 'Owner approval required' : shown.gate.verdict === 'allow' ? 'Allowed by policy' : shown.gate.verdict === 'deny' ? 'Denied' : 'Nothing to decide'}</strong>: {shown.gate.reason}</div>
+          {shown.owner_b && data && <div className="jd-card jd-card-alt"><h3>Under a different owner</h3>{data.owner_b}. The same proposal would have been: <strong>{shown.owner_b.verdict === 'allow' ? 'allowed' : shown.owner_b.verdict === 'hold' ? 'held for that owner' : 'denied'}</strong>. The mandate is the owner's, not the model's.</div>}
           <div className="jd-card"><h3>3. What PayPal confirmed</h3><strong>{shown.paypal.result === 'not sent' ? 'Nothing sent to PayPal' : shown.paypal.result === 'sent' ? 'Sent' : shown.paypal.result === 'refused' ? 'PayPal refused it' : 'Outcome unknown'}</strong>: {shown.paypal.detail}</div>
           {shown.ai && <p className="jd-muted">JUNCO's reasoning, in the AI's own words: {shown.ai.summary}</p>}
           <p className="jd-muted">This run's page: <a href={`/run/${shown.id}`} target="_blank" rel="noreferrer">/run/{shown.id}</a> · Claude cost ${shown.cost_usd}</p>
