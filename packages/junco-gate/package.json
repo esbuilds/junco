@@ -1,0 +1,20 @@
+{
+  "name": "junco-gate",
+  "version": "0.1.0",
+  "description": "An owner's policy in front of any MCP server's tools: allow, hold for approval, or deny; holds bound to the exact call; re-check before an approved call runs; an action log.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./dist/index.js" },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^3.25.0"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "model-context-protocol", "agents", "approval", "policy", "human-in-the-loop"]
+}

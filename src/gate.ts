@@ -1,18 +1,16 @@
-// Approval gate: every tool call on the MCP server (stock PayPal tools and JUNCO's) is allowed, held for the owner, or denied by policy.json.
+// JUNCO's approval gate: the junco-gate package (packages/junco-gate) with PayPal dispute hooks. Every tool call on the
+// MCP server (stock PayPal tools, PayPal's hosted ones and JUNCO's) is allowed, held for the owner, or denied by policy.json.
+// What's JUNCO's here: holds snapshot the case the owner is shown and are refused if it moved on; an unknown outcome is
+// settled from PayPal's re-read of the case; standing approvals; the desk's guards (case leases); Postgres mirroring.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { mirror } from './persist.js';
+import { decide as policyDecide, gate as wrap, jsonStore, type Guard, type Hold as PkgHold, type Policy as PkgPolicy, type Verdict } from '../packages/junco-gate/src/index.js';
 
-export type Verdict = 'allow' | 'hold' | 'deny';
-// Tool classes (T1): 'read' runs and changes nothing; 'allow' is an allowed write; 'hold' waits for the owner;
-// a limit runs up to max_amount; 'hidden' is not exposed at all. A tool with no entry gets the default, which is deny.
-export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
-export type Policy = { default: Verdict; tools: Record<string, Rule>; ship_within_days?: number };
+export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
+export type Policy = PkgPolicy & { ship_within_days?: number };
 export type CaseState = { stage: string; amount: string };
-// T2 lifecycle: pending, then rejected / stale, or executing then completed, failed or unknown. 'approved' is only on
-// holds from before the lifecycle; the desk never shows it as done. 'unknown' re-reads PayPal to settle, never re-runs.
-export type HoldStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'unknown' | 'approved' | 'rejected' | 'stale';
-export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: HoldStatus; result?: string; case?: CaseState; origin?: string; before?: Trail };
+export type Hold = PkgHold & { case?: CaseState; before?: Trail };
 
 // PayPal link rel each dispute write needs. JUNCO's own tools check it again in run(); the stock accept does not.
 const REL: Record<string, string> = {
@@ -48,9 +46,6 @@ export function landed(method: string, before: Trail, d: any): boolean | null {
     default: return null;
   }
 }
-// A tool result is JSON text; a PayPal refusal carries an error object. A dropped connection means the write may have landed.
-const UNKNOWN = new Set(['hosted_unavailable']);
-const errorOf = (t?: string) => { try { return JSON.parse(t ?? '').error; } catch { return undefined; } };
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -75,12 +70,6 @@ export function savePolicy(p: Policy | null) {
   return next;
 }
 
-// Money a call would move, if the tool has an amount field.
-const amountOf = (args: any): number | null => {
-  const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount;
-  return v == null ? null : Number(v);
-};
-
 // Standing approvals: the owner lets JUNCO handle one dispute on its own, as long as an action moves at most `limit`.
 // Accepting a claim refunds the whole disputed amount, so it counts as `amount`.
 export type Budget = { limit: number; amount: number; currency: string; set_at: string };
@@ -91,44 +80,32 @@ export function setBudget(id: string, b: Budget | null) {
   if (b) all[id] = b; else delete all[id];
   mkdirSync('.junco', { recursive: true }); writeFileSync(BUDGETS, JSON.stringify(all, null, 2)); mirror(BUDGETS, all);
 }
+const amountOf = (args: any): number | null => { const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount; return v == null ? null : Number(v); };
 export const movesMoney = (method: string, args: any, b: Budget): number =>
   method === 'accept_dispute_claim' ? b.amount : amountOf(args) ?? 0;
-
-export function decide(policy: Policy, method: string, args: any, budgets: Record<string, Budget> = {}): { verdict: Verdict; reason: string } {
+const standing = (method: string, args: any, budgets = readBudgets()): string | null => {
   const b = args?.dispute_id ? budgets[args.dispute_id] : undefined;
-  if (b && movesMoney(method, args, b) <= b.limit)
-    return { verdict: 'allow', reason: `within the ${b.limit} ${b.currency} standing approval for ${args.dispute_id}` };
-  const rule = policy.tools[method];
-  if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };
-  if (rule === 'read') return { verdict: 'allow', reason: `policy: ${method} only reads` };
-  if (rule === 'hidden') return { verdict: 'deny', reason: `policy: ${method} is not exposed` };
-  if (typeof rule === 'string') return { verdict: rule, reason: `policy: ${method} = ${rule}` };
-  const amt = amountOf(args);
-  if (amt === null || Number.isNaN(amt)) return { verdict: 'hold', reason: `${method} has an amount limit but no readable amount` };
-  return amt <= rule.max_amount
-    ? { verdict: 'allow', reason: `${amt} is within the ${rule.max_amount} limit for ${method}` }
-    : { verdict: rule.over, reason: `${amt} is over the ${rule.max_amount} limit for ${method}` };
+  return b && movesMoney(method, args, b) <= b.limit ? `within the ${b.limit} ${b.currency} standing approval for ${args.dispute_id}` : null;
+};
+export function decide(policy: Policy, method: string, args: any, budgets: Record<string, Budget> = {}): { verdict: Verdict; reason: string } {
+  const s = standing(method, args, budgets);
+  return s ? { verdict: 'allow', reason: s } : policyDecide(policy, method, args);
 }
 
 // Holds live in one JSON file, mirrored to Postgres when DATABASE_URL is set (persist.ts). One writer process.
-const HOLDS = '.junco/holds.json';
-export const readHolds = (): Hold[] => { try { return JSON.parse(readFileSync(HOLDS, 'utf8')); } catch { return []; } };
-const writeHolds = (h: Hold[]) => { mkdirSync('.junco', { recursive: true }); writeFileSync(HOLDS, JSON.stringify(h, null, 2)); mirror(HOLDS, h); };
+const store = jsonStore('.junco/holds.json', mirror);
+export const readHolds = (): Hold[] => store.read() as Hold[];
 
 // Ask the owner directly: a pending hold for an action JUNCO wants but won't take on its own (e.g. a negotiation that
 // hit its ceiling). Approving it runs the tool through the same path as any other hold.
 export function requestApproval(method: string, args: any, reason: string): Hold {
   const hold: Hold = { id: randomUUID().slice(0, 8), method, args, reason, created: new Date().toISOString(), status: 'pending' };
-  writeHolds([...readHolds(), hold]);
+  store.write([...store.read(), hold]);
   return hold;
 }
 
-// Extra checks that can refuse before policy is asked (the desk adds case leases). 'call' is a tool call, before policy;
-// 'decide' is the owner approving or rejecting a hold. Reads are never guarded.
-// ponytail: one process-wide list; pass guards per gate if a process ever runs two unrelated desks.
-export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
+// The desk adds case leases here. ponytail: one process-wide list; pass guards per gate if a process ever runs two desks.
 export const guards: Guard[] = [];
-const guarded = (method: string, args: any, phase: 'call' | 'decide') => { for (const g of guards) { const why = g(method, args, phase); if (why) return why; } return null; };
 
 // Pending holds on cases PayPal has resolved can never run (T2 would mark them stale on approval). The system settles
 // them so they stop asking the owner.
@@ -141,81 +118,20 @@ export async function settleResolved(getCase: (id: string) => Promise<any>) {
     h.status = 'stale'; h.result = JSON.stringify({ settled: 'by the system: the case was resolved, so this can never run. Nothing was sent to PayPal.' });
     changed++;
   }
-  if (changed) writeHolds(holds);
+  if (changed) store.write(holds);
   return changed;
 }
-
-type Handler = (args: any, extra: any) => Promise<any>;
-const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 
 // getCase reads a dispute from PayPal; without it, approvals run the stored call with no re-read (offline checks).
 // origin tags holds from a server other than the desk's own (PayPal hosted), so approval runs on the same server.
 export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string) {
-  // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
-  const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void }> = server._registeredTools;
-  const originals: Record<string, Handler> = {};
-  for (const [name, tool] of Object.entries(tools)) {
-    originals[name] = tool.handler;
-    if (policy.tools[name] === 'hidden') (tool as any).disable(); // not listed; a direct call still gets the gate's deny
-    tool.update({
-      callback: async (args, extra) => {
-        const refused = policy.tools[name] !== 'read' && guarded(name, args, 'call');
-        if (refused) return text({ error: { type: 'denied_by_guard', message: `Not allowed: ${refused}` } });
-        const { verdict, reason } = decide(policy, name, args, readBudgets());
-        if (verdict === 'allow') return originals[name](args, extra);
-        if (verdict === 'deny') return text({ error: { type: 'denied_by_policy', message: reason } });
-        const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending', ...(origin && { origin }) };
-        if (getCase && args?.dispute_id) hold.case = await getCase(args.dispute_id).then(caseState, () => undefined);
-        writeHolds([...readHolds(), hold]);
-        onHold?.(hold);
-        return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action.' });
-      },
-    });
-  }
-
-  async function resolve(id: string, approve: boolean): Promise<Hold> {
-    const holds = readHolds();
-    const h = holds.find((x) => x.id === id);
-    if (!h) throw new Error(`No hold ${id}`);
-    if (h.status !== 'pending') throw new Error(`Hold ${id} is already ${h.status}`);
-    const refused = guarded(h.method, h.args, 'decide');
-    if (refused) throw Object.assign(new Error(`Not allowed: ${refused}.`), { code: 403 });
-    if (!approve) { h.status = 'rejected'; writeHolds(holds); return h; }
-    // Approval runs only the stored method and args, and only if the case is still the one the owner was shown.
-    const d = getCase && h.args?.dispute_id ? await getCase(h.args.dispute_id) : null;
-    const stale = d ? staleReason(h, d) : null;
-    if (stale) {
-      h.status = 'stale'; h.result = JSON.stringify({ error: { type: 'stale_hold', message: `Not run: ${stale}` } });
-      writeHolds(holds);
-      throw Object.assign(new Error(`Not run: ${stale}. Nothing was sent to PayPal.`), { code: 400 });
-    }
-    h.status = 'executing'; if (d) h.before = trail(d);
-    writeHolds(holds); // mark first so a crash mid-call can't run it twice; a hold left executing settles like unknown
-    try {
-      const r = await originals[h.method](h.args, {});
-      h.result = r.content?.[0]?.text;
-      const err = errorOf(h.result);
-      h.status = UNKNOWN.has(err?.type) ? 'unknown' : err || r.isError ? 'failed' : 'completed';
-    } catch (e: any) {
-      h.status = 'unknown'; h.result = JSON.stringify({ error: { type: 'outcome_unknown', message: e.message } });
-    }
-    writeHolds(holds);
-    return h.status === 'unknown' ? settle(id) : h;
-  }
-
-  // Re-read PayPal and settle an unknown (or crashed executing) hold to completed or failed. Never runs the call again.
-  async function settle(id: string): Promise<Hold> {
-    const holds = readHolds();
-    const h = holds.find((x) => x.id === id);
-    if (!h) throw new Error(`No hold ${id}`);
-    if (h.status !== 'unknown' && h.status !== 'executing') return h;
-    const d = getCase && h.args?.dispute_id && h.before ? await getCase(h.args.dispute_id).catch(() => null) : null;
-    const did = d ? landed(h.method, h.before!, d) : null;
-    if (did === null) return h; // nothing to compare: stays unknown, the owner checks PayPal
-    h.status = did ? 'completed' : 'failed';
-    h.result = JSON.stringify({ settled: `PayPal's re-read shows the ${h.method.replace(/_/g, ' ')} ${did ? 'landed' : 'did not land'}`, was: h.result });
-    writeHolds(holds);
-    return h;
-  }
-  return { approve: (id: string) => resolve(id, true), reject: (id: string) => resolve(id, false), settle };
+  const read = (h: PkgHold) => (getCase && h.args?.dispute_id ? getCase(h.args.dispute_id) : null);
+  return wrap(server, policy, {
+    store, guards, origin, onHold: onHold as (h: PkgHold) => void,
+    allow: (method, args) => standing(method, args),
+    snapshot: async (h) => { const d = await read(h); return d ? caseState(d) : undefined; },
+    beforeRun: async (h) => { const d = await read(h); return d ? { refuse: staleReason(h as Hold, d), trail: trail(d) } : {}; },
+    landed: async (h) => { const d = h.before ? await read(h)?.catch(() => null) : null; return d ? landed(h.method, h.before, d) : null; },
+    unknownErrors: ['hosted_unavailable', 'upstream_unavailable'],
+  });
 }

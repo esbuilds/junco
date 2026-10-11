@@ -1,13 +1,12 @@
 // PayPal's own hosted MCP server (mcp.sandbox.paypal.com), behind JUNCO's gate, with JUNCO's dispute tools added on top.
 // PayPal's server has 46 tools but for disputes only list, get and accept; offers, messages and evidence come from JUNCO.
 // Every tool, PayPal's and JUNCO's, goes through the same policy.json classes (read, allowed write, hold, not exposed).
-import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { Ctx } from './disputes.js';
 import { gate, type Policy, type Hold } from './gate.js';
+import { mirror } from '../packages/junco-gate/src/mirror.js';
 import { addDisputeTools, caseReader } from './server.js';
 
 const HOSTED = 'https://mcp.sandbox.paypal.com/sse'; // ponytail: sandbox only; /mcp and /http are 404 there, SSE works
@@ -50,28 +49,11 @@ export function hosted(): Promise<Conn> {
   return p;
 }
 
-const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
-
+// PayPal's tools are mirrored onto a local server (junco-gate's mirror: pass-through arguments, PayPal's own schemas in
+// tools/list, a mid-flight failure reported as upstream_unavailable and never retried), then JUNCO's tools, then the gate.
 export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: Hold) => void) {
-  const { tools } = await hosted();
-  const server = new McpServer({ name: 'junco-gate-paypal-hosted', version: '1.0.0' });
-  for (const t of tools) {
-    // PayPal's server validates its own arguments; ours passes them through and lists PayPal's schema (below).
-    server.registerTool(t.name, { description: t.description, inputSchema: z.object({}).passthrough() }, async (args: any) => {
-      try { return (await (await hosted()).client.callTool({ name: t.name, arguments: args })) as any; }
-      catch (e: any) { conn = null; return text({ error: { type: 'hosted_unavailable', message: `PayPal's hosted MCP server didn't answer (${e.message}). Not retried; check the case before trying again.` } }); }
-    });
-  }
+  const { server } = await mirror(async () => (await hosted()).client, 'junco-gate-paypal-hosted', () => { conn = null; });
   addDisputeTools(server, ctx);
   const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted');
-  // tools/list shows PayPal's own input schemas for its tools, not the pass-through one.
-  // ponytail: _requestHandlers is private SDK state (checked on @modelcontextprotocol/sdk 1.32.1); re-check on upgrade
-  const schemas = new Map(tools.map((t) => [t.name, t.inputSchema]));
-  const handlers: Map<string, (req: any, extra: any) => Promise<any>> = (server.server as any)._requestHandlers;
-  const list = handlers.get('tools/list')!;
-  handlers.set('tools/list', async (req, extra) => {
-    const r = await list(req, extra);
-    return { ...r, tools: r.tools.map((t: any) => (schemas.has(t.name) ? { ...t, inputSchema: schemas.get(t.name) } : t)) };
-  });
   return { server, holds };
 }
