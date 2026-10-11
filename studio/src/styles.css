@@ -242,3 +242,4 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-challenge-result { margin-top: 12px; display: grid; gap: 8px; }
 .jd-card { border: 1px solid var(--jd-line); border-radius: 10px; padding: 10px 12px; background: var(--jd-bg); }
 .jd-card h3 { margin: 0 0 4px; }
+.jd-check { display: block; margin: 6px 0; }
