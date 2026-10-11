@@ -173,11 +173,13 @@ export const quoteFound = (quote: string | null | undefined, items: Evidence[]) 
 
 export type Previous = { decision: Recommendation['decision']; summary: string } | null;
 
-export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = new Anthropic(), previous: Previous = null) {
+// view: a changed copy of the case for the model (Break the mandate's gate-only runs show it the case as open); the
+// order, tracking and transaction facts still come from PayPal's real case.
+export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = new Anthropic(), previous: Previous = null, view?: (d: any) => any) {
   const r = await fetch(`${ctx.baseUrl}/v1/customer/disputes/${disputeId}`, { headers: { Authorization: `Bearer ${await ctx.token()}` } });
   if (!r.ok) throw new Error(`Could not load dispute ${disputeId}: ${r.status}`);
-  const dispute = await r.json();
-  const evidence = collectEvidence(dispute, [...(await gatherFromPayPal(ctx, dispute)), ...merchantRecords]);
+  const real = await r.json(), dispute = view ? view(real) : real;
+  const evidence = collectEvidence(dispute, [...(await gatherFromPayPal(ctx, real)), ...merchantRecords]);
   return { dispute, evidence, ...(await decide(dispute, evidence, client, previous)) };
 }
 
