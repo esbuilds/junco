@@ -78,7 +78,7 @@ console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease
 
 // Recorded run (v3.12 update R3): a pin until an aged run exists, then the newest aged run.
 setPin({ dispute_id: 'PP-PAST', until_aged: true });
-const recRuns = readRuns().filter((r) => r.dispute_id !== 'PP-READY'); // only young or unleased runs: no aged run yet
+const recRuns = readRuns().filter((r) => r.dispute_id === 'PP-PAST'); // no kind, so never aged: no aged run yet
 writeFileSync('.junco/store-runs.json', JSON.stringify(recRuns));
 assert.equal(recordedRun()?.dispute_id, 'PP-PAST');
 recRuns.push({ at: iso(1000), leased_at: iso(500), visitor: 'v', session: 's', buyer_txn: 'C', kind: 'delivered', dispute_id: 'PP-AGED' }); // C paid 50 h ago
