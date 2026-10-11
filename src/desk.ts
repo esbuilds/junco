@@ -105,7 +105,7 @@ const onMcpHold = (via: string) => (h: Hold) => { tagHold(h, `MCP client${via}`)
 // MCP clients' allowed writes go in the activity log too, so a held action and a completed one show side by side.
 const onMcpWrite = (via: string) => (d: Decision) => {
   if (d.verdict !== 'allow' || policy.tools[d.method] === 'read') return;
-  agent.log(d.args?.dispute_id ?? d.args?.order_id ?? d.args?.capture_id ?? 'mcp', 'mcp', 'done', `${d.method.replace(/_/g, ' ')} from an MCP client${via}: allowed (${d.reason})`);
+  agent.log(d.args?.dispute_id ?? d.args?.order_id ?? d.args?.capture_id ?? 'mcp', 'mcp', d.error ? 'failed' : 'done', `${d.method.replace(/_/g, ' ')} from an MCP client${via}: allowed (${d.reason})${d.error ? `, but the call failed: ${d.error}` : ', and PayPal accepted it'}`);
 };
 let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold>; settle: (id: string) => Promise<Hold> }> | null = null;
 const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'

@@ -37,7 +37,7 @@ test('allowed: a call within the limit runs, and the decision is logged', async 
   const t = await setup();
   assert.deepEqual(await t.call(40), { ok: true, sent: 40 });
   assert.deepEqual(t.ledger, [40]);
-  assert.equal(t.log[0].verdict, 'allow');
+  assert.equal(t.log[0].verdict, 'allow'); assert.equal(t.log[0].error, undefined);
 });
 
 test('held: a call over the limit waits; approval runs exactly that call, once', async () => {
@@ -59,4 +59,18 @@ test('stale: if the world changed after the hold, approval refuses and nothing r
   await assert.rejects(t.holds.approve(r.hold_id), /account was closed/);
   assert.equal(t.holds.holds()[0].status, 'stale');
   assert.deepEqual(t.ledger, []);
+});
+
+test('allowed but refused upstream: the log carries the error, so it never reads as done', async () => {
+  const server = new McpServer({ name: 'refuser', version: '1.0.0' });
+  server.registerTool('ping', { description: 'Always refused', inputSchema: {} }, async () => ({ content: [{ type: 'text', text: JSON.stringify({ ok: false, status: 403, message: 'Forbidden' }) }] }));
+  const log: Decision[] = [];
+  gate(server, { default: 'deny', tools: { ping: 'allow' } }, { store: jsonStore(join(mkdtempSync(join(tmpdir(), 'gate-')), 'h.json')), log: (d) => log.push(d) });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a);
+  const client = new Client({ name: 'test', version: '1.0.0' });
+  await client.connect(b);
+  await client.callTool({ name: 'ping', arguments: {} });
+  assert.equal(log[0].verdict, 'allow');
+  assert.match(log[0].error ?? '', /403/);
 });

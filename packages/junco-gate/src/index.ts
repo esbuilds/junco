@@ -18,7 +18,8 @@ export type Hold = { id: string; method: string; args: any; reason: string; crea
   case?: any; origin?: string; before?: any };
 export type Store = { read(): Hold[]; write(holds: Hold[]): void };
 export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
-export type Decision = { at: string; method: string; args: any; verdict: Verdict; reason: string; hold_id?: string };
+// error: for an allowed call, the error the tool returned (logged after the call), so the log never shows a refused call as done.
+export type Decision = { at: string; method: string; args: any; verdict: Verdict; reason: string; hold_id?: string; error?: string };
 
 export type GateOptions = {
   store?: Store; // where holds live; default .junco/holds.json
@@ -66,8 +67,8 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
   const guards = o.guards ?? [];
   const unknown = new Set(o.unknownErrors ?? []);
   const guarded = (method: string, args: any, phase: 'call' | 'decide') => { for (const g of guards) { const why = g(method, args, phase); if (why) return why; } return null; };
-  const log = (method: string, args: any, verdict: Verdict, reason: string, hold_id?: string) =>
-    o.log?.({ at: new Date().toISOString(), method, args, verdict, reason, ...(hold_id && { hold_id }) });
+  const log = (method: string, args: any, verdict: Verdict, reason: string, hold_id?: string, error?: string) =>
+    o.log?.({ at: new Date().toISOString(), method, args, verdict, reason, ...(hold_id && { hold_id }), ...(error && { error }) });
 
   // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
   const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void; disable?: () => void }> = server._registeredTools;
@@ -81,7 +82,14 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
         if (refused) { log(name, args, 'deny', refused); return text({ error: { type: 'denied_by_guard', message: `Not allowed: ${refused}` } }); }
         const standing = o.allow?.(name, args);
         const { verdict, reason } = standing ? { verdict: 'allow' as const, reason: standing } : decide(policy, name, args);
-        if (verdict === 'allow') { log(name, args, verdict, reason); return originals[name](args, extra); }
+        if (verdict === 'allow') {
+          try {
+            const r = await originals[name](args, extra);
+            const t = r?.content?.[0]?.text, err = errorOf(t) ?? (r?.isError || (() => { try { return JSON.parse(t ?? '').ok === false; } catch { return false; } })() ? t : undefined);
+            log(name, args, verdict, reason, undefined, err ? (typeof err === 'string' ? err : err.message ?? JSON.stringify(err)).slice(0, 300) : undefined);
+            return r;
+          } catch (e: any) { log(name, args, verdict, reason, undefined, e.message); throw e; }
+        }
         if (verdict === 'deny') { log(name, args, verdict, reason); return text({ error: { type: 'denied_by_policy', message: reason } }); }
         const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending', ...(o.origin && { origin: o.origin }) };
         if (o.snapshot) hold.case = await o.snapshot(hold).catch(() => undefined);
