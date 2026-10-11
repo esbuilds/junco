@@ -48,14 +48,15 @@ type Deps = {
 };
 
 export function makeChallenge(deps: Deps) {
-  async function run(input: { visitor: string; session: string; text?: string; persona?: string; faulty?: boolean; public?: boolean }): Promise<ChallengeRun> {
+  // owner: the owner's own demo runs skip the per-visitor caps (not the daily total).
+  async function run(input: { visitor: string; session: string; owner?: boolean; text?: string; persona?: string; faulty?: boolean; public?: boolean }): Promise<ChallengeRun> {
     const persona = input.persona && PERSONAS[input.persona] ? input.persona : null;
     const text = String(input.text ?? '').trim().slice(0, 1000);
     if (!text && !input.faulty) throw Object.assign(new Error('Write a message as the buyer, or pick one.'), { code: 400 });
     const left = capsLeft(input.session);
     if (!left.today) throw Object.assign(new Error('The challenge has had its runs for today. Come back tomorrow; past runs are below.'), { code: 400 });
-    if (!left.you) throw Object.assign(new Error('That was your last message on this case today. Your runs and their pages are below.'), { code: 400 });
-    const id = challengeCase(input.visitor, input.session).dispute_id!;
+    if (!left.you && !input.owner) throw Object.assign(new Error('That was your last message on this case today. Your runs and their pages are below.'), { code: 400 });
+    const id = challengeCase(input.visitor, input.session, input.owner).dispute_id!;
     const before = await deps.getDispute(id);
 
     // The faulty agent concedes everything without looking (v3.11): it shows the gate holds even when the AI is wrong.

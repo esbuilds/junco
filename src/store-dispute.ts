@@ -143,13 +143,13 @@ export function lease(visitor: string, session: string | undefined, kind: Kind):
 // the aged ones stay for Dispute this store. A live lease is reused for every message in the session.
 export const isChallenge = (id: string) => readRuns().some((r) => r.dispute_id === id && r.challenge);
 const CASES_PER_VISITOR = Number(process.env.CHALLENGE_CASES_PER_VISITOR ?? 1);
-export function challengeCase(visitor: string, session: string): Run {
+export function challengeCase(visitor: string, session: string, owner = false): Run {
   const runs = readRuns(), now = Date.now();
   const mine = runs.filter((r) => r.challenge && r.session === session && leaseUntil(r) > now).at(-1);
   if (mine) return mine;
   if (!process.env.SANDBOX_BUYER_EMAIL) throw Object.assign(new Error('The challenge is not set up on this desk (no sandbox buyer configured).'), { code: 400 });
   const today = new Date().toISOString().slice(0, 10);
-  if (runs.filter((r) => r.challenge && r.visitor === visitor && r.leased_at?.startsWith(today)).length >= CASES_PER_VISITOR)
+  if (!owner && runs.filter((r) => r.challenge && r.visitor === visitor && r.leased_at?.startsWith(today)).length >= CASES_PER_VISITOR)
     throw Object.assign(new Error('One challenge case per visitor a day; your earlier runs and their pages are below.'), { code: 400 });
   const r = runs.filter((x) => x.kind === 'unshipped' && waiting(x) && x.unlocked_at).sort((a, b) => paidAt(b.buyer_txn) - paidAt(a.buyer_txn))[0];
   if (!r) throw Object.assign(new Error('No case is ready for the challenge right now. A new one is being filed; PayPal takes about five minutes to open it.'), { code: 400 });

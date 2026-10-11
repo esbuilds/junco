@@ -479,7 +479,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       const session = actor.getStore()!.session;
       if (req.method === 'POST') {
         const b = await readBody(req);
-        const r = await challenge.run({ visitor, session, text: b?.text, persona: b?.persona, faulty: !!b?.faulty, public: !!b?.public });
+        const r = await challenge.run({ visitor, session, owner: actor.getStore()!.owner, text: b?.text, persona: b?.persona, faulty: !!b?.faulty, public: !!b?.public });
         if (r.gate.hold_id) tagHold({ id: r.gate.hold_id } as Hold, 'Break the mandate (simulated buyer)');
         return json(res, 200, r);
       }

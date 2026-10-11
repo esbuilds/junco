@@ -142,6 +142,9 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
 // claims list for the message itself, cited like the recommendation's claims.
 const SHIPPING = /\b(ship(s|ped|ping)?|dispatched|sent out|tracking|tracked|in transit|on (its|the) way|deliver(s|ed|y|ies)?|arrived?)\b/i;
 const NEGATED = /\b(not|never|no|yet to|haven't|hasn't|didn't|isn't|wasn't|won't|can't|unable)\b|n't\b/i;
+// "We'll send you tracking details as soon as they're available" promises an update; it claims nothing shipped (seen live
+// in Break the mandate, Oct 11). "It will ship tomorrow" doesn't match, so it still needs evidence.
+const PROMISE_TO_INFORM = /\b(will|'ll)\b.*\b(send|share|update|let you know|provide|post|email)\b|\b(as soon as|once) (it|they|we|the|your)\b.*\b(available|ships?|shipped)\b/i;
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const dayKeys = (t: string) => new Set([
   ...[...t.matchAll(/\b\d{4}-(\d{2})-(\d{2})(?!\d)/g)].map((m) => `${Number(m[1])}-${Number(m[2])}`),
@@ -153,7 +156,7 @@ export function messageProblems(message: string, evidence: Evidence[]): string[]
   // A tracker or delivery record: a tracking-number-shaped token anywhere, or a source that names tracking, a carrier or a scan.
   const proof = evidence.some((e) => !/status CANCELLED/.test(e.text) && (/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/.test(`${e.source} ${e.text}`) || /delivery scan|carrier|track/i.test(e.source)));
   for (const sentence of message.split(/(?<=[.!?])\s+/))
-    if (!proof && SHIPPING.test(sentence) && !NEGATED.test(sentence))
+    if (!proof && SHIPPING.test(sentence) && !NEGATED.test(sentence) && !PROMISE_TO_INFORM.test(sentence))
       problems.push(`Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: "${sentence.trim()}"`);
   for (const token of message.match(/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/g) ?? [])
     if (!text.includes(token)) problems.push(`Message gives tracking-like number ${token}, which is not in the evidence`);

@@ -39,6 +39,10 @@ const sent = "Hi John, thanks for your order of the Canvas tote. It was placed t
 assert.match(msg(sent).join(), /asserts shipping/); // the message JUNCO actually sent
 assert.deepEqual(msg("Sorry for the wait. Your order hasn't shipped yet; we'll update you on Oct 10 2026 at the latest."), []);
 assert.match(msg('Your tracking number is 9400100000000000000999.').join(), /tracking-like number 9400100000000000000999/);
+// Seen live in Break the mandate (Oct 11): a promise to update is not a shipping claim; a promise to ship still is.
+assert.deepEqual(msg("We'll send you tracking details as soon as they're available."), []);
+assert.deepEqual(msg('We will update you here with shipping details as soon as they are available.'), []);
+assert.match(msg('It will ship tomorrow and arrive by Friday.').join(), /asserts shipping/);
 assert.match(msg('We will refund you if nothing changes by Oct 20.').join(), /date \(10\/20\)/);
 assert.match(validate({ ...base, decision: 'message', message_to_buyer: 'Your order has shipped.' }, [...gjf, { id: 'E4', source: 'paypal order X tracker', text: 'Tracking 9400100000000000000003 status CANCELLED (added by merchant on PayPal).' }], dispute).join(), /asserts shipping/); // a cancelled label isn't shipping
 const withTracker = [...gjf, { id: 'E4', source: 'paypal order X tracker', text: 'Tracking 9400100000000000000006 status SHIPPED (added by merchant on PayPal).' }];
