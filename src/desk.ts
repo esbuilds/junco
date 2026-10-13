@@ -585,8 +585,11 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
-    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
-      return json(res, 200, await resolveHold(p[2], p[3]));
+    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle')) {
+      const h = await resolveHold(p[2], p[3]); // the owner's decision goes in the case's timeline, next to the hold it answers
+      if (p[3] !== 'settle') agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', p[3] === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`, `${h.method.replace(/_/g, ' ')} ${p[3] === 'reject' ? 'rejected by the owner' : `approved by the owner${h.status === 'completed' ? ', and PayPal accepted it' : `: ${(h.result ?? '').slice(0, 200)}`}`}`);
+      return json(res, 200, h);
+    }
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
     json(res, [400, 403, 404].includes(e.code) ? e.code : 500, { error: { message: e.message } });
