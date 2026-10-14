@@ -80,6 +80,11 @@ const theme = studioTheme.withParams({
   studioToggleButtonActiveBackgroundColor: C.accent, studioToggleButtonActiveBorderColor: C.accent, studioToggleButtonActiveColor: C.accent,
   chartTextColor: C.ink, chartSubtleTextColor: C.muted, chartGridLineColor: C.line, chartAxisLineColor: C.muted,
   ...Object.fromEntries(C.fills.map((c, i) => [`chartPaletteFills${i + 1}Color`, c])),
+  // v3.14 item 5: Studio's own widgets (Insights charts, filters) match the desk's panels: 12px corners, a 1px line,
+  // 17px semibold titles, 13px subtitles and captions.
+  studioWidgetBorderRadius: 12, studioWidgetBorder: { width: 1, color: C.line }, studioWidgetPadding: 16,
+  studioWidgetTitleFontSize: 17, studioWidgetTitleFontWeight: 600, studioWidgetSubtitleFontSize: 13, studioWidgetCaptionFontSize: 13,
+  accentColor: C.accent,
 } as any);
 
 // Studio shows no page tabs in view mode, so the desk has its own slim header to switch pages.
@@ -93,7 +98,10 @@ export function App() {
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
   const cases = usePoll<CaseRow[]>('/api/cases', 15000);
-  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [cases.data]);
+  // A new data object restarts Studio's chart queries; the 15 s poll returns a new array every time, so only real
+  // changes to the rows count (charts took about 30 s to settle when every poll counted).
+  const rowsKey = JSON.stringify(cases.data ?? []);
+  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [rowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
       <div className="jd-app">
