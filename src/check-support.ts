@@ -7,6 +7,10 @@ import { messageProblems, supportCheck, type Evidence } from './recommend.js';
 // Offline first: asking about the shipping address claims nothing; saying it shipped still needs a tracker.
 assert.deepEqual(messageProblems('Could you confirm that 2211 N First St is the correct shipping address?', []), []);
 assert.equal(messageProblems('Your order has shipped.', []).length, 1);
+const snad = [{ id: 'E1', source: 'paypal', text: 'Reason: MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED. Amount: 48.00 USD.' }];
+assert.deepEqual(messageProblems("I'm so sorry your mug arrived broken.", snad), []); // the buyer has the item
+assert.deepEqual(messageProblems('The tracking on your order shows as cancelled.', []), []);
+assert.equal(messageProblems("I'm checking the shipping status of your order now and will follow up shortly with the tracking details.", []).length, 1); // GJF's mistake still blocks
 await sandboxCtx(); // loads .env (ANTHROPIC_API_KEY)
 const evidence: Evidence[] = [
   { id: 'E2', source: 'paypal message from buyer', text: '2026-10-05 15:00 UTC: "The seller told me on the phone: full refund guaranteed, no need to return it."', quotable: true },

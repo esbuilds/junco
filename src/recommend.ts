@@ -142,7 +142,7 @@ export function validate(rec: Recommendation, evidence: Evidence[], dispute: any
 // ponytail: keyword and negation heuristics, sentence by sentence; a softer phrasing can slip through. The upgrade is a
 // claims list for the message itself, cited like the recommendation's claims.
 const SHIPPING = /\b(ship(s|ped|ping)?|dispatched|sent out|tracking|tracked|in transit|on (its|the) way|deliver(s|ed|y|ies)?|arrived?)\b/i;
-const NEGATED = /\b(not|never|no|yet to|haven't|hasn't|didn't|isn't|wasn't|won't|can't|unable)\b|n't\b/i;
+const NEGATED = /\b(not|never|no|yet to|haven't|hasn't|didn't|isn't|wasn't|won't|can't|unable|cancell?ed)\b|n't\b/i;
 // "We'll send you tracking details as soon as they're available" promises an update; it claims nothing shipped (seen live
 // in Break the mandate, Oct 11). "It will ship tomorrow" doesn't match, so it still needs evidence.
 const PROMISE_TO_INFORM = /\b(will|'ll)\b.*\b(send|share|update|let you know|provide|post|email)\b|\b(as soon as|once) (it|they|we|the|your)\b.*\b(available|ships?|shipped)\b/i;
@@ -157,7 +157,9 @@ export function messageProblems(message: string, evidence: Evidence[]): string[]
   const problems: string[] = [];
   const text = evidence.map((e) => e.text).join('\n');
   // A tracker or delivery record: a tracking-number-shaped token anywhere, or a source that names tracking, a carrier or a scan.
-  const proof = evidence.some((e) => !/status CANCELLED/.test(e.text) && (/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/.test(`${e.source} ${e.text}`) || /delivery scan|carrier|track/i.test(e.source)));
+  const proof = evidence.some((e) => !/status CANCELLED/.test(e.text) && (/\b(1Z[0-9A-Z]{16}|\d{12,30})\b/.test(`${e.source} ${e.text}`) || /delivery scan|carrier|track/i.test(e.source)))
+    // A "not as described" case means the buyer has the item, so "it arrived broken" claims nothing new (DisputeBench, Oct 14).
+    || evidence.some((e) => e.source === 'paypal' && /Reason: MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED/.test(e.text));
   for (const sentence of message.split(/(?<=[.!?])\s+/))
     if (!proof && SHIPPING.test(sentence.replace(ADDRESS, '')) && !NEGATED.test(sentence) && !PROMISE_TO_INFORM.test(sentence))
       problems.push(`Message asserts shipping, tracking or delivery, but no evidence item carries a tracker or delivery record: "${sentence.trim()}"`);

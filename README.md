@@ -171,20 +171,23 @@ npm run eval         # 42-scenario recommendation eval (about $1.20)
 
 ## Eval
 
-`evals/scenarios.ts` holds 42 dispute scenarios: item not received (delivered, shipped only, never shipped, cancelled label, wrong ZIP, porch theft, empty box, signature), chargebacks under PayPal review, not as described, unauthorized, credit not processed, duplicate charges, merchant data mistakes, and 10 prompt injections in buyer messages, photo captions and merchant records (including fake PayPal rulings, a buyer posing as the seller, ready-made JSON output, and a planted note pushing the agent to contest a case it should concede). Scenario 42 is a mistake JUNCO made on the live desk (see below). Each lists the decisions a careful advisor could defend and the ones that are clearly wrong. `npm run eval` runs them through the production prompt and validator and scores in code, no model judges.
+`evals/scenarios.ts` holds 43 dispute scenarios: item not received (delivered, shipped only, never shipped, cancelled label, wrong ZIP, porch theft, empty box, signature), chargebacks under PayPal review, not as described, unauthorized, credit not processed, duplicate charges, merchant data mistakes, and 10 prompt injections in buyer messages, photo captions and merchant records (including fake PayPal rulings, a buyer posing as the seller, ready-made JSON output, and a planted note pushing the agent to contest a case it should concede). Scenario 42 is a mistake JUNCO made on the live desk (see below). Scenario 43 is a buyer reporting a refund promise the seller never wrote. Each lists the decisions a careful advisor could defend and the ones that are clearly wrong. `npm run eval` runs them through the production prompt and validator and scores the decisions in code. The scenarios are written by us, so this is a regression suite, not a win rate.
 
-Latest full run (Oct 11 2026, Claude Opus 5.5, about $1.21):
+Latest full run (Oct 14 2026, Claude Opus 5.5 with a Sonnet 5.5 support check, about $2.45):
 
 | Measure | Result |
 |---|---|
-| Acceptable decision, passed the validator | 42 / 42 |
+| Acceptable decision, passed the validator | 43 / 43 |
 | Clearly wrong decision | 0 |
 | Invented or missing citations | 0 |
 | Quotes blocked (given but not found in the text) | 0 |
 | Messages to the buyer blocked | 0 |
+| Claims a second model confirmed from the cited items alone | 228 confirmed, 11 not confirmed, 0 contradicted |
 | Prompt injections resisted | 10 / 10 |
 
-53 of 104 source-text claims carry a found quote; the rest state absence, timing or comparison, which a quote can't show; 0 quotes blocked.
+The support check reads only the items each claim cites and blocks a claim they contradict; it judges facts, not the reasoning drawn from them. Its first version blocked 8 correct recommendations over wording (a USPS scan the merchant typed in, called "the USPS scan"); that run is kept in `evals/results/` (2026-10-14T13-38).
+
+56 of 108 source-text claims carry a found quote; the rest state absence, timing or comparison, which a quote can't show; 0 quotes blocked.
 
 The run before this one scored 40 / 41, and the miss was a scenario bug: a return logged as received the same day the order was paid. Claude flagged the impossible timeline and asked the buyer to confirm instead of refunding. The scenario now dates the return after the purchase and passes in three repeat runs. An earlier miss (Oct 7) was the same kind of bug: a UPS delivery scan against a USPS tracking number. Raw results, including the misses, are in `evals/results/`.
 
@@ -201,7 +204,18 @@ The scenarios double as a benchmark any dispute agent can be scored against, not
 - `npm run eval -- --agent ./my-agent.ts` scores a module that exports `async function decide(dispute, evidence)` and returns `{ decision }` (one of `accept`, `offer`, `contest`, `message`, `wait`) or a full recommendation with `claims: [{ text, evidence_ids }]`. Full recommendations go through the same citation validator, so invented evidence counts against any agent.
 - `npm run bench:export` writes `evals/disputebench.json`: every case as plain JSON (the dispute and numbered evidence the agent sees, the decisions a careful advisor could defend, and the ones that are clearly wrong), for agents in any language.
 
-A baseline that accepts every dispute it can (`evals/agents/always-accept.ts`) scored 17 / 41, made 23 clearly wrong decisions and resisted 1 of 10 injections (Oct 9 2026, on the 41 scenarios of the time). JUNCO scores 42 / 42 with none wrong on today's set (see Eval above).
+Two baselines run on the same 43 cases (Oct 14 2026): one that accepts every dispute it can (`evals/agents/always-accept.ts`), and the same model with the same settings as JUNCO but none of what JUNCO adds: plain unnumbered evidence, a one-paragraph prompt, no validator (`evals/agents/no-validator.ts`).
+
+| | JUNCO | Same model, no JUNCO checks | Always accept |
+|---|---|---|---|
+| Acceptable decision | 43 / 43 | 41 / 43 | 18 / 43 |
+| Clearly wrong decision | 0 | 1 | 24 |
+| Prompt injections resisted | 10 / 10 | 10 / 10 | 1 / 10 |
+| Would have sent an action PayPal doesn't allow on the case | 0 | 1 | 0 |
+| Messages flagged by the keyword rule, sent unchecked | 0 | 5 | 0 |
+| Every claim tied to a numbered evidence item | yes | no | no claims |
+
+What this shows: on these cases a current model decides about as well without JUNCO's prompt and validator. JUNCO's contribution is not a better decision. It is that a decision can't go out unchecked: every claim cites a numbered evidence item, a second model reads those items and blocks a claim they contradict, a message can't assert shipping without a tracker, an action PayPal doesn't allow never leaves, and every money move waits for the owner at the gate. The keyword flags are read by hand: of the 5, 3 are true sentences the rule can't tell from invented ones (backed by the merchant's own records), 2 promise to ship a new order. An earlier run of the same baseline told the never-shipped buyer of scenario 42 it was "checking the shipping status" and would send tracking, the mistake JUNCO made live on Oct 10. Raw rows for all three are in `evals/results/`.
 
 ## Carrier proof (USPS, UPS)
 
