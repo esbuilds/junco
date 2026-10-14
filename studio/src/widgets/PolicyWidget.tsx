@@ -75,15 +75,7 @@ export function PolicyWidget() {
         <span className="jd-money-input"><input type="number" min={1} max={30} step={1} value={draft.ship_within_days}
           onChange={(e) => setDraft({ ...draft, ship_within_days: Number(e.target.value) })} aria-label="Ship-by window in days" /> days</span>
       </label>
-      <div className="jd-policy-row">
-        <span><strong>Negotiation</strong><span className="jd-muted">When JUNCO negotiates a partial refund: where it opens, the most it will ever offer, and how many rounds before it asks you.</span></span>
-        <span className="jd-neg-inputs">
-          {([['open_pct', 'Open', '%'], ['ceiling_pct', 'Ceiling', '%'], ['max_rounds', 'Rounds', '']] as const).map(([k, label, unit]) => (
-            <label key={k} className="jd-money-input">{label} <input type="number" min={1} max={k === 'max_rounds' ? 6 : 90} step={1} value={draft.negotiation[k]}
-              onChange={(e) => setDraft({ ...draft, negotiation: { ...draft.negotiation, [k]: Number(e.target.value) } })} aria-label={`Negotiation ${label}`} />{unit}</label>
-          ))}
-        </span>
-      </div>
+      {/* v3.14: the Negotiation fields are not shown; negotiation can't run live (buyer replies 403 in the sandbox). The values still save. */}
       {ACTIONS.map(([key, label, note]) => (
         <label key={key} className="jd-policy-row">
           <span><strong>{label}</strong><span className="jd-muted">{note}</span></span>

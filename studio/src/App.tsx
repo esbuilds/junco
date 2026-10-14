@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
-import { StartHere } from './widgets/StartHere';
+import { StartHere, startSeen } from './widgets/StartHere';
 import { CaseBanner } from './widgets/CaseBanner';
 import { StatusLine } from './widgets/StatusLine';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
@@ -12,7 +12,8 @@ import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
 import './styles.css';
 
-// Pre-built desk layout: summary stats, Dispute this store, holds and activity, the Gate record, then at-risk and queue on the left, case on the right.
+// Pre-built desk layout (v3.14 first screen): Waiting for you and Agent activity, the Gate record, then queue and case;
+// Dispute this store, summary stats and at-risk below (Start here's first step scrolls to Dispute this store).
 // Simulated lifecycle outcomes moved to Insights (v3.14).
 const layout = {
   pages: [{
@@ -29,14 +30,14 @@ const layout = {
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
     },
     widgetLayout: {
-      stats: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 4 },
-      store: { xTrack: 0, yTrack: 4, xSpan: 12, ySpan: 14 },
-      holds: { xTrack: 0, yTrack: 18, xSpan: 6, ySpan: 7 },
-      activity: { xTrack: 6, yTrack: 18, xSpan: 6, ySpan: 7 },
-      gate: { xTrack: 0, yTrack: 25, xSpan: 12, ySpan: 10 },
-      risk: { xTrack: 0, yTrack: 35, xSpan: 7, ySpan: 7 },
-      queue: { xTrack: 0, yTrack: 42, xSpan: 7, ySpan: 15 },
-      case: { xTrack: 7, yTrack: 35, xSpan: 5, ySpan: 22 },
+      holds: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 7 },
+      activity: { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 7 },
+      gate: { xTrack: 0, yTrack: 7, xSpan: 12, ySpan: 10 },
+      queue: { xTrack: 0, yTrack: 17, xSpan: 7, ySpan: 22 },
+      case: { xTrack: 7, yTrack: 17, xSpan: 5, ySpan: 22 },
+      store: { xTrack: 0, yTrack: 39, xSpan: 12, ySpan: 14 },
+      stats: { xTrack: 0, yTrack: 53, xSpan: 12, ySpan: 4 },
+      risk: { xTrack: 0, yTrack: 57, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
@@ -88,21 +89,24 @@ const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 export function App() {
+  const [start, setStart] = useState(() => !startSeen());
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
   const cases = usePoll<CaseRow[]>('/api/cases', 15000);
   const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [cases.data]);
   return (
     <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
+      <div className="jd-app">
       <header className="jd-topbar">
         <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><CaseBanner page={page} /><StatusLine />
         <nav aria-label="Pages">
-          <StartHere go={setPage} />
+          <button type="button" className="jd-tab" aria-expanded={start} onClick={() => setStart(!start)}>Start here</button>
           {PAGES.map(([id, label]) => (
             <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
           ))}
         </nav>
       </header>
+      {start && <StartHere go={setPage} close={() => setStart(false)} />}
       <ReplayDrawer />
       <div className="jd-host">
         {/* Studio mounts once the first cases arrive: native widgets (filters, grid) build their first query on mount. */}
@@ -118,6 +122,7 @@ export function App() {
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}
           {...(ai ? { ai, aiToolDisplay: aiToolDisplayAll } : {})}
         />}
+      </div>
       </div>
     </AgStudioProvider>
   );

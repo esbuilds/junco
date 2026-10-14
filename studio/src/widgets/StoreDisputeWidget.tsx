@@ -35,6 +35,7 @@ export function StoreDisputeWidget() {
   const left = data ? data.kinds.unshipped.live_left + data.kinds.delivered.live_left : 0;
   return (
     <Panel title="Dispute this store" subtitle={data ? `${left} live case${left === 1 ? '' : 's'} left` : 'Loading'} live>
+      <div id="store-dispute" />
       <p className="jd-muted">
         Take a real PayPal sandbox dispute against our demo store, filed by the sandbox buyer as "item not received", and
         watch JUNCO work it. The case is yours for 30 minutes; nobody else can approve or send anything on it. Never

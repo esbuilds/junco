@@ -12,7 +12,7 @@ export const FIELDS = [
   { id: 'status', name: 'Status', format: 'textFormat', description: 'Where the dispute stands. "Resolved" means closed; anything else is still open.' },
   { id: 'junco_says', name: 'JUNCO says', format: 'textFormat', description: 'What JUNCO recommends. "Accept" means JUNCO expects the merchant to lose this dispute.' },
   { id: 'deadline', name: 'Deadline', format: 'textFormat', description: 'When the merchant must respond: Due this week (7 days or less), Due later, No deadline yet, or Resolved.' },
-  { id: 'days_left', name: 'Days left', format: 'numberFormat', description: 'Days until the response deadline; empty when PayPal has set none. 7 or less means due this week.' },
+  { id: 'days_left', name: 'Days left', format: 'integerFormat', description: 'Days until the response deadline; empty when PayPal has set none. 7 or less means due this week.' },
   { id: 'amount', name: 'Amount', format: 'currencyFormat' },
   { id: 'kept', name: 'Not refunded', format: 'currencyFormat' },
   { id: 'refunded', name: 'Refunded', format: 'currencyFormat' },
