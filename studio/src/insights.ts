@@ -46,6 +46,7 @@ export const insightsPage = {
     bySays: { id: 'bySays', type: 'button-filter', format: title('JUNCO says'), dataMapping: { value: [{ id: 'disputes.junco_says' }] } },
     byStatus: { id: 'byStatus', type: 'donut-chart', format: title('Money in dispute by status'), dataMapping: { categoryKey: [{ id: 'disputes.status' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
     byDeadline: { id: 'byDeadline', type: 'column-chart-grouped', format: title('Amount by deadline'), dataMapping: { categoryKey: [{ id: 'disputes.deadline' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
+    ledger: { id: 'ledger', type: 'junco-ledger', dataMapping: {} }, // moved off the Desk (v3.14)
     outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Simulated lifecycle outcomes by reason (sandbox verdicts chosen by us)'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
   },
   widgetLayout: {
@@ -54,5 +55,6 @@ export const insightsPage = {
     byStatus: { xTrack: 0, yTrack: 6, xSpan: 4, ySpan: 18 },
     byDeadline: { xTrack: 4, yTrack: 6, xSpan: 4, ySpan: 18 },
     outcomes: { xTrack: 8, yTrack: 6, xSpan: 4, ySpan: 18 },
+    ledger: { xTrack: 0, yTrack: 24, xSpan: 4, ySpan: 8 },
   },
 };

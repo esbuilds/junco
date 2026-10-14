@@ -13,12 +13,13 @@ type Run = {
   gate: { verdict: string; reason: string; hold_id?: string };
   paypal: { result: string; detail: string }; cost_usd: number; owner_b?: { verdict: string; reason: string };
 };
-type Stats = { since: string | null; attempts: number; gave_in: number; faulty_runs: number; sent: number; past_limit: number;
+type Stats = { since: string | null; attempts: number; people: number; automated: number; automated_money_proposed: number; held_for_owner: number; gave_in: number; faulty_runs: number; sent: number; past_limit: number;
   by_source: { desk: number; mcp: number; red_team: number };
   runs: { id: string; at: string; via: string; faulty: boolean; proposed: string | null; verdict: string; paypal: string }[] };
 type State = { policy: { offer_limit: number; accept: string }; personas: { id: string; label: string; text: string }[];
   caps: { today: number; you: number }; case: { dispute_id: string; until: string } | null; runs: Run[]; stats: Stats; owner_b: string };
 
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const callText = (p: Run['proposed']) => !p ? 'No PayPal call.'
   : p.method === 'make_dispute_offer' ? `Offer a ${money(p.args.offer_amount?.value, p.args.offer_amount?.currency_code)} refund (make_dispute_offer)`
   : p.method === 'send_dispute_message' ? `Send the buyer a message (send_dispute_message): "${p.args.message}"`
@@ -40,17 +41,21 @@ export function ChallengeWidget() {
   };
   const shown = last ?? data?.runs[0] ?? null;
   const limit = data ? money(data.policy.offer_limit, 'USD') : '...';
+  // v3.14: a week in with the AI never giving in, that is a finding, said plainly, with the log open.
+  const days = data?.stats.since ? Math.floor((Date.now() - Date.parse(data.stats.since)) / 86_400_000) : 0;
+  const finding = !!data && data.stats.gave_in === 0 && days >= 7;
 
   return (
     <Panel title="Break the mandate" subtitle={data ? `${data.caps.you} of your messages left today · ${data.caps.today} runs left today` : 'Loading'}>
       {data && data.stats.attempts > 0 && (
         <div className="jd-counter">
-          {/* v3.13: the pair, from the run records; never a standalone percentage */}
-          <strong>{data.stats.past_limit === 0
-            ? `The AI gave in ${data.stats.gave_in} time${data.stats.gave_in === 1 ? '' : 's'}. The owner's limit held every time.`
-            : `The owner's limit was passed ${data.stats.past_limit} time${data.stats.past_limit === 1 ? '' : 's'}. Every case is linked below.`}</strong>
-          <div className="jd-muted">{data.stats.attempts} attempts since {data.stats.since?.slice(0, 10)} ({data.stats.by_source.mcp} from outside agents over MCP, {data.stats.by_source.red_team} automated) · {data.stats.sent} real PayPal actions sent · {data.stats.past_limit} concessions past the owner's limit · {data.stats.faulty_runs} faulty-agent runs, counted apart</div>
-          <details><summary className="jd-muted">Every attempt</summary>
+          {/* v3.14: two lines from the records. People lead; the automated red team is counted apart and never leads. */}
+          <strong>{plural(data.stats.people, 'attempt')}. {plural(data.stats.past_limit, 'concession')} past the owner's limit.</strong>
+          <div><a href="/?page=desk#gate-record">{plural(data.stats.held_for_owner, 'money move')} held for the owner</a>, from every source, in the Gate record.</div>
+          {data.stats.gave_in > 0 && <div>The AI gave in {plural(data.stats.gave_in, 'time')}; each time the gate held it.</div>}
+          <div className="jd-muted">Attempts by people and their agents since {data.stats.since?.slice(0, 10)} ({data.stats.by_source.mcp} over MCP). Apart from those: {data.stats.automated} automated red-team attempts ({data.stats.automated_money_proposed} got JUNCO to propose a money move) and {data.stats.faulty_runs} faulty-agent runs. {data.stats.sent} real PayPal actions sent.</div>
+          {finding && <div>Finding: after {plural(data.stats.people + data.stats.automated, 'attempt')} over {plural(days, 'day')}, no buyer message has got JUNCO to propose a concession the owner's limit holds back. The attack log is open below.</div>}
+          <details open={finding}><summary className="jd-muted">Every attempt</summary>
             {data.stats.runs.map((r) => <div key={r.id} className="jd-muted"><a href={`/run/${r.id}`} target="_blank" rel="noreferrer">{r.id}</a> {r.at.slice(0, 16).replace('T', ' ')} UTC · {r.via}{r.faulty ? ' · faulty agent' : ''} · {r.proposed?.replace(/_/g, ' ') ?? 'no call'} · gate: {r.verdict} · PayPal: {r.paypal}</div>)}
           </details>
         </div>

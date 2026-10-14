@@ -11,7 +11,8 @@ import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
 import './styles.css';
 
-// Pre-built desk layout: summary stats, Dispute this store, then holds and activity, then at-risk, outcomes and queue on the left, case on the right.
+// Pre-built desk layout: summary stats, Dispute this store, holds and activity, the Gate record, then at-risk and queue on the left, case on the right.
+// Simulated lifecycle outcomes moved to Insights (v3.14).
 const layout = {
   pages: [{
     id: 'desk',
@@ -22,7 +23,7 @@ const layout = {
       holds: { id: 'holds', type: 'junco-holds', dataMapping: {} },
       activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
       risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
-      ledger: { id: 'ledger', type: 'junco-ledger', dataMapping: {} },
+      gate: { id: 'gate', type: 'junco-gate-record', dataMapping: {} },
       queue: { id: 'queue', type: 'junco-queue', dataMapping: {} },
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
     },
@@ -31,10 +32,10 @@ const layout = {
       store: { xTrack: 0, yTrack: 4, xSpan: 12, ySpan: 14 },
       holds: { xTrack: 0, yTrack: 18, xSpan: 6, ySpan: 7 },
       activity: { xTrack: 6, yTrack: 18, xSpan: 6, ySpan: 7 },
-      risk: { xTrack: 0, yTrack: 25, xSpan: 4, ySpan: 7 },
-      ledger: { xTrack: 4, yTrack: 25, xSpan: 3, ySpan: 7 },
-      queue: { xTrack: 0, yTrack: 32, xSpan: 7, ySpan: 15 },
-      case: { xTrack: 7, yTrack: 25, xSpan: 5, ySpan: 22 },
+      gate: { xTrack: 0, yTrack: 25, xSpan: 12, ySpan: 10 },
+      risk: { xTrack: 0, yTrack: 35, xSpan: 7, ySpan: 7 },
+      queue: { xTrack: 0, yTrack: 42, xSpan: 7, ySpan: 15 },
+      case: { xTrack: 7, yTrack: 35, xSpan: 5, ySpan: 22 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
@@ -86,7 +87,7 @@ const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 export function App() {
-  const [page, setPage] = useState<string>('desk');
+  const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
   const cases = usePoll<CaseRow[]>('/api/cases', 15000);
   const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [cases.data]);

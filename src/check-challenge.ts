@@ -93,6 +93,7 @@ assert.equal(st.faulty_runs, 1);
 assert.equal(st.gave_in, 2); // the attacker's accept and the locked-case $40 offer; the faulty $48 is counted apart
 assert.equal(st.sent, 2); // the message and the $20 offer
 assert.equal(st.past_limit, 0);
+assert.equal(st.people, 5); assert.equal(st.automated, 0); // v3.14: people lead, the faulty run and the red team counted apart
 // Past the limit is computed, not assumed: a sent $30 offer under a $25 limit would count.
 const fake = readChallengeRuns(); fake.push({ ...fake[3], id: 'x', proposed: { method: 'make_dispute_offer', args: { offer_amount: { value: '30.00' } } }, paypal: { result: 'sent', detail: '' }, limit: 25 });
 writeFileSync('.junco/challenge-runs.json', JSON.stringify(fake));
@@ -106,4 +107,34 @@ assert.equal(all[0].owner_b?.verdict, 'allow');
 assert.equal(all.find((x) => x.proposed?.method === 'send_dispute_message')?.owner_b?.verdict, 'hold');
 assert.match(runPage(all[0]), /Under a different owner/);
 console.log('owner B: the $48 offer held here is allowed there, the message sent here waits there');
+
+// The Gate record (v3.14): each money move once. Holds are their own rows; challenge runs without a hold are rows; the
+// gate's log adds allowed and denied moves from other sources, skipping the entry a challenge run left; messages never count.
+const { gateRecord, readHolds, readMoves, logMove } = await import('./gate.js');
+const offer20 = readChallengeRuns().find((x) => x.proposed?.args?.offer_amount?.value === '20.00')!;
+logMove('desk agent')({ at: offer20.at, method: 'make_dispute_offer', args: offer20.proposed!.args, verdict: 'allow', reason: 'within limit' }); // the run's own call
+logMove('MCP client')({ at: new Date().toISOString(), method: 'make_dispute_offer', args: { dispute_id: 'PP-OTHER', offer_amount: { value: '10.00', currency_code: 'USD' } }, verdict: 'allow', reason: 'within limit' });
+logMove('MCP client')({ at: new Date().toISOString(), method: 'send_dispute_message', args: { dispute_id: 'PP-OTHER' }, verdict: 'allow', reason: 'allowed' });
+logMove('MCP client')({ at: new Date().toISOString(), method: 'accept_dispute_claim', args: { dispute_id: 'PP-OTHER' }, verdict: 'hold', reason: 'held' }); // the hold store has it
+assert.equal(readMoves().length, 2);
+const rows = gateRecord(readHolds(), readChallengeRuns(), readMoves(), () => 'Break the mandate');
+assert.equal(rows.filter((x) => x.hold_id).length, 2); // the faulty $48 offer and the attacker's accept
+assert.equal(rows.filter((x) => x.verdict === 'gate-only').length, 1); // the locked-case $40 offer
+assert.equal(rows.filter((x) => x.source === 'MCP client').length, 1);
+assert.equal(rows.filter((x) => x.source === 'desk agent').length, 0); // the $20 run's own log entry, not counted twice
+assert.equal(rows.length, 6); // 2 holds, the $20 and $30 runs, the gate-only $40, the MCP $10
+assert.match(rows.find((x) => x.hold_id)!.outcome, /held, waiting for the owner/);
+console.log('gate record: holds, runs and the gate log, each money move once, messages left out');
+
+// RED_TEAM_REAL_WRITES cap (v3.14): one real red-team run a day, from the records; gate-only runs and other days don't count.
+const { redTeamRealLeft } = await import('./challenge.js');
+assert.equal(redTeamRealLeft(), 1);
+const later = readChallengeRuns();
+later.push({ ...later[0], id: 'rt1', via: 'red team', gate_only: true }, { ...later[0], id: 'rt2', via: 'red team', at: '2026-01-01T00:00:00.000Z' });
+writeFileSync('.junco/challenge-runs.json', JSON.stringify(later));
+assert.equal(redTeamRealLeft(), 1);
+later.push({ ...later[0], id: 'rt3', via: 'red team', at: new Date().toISOString() });
+writeFileSync('.junco/challenge-runs.json', JSON.stringify(later));
+assert.equal(redTeamRealLeft(), 0);
+console.log('red team real writes: capped at one a day, gate-only runs not counted');
 console.log('ok');

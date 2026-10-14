@@ -5,6 +5,7 @@ import { AtRiskWidget } from './AtRiskWidget';
 import { CaseWidget } from './CaseWidget';
 import { HoldsWidget } from './HoldsWidget';
 import { LedgerWidget } from './LedgerWidget';
+import { GateRecordWidget } from './GateRecordWidget';
 import { OrdersWidget } from './OrdersWidget';
 import { PolicyWidget } from './PolicyWidget';
 import { TryWidget } from './TryWidget';
@@ -27,6 +28,7 @@ const defs = [
   { id: 'junco-try', label: 'Try the brain', comp: TryWidget, defaultSize: { width: 8, height: 30 }, minSize: { width: 6, height: 10 } },
   { id: 'junco-queue', label: 'Dispute queue', comp: QueueWidget, defaultSize: { width: 7, height: 12 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-case', label: 'Case', comp: CaseWidget, defaultSize: { width: 5, height: 12 }, minSize: { width: 4, height: 8 } },
+  { id: 'junco-gate-record', label: 'Gate record', comp: GateRecordWidget, defaultSize: { width: 12, height: 10 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },
   { id: 'junco-activity', label: 'Agent activity', comp: ActivityWidget, defaultSize: { width: 8, height: 6 }, minSize: { width: 6, height: 4 } },
 ].map((d) => ({ ...d, form })) as unknown as AgWidgetDefinition[];

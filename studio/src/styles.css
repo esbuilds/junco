@@ -246,3 +246,9 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-counter { border: 1px solid var(--jd-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--jd-bg); }
 .jd-counter strong { font-size: 16px; }
 .jd-card-alt { background: transparent; border-style: dashed; }
+
+/* Gate record (v3.14) */
+.jd-table-wrap { overflow-x: auto; }
+.jd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jd-table th { text-align: left; font-weight: 600; color: var(--jd-muted); border-bottom: 1px solid var(--jd-line); padding: 6px 8px; white-space: nowrap; }
+.jd-table td { border-bottom: 1px solid var(--jd-line); padding: 6px 8px; vertical-align: top; }

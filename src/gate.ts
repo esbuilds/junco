@@ -96,6 +96,43 @@ export function decide(policy: Policy, method: string, args: any, budgets: Recor
 const store = jsonStore('.junco/holds.json', mirror);
 export const readHolds = (): Hold[] => store.read() as Hold[];
 
+// The Gate record (v3.14 item 1): every money move proposed to the gate, from every source, with its verdict and what
+// became of it. Read from the hold store, the challenge runs and this log of the gate's own money decisions; nothing
+// from the model. Holds already carry every held move, so the log keeps only allowed and denied ones.
+export const MONEY = ['make_dispute_offer', 'accept_dispute_claim', 'create_refund'];
+const MOVES = '.junco/gate-log.json';
+export type Move = Decision & { source: string };
+export const readMoves = (): Move[] => { try { return JSON.parse(readFileSync(MOVES, 'utf8')); } catch { return []; } };
+export const logMove = (source: string) => (d: Decision) => {
+  if (!MONEY.includes(d.method) || d.verdict === 'hold') return;
+  const all = [...readMoves(), { ...d, source }].slice(-2000);
+  mkdirSync('.junco', { recursive: true }); writeFileSync(MOVES, JSON.stringify(all, null, 2)); mirror(MOVES, all);
+};
+
+export type RecordRow = { at: string; source: string; dispute_id: string | null; method: string; amount: string | null;
+  verdict: Verdict | 'gate-only'; outcome: string; hold_id?: string; run_id?: string; reason: string };
+const OUTCOME: Record<string, string> = { pending: 'held, waiting for the owner', executing: 'approved by the owner, running',
+  completed: 'approved by the owner, PayPal accepted it', approved: 'approved by the owner (outcome not recorded)',
+  failed: 'approved by the owner, PayPal refused it', unknown: 'approved by the owner, outcome unknown (re-check PayPal)',
+  rejected: 'rejected by the owner, nothing sent', stale: 'stale: the case moved on, nothing sent' };
+const amountText = (args: any, h?: Hold) => { const a = args?.offer_amount ?? args?.amount; return a?.value ? `${a.value} ${a.currency_code ?? ''}`.trim() : h?.case?.amount ?? null; };
+// runs: Break the mandate records (challenge.ts). A run whose move made a real hold is that hold's row; any other money
+// run is its own row (the run record names the source), and the log entry it left on the desk's server is skipped.
+export function gateRecord(holds: Hold[], runs: any[], moves: Move[], tagOf: (h: Hold) => string | undefined): RecordRow[] {
+  const rows: RecordRow[] = holds.filter((h) => MONEY.includes(h.method)).map((h) => ({
+    at: h.created, source: tagOf(h) ?? 'unknown', dispute_id: h.args?.dispute_id ?? null, method: h.method, amount: amountText(h.args, h),
+    verdict: 'hold', outcome: OUTCOME[h.status] ?? h.status, hold_id: h.id, reason: h.reason }));
+  const money = runs.filter((r) => r.proposed && MONEY.includes(r.proposed.method) && !r.gate.hold_id);
+  const fromRun = (m: Move) => money.some((r) => r.dispute_id === m.args?.dispute_id && r.proposed.method === m.method && Math.abs(Date.parse(r.at) - Date.parse(m.at)) < 120_000);
+  for (const m of moves) if (!fromRun(m)) rows.push({ at: m.at, source: m.source, dispute_id: m.args?.dispute_id ?? null, method: m.method, amount: amountText(m.args),
+    verdict: m.verdict, outcome: m.verdict === 'deny' ? 'denied, nothing sent' : m.error ? `allowed, PayPal refused it: ${m.error.slice(0, 120)}` : 'allowed by policy, PayPal accepted it', reason: m.reason });
+  for (const r of money) rows.push({
+    at: r.at, source: r.via === 'red team' ? 'red team (automated)' : r.via === 'mcp' ? 'Break the mandate via MCP' : 'Break the mandate', dispute_id: r.dispute_id,
+    method: r.proposed.method, amount: amountText(r.proposed.args), verdict: r.gate_only ? 'gate-only' : r.gate.verdict, run_id: r.id, reason: r.gate.reason,
+    outcome: r.gate_only ? `gate-only run: the gate would ${r.gate.verdict === 'allow' ? 'allow' : r.gate.verdict} it; no hold made, nothing sent` : `${r.gate.verdict}; PayPal: ${r.paypal.result}` });
+  return rows.sort((a, b) => b.at.localeCompare(a.at));
+}
+
 // Ask the owner directly: a pending hold for an action JUNCO wants but won't take on its own (e.g. a negotiation that
 // hit its ceiling). Approving it runs the tool through the same path as any other hold.
 export function requestApproval(method: string, args: any, reason: string): Hold {
