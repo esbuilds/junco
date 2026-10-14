@@ -75,6 +75,17 @@ npm run webhook https://your-desk.example.com   # register the sandbox webhook
 npm run check-agent                             # loop guards against live sandbox disputes
 ```
 
+## The desk on AG Studio
+
+The hosted desk is an [AG Studio](https://www.ag-grid.com) report (`studio/`), not a page with a chart library bolted on. What it uses, and where:
+
+- **Custom widgets.** 14 JUNCO widget types registered with `createWidgets` (`studio/src/widgets/definitions.ts`): Waiting for you, Agent activity, the Gate record, the dispute queue, the case card, Dispute this store, Break the mandate, Try it, the Policy page, shipment watch, summary stats, at risk this week, simulated lifecycle outcomes and Matching disputes. Each reads the desk's own API; Studio owns layout, theming and the pages.
+- **Studio's data engine.** The Insights page runs on a Studio data source built from the live PayPal cases (`studio/src/insights.ts`): two button filters, a donut, a column chart and a stacked bar chart, all native Studio widgets. Matching disputes is a JUNCO widget that reads its rows through the same engine (`widgetApi.getSchema` and `widgetApi.getData`), so a filter or a click on a chart narrows the list the way it narrows the charts.
+- **Theme.** `studioTheme.withParams` in `studio/src/App.tsx` gives Studio's native widgets the desk's palette, type, borders and corners, in light and dark.
+- **The AI assistant, through JUNCO's gate.** `AgStudioAiModule` with `createAiHarness` and `directLlmRunner` (`studio/src/studioAi.ts`). The model behind it is a custom `AgLlmAdapter` that streams each turn from `/api/studio-ai` on the desk (`src/studio-ai.ts`, Claude Sonnet 5.5 with prompt caching), with turn limits per agent. Studio's lead agent gets five JUNCO tools (explain a case, policy what-if, open a case, the activity log, the shipment watch) and the same gated PayPal tools every other agent gets: a money move it asks for lands in Waiting for you, tagged "asked by the dashboard assistant". `aiToolDisplay` labels every tool call so the trace reads as work, and three prompt starters open the panel.
+- **Edit mode.** With the assistant on, the Desk is in Studio's edit mode: an owner can resize any panel from its edge, and `onStateUpdated` saves the sizes in that browser (Policy page: Reset the layout).
+- **AG Grid.** The dispute queue is an AG Grid Community grid (`studio/src/widgets/QueueWidget.tsx`).
+
 ## Use it from an AI agent (MCP)
 
 `src/server.ts` starts one MCP server with PayPal's stock dispute tools plus JUNCO's, all behind the gate. For Claude Desktop or any MCP client:

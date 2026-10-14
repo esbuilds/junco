@@ -97,6 +97,7 @@ export function PolicyWidget() {
         <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>
       </div>
       {msg && <div className={`jd-result ${msg.ok ? 'jd-ok' : 'jd-err'}`}>{msg.text}</div>}
+      <p className="jd-muted">The desk is yours to arrange: on the Desk, drag any edge of a panel to resize it, and this browser remembers it. <button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem('jd-desk-layout'); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
       <ToolMatrix />
     </Panel>
   );

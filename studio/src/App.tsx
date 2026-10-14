@@ -67,6 +67,20 @@ const layout = {
   selectedPageId: 'desk',
 };
 
+// v3.14 item 5: the owner can resize Desk panels from any edge (Studio's edit mode, on whenever the assistant is); this
+// browser remembers the sizes. Only positions of the desk's own panels are kept, so a stale save can't add or drop a panel.
+export const DESK_LAYOUT_KEY = 'jd-desk-layout';
+function withSavedDesk(l: typeof layout) {
+  let saved: Record<string, unknown> = {};
+  try { saved = JSON.parse(localStorage.getItem(DESK_LAYOUT_KEY) ?? '{}') ?? {}; } catch { /* private mode or a bad save: defaults */ }
+  return { ...l, pages: l.pages.map((p: any) => p.id !== 'desk' ? p : { ...p, widgetLayout: Object.fromEntries(Object.entries(p.widgetLayout).map(([k, v]) => [k, (saved[k] as object) ?? v])) }) };
+}
+function saveDesk(e: any) {
+  const desk = (e?.state?.pages ?? []).find((p: any) => p.id === 'desk');
+  if (!desk?.widgetLayout) return;
+  try { localStorage.setItem(DESK_LAYOUT_KEY, JSON.stringify(desk.widgetLayout)); } catch { /* not saved; the layout still works */ }
+}
+
 // JUNCO theme for Studio's native widgets (Insights charts and filters): the desk palette and Inter, light or dark.
 const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 const C = dark
@@ -124,7 +138,8 @@ export function App() {
           // Desk widgets read the desk API themselves; the Insights page runs on this Studio data source.
           data={data as any}
           widgets={widgets}
-          initialState={{ ...layout, selectedPageId: page } as any}
+          initialState={{ ...withSavedDesk(layout), selectedPageId: page } as any}
+          onStateUpdated={saveDesk}
           mode={ai && page === 'desk' ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.

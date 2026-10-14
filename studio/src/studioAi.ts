@@ -162,6 +162,9 @@ export const aiToolDisplay = {
   junco_open_case: { label: ({ args }: any) => ({ text: `Open ${args.dispute_id ?? 'a case'}` }) },
   junco_activity: { label: ({ args }: any) => ({ text: "Read JUNCO's activity log", pill: args.days ? `${args.days} days` : undefined }) },
   junco_orders: { label: () => ({ text: 'Read the shipment watch' }) },
+  // Studio's own tools without built-in wording (v3.14 item 5: the trace should read as work, never as a tool name).
+  view_report: { label: ({ status, result }: any) => ({ text: status !== 'done' ? 'Reading the dashboard' : result?.success === false ? 'Could not read the dashboard' : 'Read the dashboard' }) },
+  rename_thread: { hidden: true },
 };
 // PayPal tool calls read as their action and case: "Accept dispute claim, PP-R-...". Studio looks labels up by name,
 // so the gated tool set is listed here (the names the desk's MCP server serves).
