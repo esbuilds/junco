@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
@@ -95,6 +95,7 @@ const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'],
 
 export function App() {
   const [start, setStart] = useState(() => !startSeen());
+  useEffect(() => { const on = (e: Event) => setPage((e as CustomEvent).detail); window.addEventListener('jd-go', on); return () => window.removeEventListener('jd-go', on); }, []);
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
   const cases = usePoll<CaseRow[]>('/api/cases', 15000);

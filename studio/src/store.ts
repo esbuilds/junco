@@ -58,3 +58,6 @@ export function startReplay(id: string, entries: import('./api').Activity[]) {
 }
 export function stopReplay() { clearInterval(timer); replay = null; emitReplay(); }
 export const useReplay = (): Replay => useSyncExternalStore((cb) => { replayListeners.add(cb); return () => replayListeners.delete(cb); }, () => replay);
+
+// Widgets live inside Studio and can't reach App's page state; they ask for a page by event (App listens).
+export const goToPage = (page: string) => window.dispatchEvent(new CustomEvent('jd-go', { detail: page }));
