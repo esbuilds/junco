@@ -252,3 +252,8 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .jd-table th { text-align: left; font-weight: 600; color: var(--jd-muted); border-bottom: 1px solid var(--jd-line); padding: 6px 8px; white-space: nowrap; }
 .jd-table td { border-bottom: 1px solid var(--jd-line); padding: 6px 8px; vertical-align: top; }
+
+/* Status line (v3.14 item 3) */
+.jd-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.jd-status-ok { color: var(--jd-ok); background: var(--jd-ok-bg); }
+.jd-status-warn { color: var(--jd-warn); background: var(--jd-warn-bg); white-space: normal; }

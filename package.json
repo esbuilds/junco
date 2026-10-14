@@ -13,6 +13,7 @@
     "check-gate": "tsx src/check-gate.ts",
     "check-lease": "tsx src/check-lease.ts",
     "check-challenge": "tsx src/check-challenge.ts",
+    "check-spend": "tsx src/check-spend.ts",
     "check-gate-pkg": "tsx --test packages/junco-gate/test/gate.test.ts",
     "check-hosted": "tsx src/check-hosted.ts",
     "pool": "tsx src/pool.ts",

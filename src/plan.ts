@@ -1,6 +1,7 @@
 // Approve-a-plan: JUNCO proposes a few steps for one dispute, the owner approves once, and the steps run later
 // off PayPal updates (webhooks) and a timer. Kept apart from agent.ts so the single-action path stays as it is.
 // Plans never accept a claim or refund in full: those stay the owner's call.
+import { claude } from './spend.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4';
@@ -49,7 +50,7 @@ export function triggered(when: string, d: any, approvedAt: string, now = Date.n
 
 type Deps = { ctx: Ctx; callTool: (name: string, args: any) => Promise<any>; getDispute: (id: string) => Promise<any>; log: (id: string, trigger: string, step: string, detail: string) => void };
 
-export function makePlans({ ctx, callTool, getDispute, log }: Deps, client = new Anthropic()) {
+export function makePlans({ ctx, callTool, getDispute, log }: Deps, client = claude()) {
   async function propose(id: string): Promise<Plan> {
     const d = await getDispute(id);
     if (d.status === 'RESOLVED') throw Object.assign(new Error('This dispute is already resolved'), { code: 400 });

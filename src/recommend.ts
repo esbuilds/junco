@@ -1,5 +1,6 @@
 // AI layer: Claude reads a dispute plus the merchant's evidence and recommends one action (or waiting).
 // Code, not the model, decides whether the recommendation is usable (citations exist, PayPal allows it).
+import { claude } from './spend.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4'; // SDK output helper needs zod 4; dispute tools stay on zod 3 to match the toolkit
@@ -175,7 +176,7 @@ export type Previous = { decision: Recommendation['decision']; summary: string }
 
 // view: a changed copy of the case for the model (Break the mandate's gate-only runs show it the case as open); the
 // order, tracking and transaction facts still come from PayPal's real case.
-export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = new Anthropic(), previous: Previous = null, view?: (d: any) => any) {
+export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Omit<Evidence, 'id'>[] = [], client = claude(), previous: Previous = null, view?: (d: any) => any) {
   const r = await fetch(`${ctx.baseUrl}/v1/customer/disputes/${disputeId}`, { headers: { Authorization: `Bearer ${await ctx.token()}` } });
   if (!r.ok) throw new Error(`Could not load dispute ${disputeId}: ${r.status}`);
   const real = await r.json(), dispute = view ? view(real) : real;
@@ -184,7 +185,7 @@ export async function recommend(ctx: Ctx, disputeId: string, merchantRecords: Om
 }
 
 // The model call plus validation, separate from PayPal so evals can feed it synthetic disputes.
-export async function decide(dispute: any, evidence: Evidence[], client = new Anthropic(), previous: Previous = null, today = new Date().toISOString().slice(0, 10)) {
+export async function decide(dispute: any, evidence: Evidence[], client = claude(), previous: Previous = null, today = new Date().toISOString().slice(0, 10)) {
   // On a re-check the model sees its last decision, so it can say what changed (decision diff in the desk).
   const prior = previous ? `\n\nPrevious recommendation, before this re-check: ${previous.decision}. ${previous.summary}` : '';
   const res = await client.beta.messages.parse({

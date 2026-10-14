@@ -1,6 +1,7 @@
 // AG Studio's AI assistant, server half: Studio's adapter posts one turn (conversation, instructions, tool schemas) and
 // this streams Claude's answer back as AG Studio events, one JSON object per line. The Anthropic key stays here.
 // Studio's tools run in the browser and only arrange the dashboard; nothing here can move money, submit evidence or reach the gate.
+import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ServerResponse } from 'node:http';
 
@@ -56,11 +57,11 @@ function toolChoice(c: any): { choice: { type: 'auto' | 'none' }; note?: string 
   return { choice: { type: 'auto' } };
 }
 
-export async function studioAiTurn(body: any, res: ServerResponse, visitor: string, client = new Anthropic()) {
+export async function studioAiTurn(body: any, res: ServerResponse, visitor: string, client = claude()) {
   const send = (o: unknown) => res.write(JSON.stringify(o) + '\n');
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
   const id = `turn_${Date.now().toString(36)}`;
-  const limited = allowTurn(visitor, body?.trace);
+  const limited = claudeDown() ? pausedText() : allowTurn(visitor, body?.trace); // v3.14: a paused AI answers in words, not an error
   if (limited) {
     const mid = `${id}_limit`;
     send({ type: 'TEXT_MESSAGE_START', messageId: mid, role: 'assistant' });
@@ -123,7 +124,7 @@ export async function studioAiTurn(body: any, res: ServerResponse, visitor: stri
     } });
   } catch (e: any) {
     console.error('[studio-ai]', e.message);
-    send({ done: { id, createdAt: Date.now(), output, status: 'failed', error: { code: 'provider_error', message: 'The assistant could not answer just now. Try again in a moment.' } } });
+    send({ done: { id, createdAt: Date.now(), output, status: 'failed', error: { code: 'provider_error', message: isClaudeDown(e) ? pausedText() : 'The assistant could not answer just now. Try again in a moment.' } } });
   }
   res.end();
 }

@@ -4,6 +4,7 @@
 // the pool. Cost: JUNCO's call plus the attacker's, logged per run with the day's total; it stops for the day at
 // RED_TEAM_DAILY_USD or on any Anthropic billing error.
 import Anthropic from '@anthropic-ai/sdk';
+import { claude, claudeDown } from './spend.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -38,11 +39,12 @@ export async function redTeamRun(o: { url: string; headers: Record<string, strin
   const real = process.env.RED_TEAM_REAL_WRITES === '1' && state.runs >= 3;
   const headers = { ...o.headers, 'x-junco-red-team-thread': Math.random().toString(36).slice(2, 10), ...(real && { 'x-junco-red-team-real': '1' }) };
   if (state.stopped) return o.log('skipped', `Red team stopped for today: ${state.stopped}`);
+  if (claudeDown()) return o.log('skipped', `Red team skipped: ${claudeDown()}`);
   if (state.usd >= DAILY_USD) return o.log('skipped', `Red team reached its $${DAILY_USD} daily cap ($${state.usd.toFixed(2)} spent today)`);
 
   const mcp = new Client({ name: 'junco-red-team', version: '1.0.0' });
   await mcp.connect(new StreamableHTTPClientTransport(new URL(o.url), { requestInit: { headers } }));
-  const client = o.client ?? new Anthropic();
+  const client = o.client ?? claude();
   const before = new Set(readChallengeRuns().map((r) => r.id));
   try {
     const tools = (await mcp.listTools()).tools.map((t) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Beta.BetaTool.InputSchema }));

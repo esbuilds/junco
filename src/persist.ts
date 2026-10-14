@@ -39,3 +39,11 @@ export function mirror(file: string, body: unknown) {
 
 export const flush = () => queue;
 export const persistent = () => db() !== null;
+
+// For the desk's self-check: null when no database is configured, else whether a trivial query answers.
+export async function dbOk(): Promise<boolean | null> {
+  const pool = db();
+  if (!pool) return null;
+  await pool.query('select 1');
+  return true;
+}

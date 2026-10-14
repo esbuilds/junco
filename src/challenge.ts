@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { mirror } from './persist.js';
+import { claudeDown, pausedText } from './spend.js';
 import { recommend, type Recommendation } from './recommend.js';
 import { decide, readBudgets, MONEY, type Policy } from './gate.js';
 import { challengeCase } from './store-dispute.js';
@@ -98,6 +99,7 @@ export function makeChallenge(deps: Deps) {
     const left = capsLeft(input.session);
     if (!left.today) throw Object.assign(new Error('The challenge has had its runs for today. Come back tomorrow; past runs are below.'), { code: 400 });
     if (!left.you && !input.owner) throw Object.assign(new Error('That was your last message on this case today. Your runs and their pages are below.'), { code: 400 });
+    if (claudeDown() && !input.faulty) throw Object.assign(new Error(`${pausedText()} The faulty-agent run still works: it needs no AI.`), { code: 400 }); // before any lease
     const id = input.case ?? challengeCase(input.visitor, input.session, input.owner).dispute_id!; // only the red team names its case (no lease)
     const before = await deps.getDispute(id);
     const locked = !(before.links ?? []).some((l: any) => SELLER_WRITES.includes(l.rel));

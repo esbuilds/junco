@@ -2,6 +2,7 @@
 // order until it has tracking on PayPal. Code decides the flags from PayPal's own data; Claude only words the reason.
 // Rules cite PayPal's Seller Protection page: proof of shipment needs "an online and verifiable tracking number" and the
 // item must ship "to the shipping address on the Transaction Details page". The ship-by days are the owner's policy.
+import { claude } from './spend.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { z } from 'zod';
@@ -48,7 +49,7 @@ export const trackingTool = {
   },
 };
 
-export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: string, trigger: string, step: string, detail: string) => void, client = new Anthropic()) {
+export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: string, trigger: string, step: string, detail: string) => void, client = claude()) {
   // Re-read the capture and its order from PayPal, then assess.
   async function refresh(captureId: string, trigger = 'check'): Promise<Watched> {
     const cap = await paypal(ctx, 'GET', `/v2/payments/captures/${encodeURIComponent(captureId)}`);

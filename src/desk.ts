@@ -2,7 +2,7 @@
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { mirror } from './persist.js';
+import { dbOk, mirror } from './persist.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -24,6 +24,7 @@ import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
+import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
@@ -528,6 +529,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       if (req.method === 'POST') {
         const kind = (await readBody(req))?.kind as Kind;
         if (!KINDS.includes(kind)) return json(res, 400, { error: { message: `kind must be ${KINDS.join(' or ')}` } });
+        if (claudeDown()) return json(res, 503, { error: { message: `${pausedText()} New cases wait until then, so none is used up now; the recorded run below shows one start to finish.` }, paused: true });
         const run = lease(visitor, actor.getStore()?.session, kind);
         agent.log(run.dispute_id!, 'store dispute', 'yours', `${kind === 'unshipped' ? 'An order that was never shipped' : 'An order with a delivery record entered by this demo store'}, disputed by the sandbox buyer as not received. PayPal's sandbox opens some API-filed disputes as ordinary cases and some as chargebacks under review (supporting info or an accept only).`);
         actor.exit(() => void agent.triage(run.dispute_id!, 'store dispute').catch((e) => console.error('[agent]', e))); // the agent works for the owner, not the visitor
@@ -568,6 +570,12 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       return json(res, 200, r ?? { run: null });
     }
     if (req.method === 'GET' && url.pathname === '/api/challenge/stats') return json(res, 200, challengeStats()); // the counter (v3.13)
+    if (req.method === 'GET' && url.pathname === '/api/status') // the header's status line (v3.14 item 3)
+      return json(res, 200, { check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } });
+    if (req.method === 'POST' && url.pathname === '/api/status/check') { // owner: run the self-check now
+      if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
+      await actor.exit(selfCheck); return json(res, 200, lastCheck);
+    }
     if (req.method === 'GET' && url.pathname === '/api/gate-record') return json(res, 200, gateRecordView()); // v3.14
     if (req.method === 'GET' && p[0] === 'run' && p[1] && !p[2]) { // a run's shareable page (permalink)
       const r = readChallengeRuns().find((x) => x.id === p[1]);
@@ -610,6 +618,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
+    if (isClaudeDown(e)) return json(res, 503, { error: { message: pausedText() }, paused: true }); // read-only mode (v3.14)
     json(res, [400, 403, 404].includes(e.code) ? e.code : 500, { error: { message: e.message } });
   }
 }
@@ -643,6 +652,34 @@ if (process.env.RED_TEAM === '1' && process.env.OWNER_TOKEN) {
   setInterval(() => void redTeamNow(), 6 * 3600_000);
 }
 setInterval(() => void kick(), 5 * 60_000);
+
+// The self-check (v3.14 item 3): every 30 minutes, the parts a judge's visit needs. A change in what's failing (and its
+// clearing) posts once to HOLD_WEBHOOK_URL; the desk header shows the last result. A paused AI counts as a failure.
+type Check = { at: string; failed: string[]; checks: Record<string, string> };
+let lastCheck: Check | null = null;
+async function selfCheck() {
+  const checks: Record<string, string> = {};
+  const t = async (k: string, f: () => Promise<string | void>) => { try { checks[k] = (await f()) ?? 'ok'; } catch (e: any) { checks[k] = `FAILED: ${String(e.message).slice(0, 160)}`; } };
+  await t('PayPal disputes', async () => { const r = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=1'); if (r.status !== 200) throw new Error(`PayPal answered ${r.status}`); });
+  await t("PayPal's hosted MCP server", async () => `${(await hosted()).tools.length} tools`);
+  await t('Claude', async () => {
+    const why = claudeDown(); if (why) throw new Error(`paused: ${why}`);
+    await claude().messages.create({ model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'ok' }] });
+    return `ok, $${readSpend().usd.toFixed(2)} of $${process.env.DESK_DAILY_USD ?? 15} used today`;
+  });
+  await t('Ready cases for judges', async () => { const n = KINDS.reduce((a, k) => a + liveLeft(k), 0); if (n < 2) throw new Error(`${n} ready, want at least 2`); return `${n} ready`; });
+  await t('Postgres', async () => { const ok = await dbOk(); if (ok === null && process.env.RENDER) throw new Error('no DATABASE_URL'); return ok ? 'ok' : 'not configured (local)'; });
+  const failed = Object.entries(checks).filter(([, v]) => v.startsWith('FAILED')).map(([k]) => k);
+  const before = lastCheck?.failed.join(',') ?? '';
+  lastCheck = { at: new Date().toISOString(), failed, checks };
+  if (failed.join(',') !== before && (failed.length || before) && process.env.HOLD_WEBHOOK_URL) {
+    const text = failed.length ? `JUNCO self-check: ${failed.map((k) => `${k}: ${checks[k].slice(8)}`).join('; ')}. Desk: ${DESK_URL}` : `JUNCO self-check: all systems live again. ${DESK_URL}`;
+    await fetch(process.env.HOLD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch((e) => console.warn('[self-check] webhook', e.message));
+  }
+  if (failed.length) console.warn('[self-check]', failed.join(', '));
+}
+setTimeout(() => void selfCheck(), 60_000);
+setInterval(() => void selfCheck(), 30 * 60_000);
 
 if (AGENT_MODE) { // backup for webhooks that never arrive
   const run = () => agent.sweep().catch((e) => console.error('[agent] sweep', e));
