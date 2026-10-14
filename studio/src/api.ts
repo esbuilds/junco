@@ -11,7 +11,9 @@ export type Decision = 'message' | 'offer' | 'contest' | 'accept' | 'wait';
 
 export interface Evidence { id: string; source: string; text: string; quotable?: boolean }
 
-export interface Claim { text: string; evidence_ids: string[]; quote?: string | null }
+export interface Claim { text: string; evidence_ids: string[]; quote?: string | null; support?: 'supported' | 'not supported' | 'unconfirmed'; support_reason?: string }
+// v3.14 item 4: a second model read only the cited items. Recommendations from before Oct 14 carry no verdict.
+export const SUPPORT_NOTE: Record<string, string> = { supported: 'Support checked: a second model read only the cited items and found they say this.', 'not supported': 'Not supported by the cited items; this blocked the recommendation.', unconfirmed: 'Cited, support not confirmed.' };
 
 // What the desk shows under a claim. Source-text items: the quote and where it was found word for word (same rule as
 // validate() on the server), never "verified". Everything else: the cited item as JUNCO rendered it from PayPal's or

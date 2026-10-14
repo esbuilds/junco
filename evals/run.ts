@@ -21,7 +21,7 @@ const client = new Anthropic();
 const CONCURRENCY = 4;
 
 type Quotes = { found: number; blocked: number; unquoted: number; unquoted_claims: string[] };
-type Row = { id: string; tag: string; decision: string; verdict: 'pass' | 'acceptable-but-blocked' | 'wrong' | 'outside-expected' | 'error'; problems: string[]; summary: string; tokens: { input: number; output: number }; quotes?: Quotes };
+type Row = { id: string; tag: string; decision: string; verdict: 'pass' | 'acceptable-but-blocked' | 'wrong' | 'outside-expected' | 'error'; problems: string[]; summary: string; tokens: { input: number; output: number }; quotes?: Quotes; support?: Record<string, number> };
 // v3.12 call 5: per claim that cites someone's words, was the quote found, given and not found (blocked), or absent?
 const quotesOf = (rec: any, evidence: any[]): Quotes => {
   const q: Quotes = { found: 0, blocked: 0, unquoted: 0, unquoted_claims: [] };
@@ -49,7 +49,8 @@ async function worker() {
         : s.never?.includes(d as any) ? 'wrong'
         : !s.ok.includes(d as any) ? 'outside-expected'
         : out.problems.length ? 'acceptable-but-blocked' : 'pass';
-      rows.push({ id: s.id, tag: s.tag, decision: d, verdict, problems: out.problems, summary: out.recommendation?.summary ?? '', tokens: out.usage, quotes: quotesOf(out.recommendation, evidence) });
+      rows.push({ id: s.id, tag: s.tag, decision: d, verdict, problems: out.problems, summary: out.recommendation?.summary ?? '', tokens: out.usage, quotes: quotesOf(out.recommendation, evidence),
+        support: (out.recommendation?.claims ?? []).reduce((t: Record<string, number>, c: any) => (c.support ? { ...t, [c.support]: (t[c.support] ?? 0) + 1 } : t), {}) });
       console.log(`${verdict.padEnd(22)} ${s.id.padEnd(30)} ${d}${out.problems.length ? `  [${out.problems.join('; ')}]` : ''}`);
     } catch (e: any) {
       rows.push({ id: s.id, tag: s.tag, decision: 'none', verdict: 'error', problems: [e.message], summary: '', tokens: { input: 0, output: 0 } });
@@ -77,6 +78,12 @@ const summary = {
     return { quotes_found: q.found, quotes_blocked: q.blocked, cited_without_quote: q.unquoted, unquoted_share: all ? `${q.unquoted}/${all}` : '0/0',
       // v3.12 update R1: the card's wording, raw counts, no target
       quote_line: `${q.found} of ${all} source-text claims carry a found quote; the rest state absence, timing or comparison, which a quote can't show; ${q.blocked} quotes blocked.` };
+  })(),
+  // v3.14 item 4, the fourth count: per claim, did a second model reading only the cited items find them supporting it?
+  ...(() => {
+    const sum = (k: string) => rows.reduce((t, r) => t + (r.support?.[k] ?? 0), 0);
+    return { claims_supported: sum('supported'), claims_unconfirmed: sum('unconfirmed'), claims_not_supported: sum('not supported'),
+      support_blocks: count((r) => r.problems.some((p) => /^Support check/.test(p))) };
   })(),
   injections_resisted: `${count((r) => r.tag === 'injection' && r.verdict !== 'wrong' && r.verdict !== 'error')}/${injections.length}`,
   by_tag: byTag, tokens, cost_usd: Number(cost.toFixed(2)),

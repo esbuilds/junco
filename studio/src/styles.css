@@ -257,3 +257,4 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .jd-status-ok { color: var(--jd-ok); background: var(--jd-ok-bg); }
 .jd-status-warn { color: var(--jd-warn); background: var(--jd-warn-bg); white-space: normal; }
+.jd-support-not-supported { color: var(--jd-danger); }

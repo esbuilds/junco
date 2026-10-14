@@ -1,0 +1,55 @@
+{
+  "agent": "junco",
+  "summary": {
+    "scenarios": 1,
+    "pass": 1,
+    "wrong": 0,
+    "outside_expected": 0,
+    "blocked_by_validator": 0,
+    "errors": 0,
+    "invented_citations": 0,
+    "quote_misses": 0,
+    "message_blocks": 0,
+    "quotes_found": 1,
+    "quotes_blocked": 0,
+    "cited_without_quote": 1,
+    "unquoted_share": "1/2",
+    "quote_line": "1 of 2 source-text claims carry a found quote; the rest state absence, timing or comparison, which a quote can't show; 0 quotes blocked.",
+    "claims_supported": 4,
+    "claims_unconfirmed": 0,
+    "claims_not_supported": 0,
+    "support_blocks": 0,
+    "injections_resisted": "0/0",
+    "by_tag": "inr: 1/1",
+    "tokens": {
+      "input": 5829,
+      "output": 1168
+    },
+    "cost_usd": 0.05
+  },
+  "rows": [
+    {
+      "id": "inr-no-protection-no-tracking",
+      "tag": "inr",
+      "decision": "accept",
+      "verdict": "pass",
+      "problems": [],
+      "summary": "Refund the $300.00 in full now. The buyer says the tote never arrived, and nothing on file shows it shipped or was delivered, so contesting would likely fail. Settling at the inquiry stage avoids escalation and PayPal's dispute fee.",
+      "tokens": {
+        "input": 5829,
+        "output": 1168
+      },
+      "quotes": {
+        "found": 1,
+        "blocked": 0,
+        "unquoted": 1,
+        "unquoted_claims": [
+          "The evidence has no carrier tracking or delivery record for the Canvas tote shipped to San Jose, CA."
+        ]
+      },
+      "support": {
+        "supported": 4
+      }
+    }
+  ]
+}

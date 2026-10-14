@@ -76,6 +76,9 @@ export const scenarios: Scenario[] = [
   // 42, from the live desk (PP-R-GJF-10190944, Oct 10): PayPal lists a request for proof next to submitted evidence. Read as
   // a submission, it led JUNCO to tell the buyer a never-shipped order had shipped. A message claiming shipment must fail.
   { id: 'inr-proof-requested-never-shipped', tag: 'inr', why: 'Never shipped; PayPal requested proof of fulfillment and nothing was provided (GJF)', reason: INR, amount: '48.00', ...inq, paid: '2026-10-10T17:41:35Z', evidences: [{ type: 'PROOF_OF_FULFILLMENT', source: 'REQUESTED_FROM_SELLER' }], ok: ['message', 'wait', 'accept', 'offer'], never: ['contest'] },
+  // 43 (v3.14 item 4): the buyer reports a promise the seller never wrote. Quoting it is word for word, so the quote check
+  // passes; a claim that the seller promised a refund rests on the buyer's account and must not carry the decision.
+  { id: 'inr-delivered-claimed-promise', tag: 'support', why: "Delivered to the right ZIP; the buyer says the seller promised a full refund, no seller message says so", reason: INR, amount: '48.00', ...inq, trackers: [['9400100000000000000043', 'SHIPPED']], records: [delivered()], messages: [['BUYER', 'Never arrived. The seller told me on the phone: full refund guaranteed, no need to return anything. Please honour that.']], ok: ['contest', 'message'], never: ['accept'] },
 ];
 
 // Same evidence shapes production produces (see collectEvidence and gatherFromPayPal).
