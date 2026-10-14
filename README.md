@@ -204,18 +204,19 @@ The scenarios double as a benchmark any dispute agent can be scored against, not
 - `npm run eval -- --agent ./my-agent.ts` scores a module that exports `async function decide(dispute, evidence)` and returns `{ decision }` (one of `accept`, `offer`, `contest`, `message`, `wait`) or a full recommendation with `claims: [{ text, evidence_ids }]`. Full recommendations go through the same citation validator, so invented evidence counts against any agent.
 - `npm run bench:export` writes `evals/disputebench.json`: every case as plain JSON (the dispute and numbered evidence the agent sees, the decisions a careful advisor could defend, and the ones that are clearly wrong), for agents in any language.
 
-Two baselines run on the same 43 cases (Oct 14 2026): one that accepts every dispute it can (`evals/agents/always-accept.ts`), and the same model with the same settings as JUNCO but none of what JUNCO adds: plain unnumbered evidence, a one-paragraph prompt, no validator (`evals/agents/no-validator.ts`).
+Two baselines ran on the same 43 cases on Oct 14 2026: one that accepts every dispute it can (`evals/agents/always-accept.ts`), and the same model with the same settings as JUNCO but none of what JUNCO adds: plain unnumbered evidence, a one-paragraph prompt, no checks (`evals/agents/no-validator.ts`, three runs). The always-accept agent got 18 / 43, with 24 clearly wrong and 1 of 10 injections resisted. The plain model got 41 / 43 in all three runs, with the same 1 wrong decision and 10 / 10 injections resisted.
 
-| | JUNCO | Same model, no JUNCO checks | Always accept |
-|---|---|---|---|
-| Acceptable decision | 43 / 43 | 41 / 43 | 18 / 43 |
-| Clearly wrong decision | 0 | 1 | 24 |
-| Prompt injections resisted | 10 / 10 | 10 / 10 | 1 / 10 |
-| Would have sent an action PayPal doesn't allow on the case | 0 | 1 | 0 |
-| Messages flagged by the keyword rule, sent unchecked | 0 | 5 | 0 |
-| Every claim tied to a numbered evidence item | yes | no | no claims |
+So a current model reads a dispute about as well without JUNCO. What JUNCO adds is the layer that keeps a decision from going out unchecked. What each layer caught, in the plain model's three runs:
 
-What this shows: on these cases a current model decides about as well without JUNCO's prompt and validator. JUNCO's contribution is not a better decision. It is that a decision can't go out unchecked: every claim cites a numbered evidence item, a second model reads those items and blocks a claim they contradict, a message can't assert shipping without a tracker, an action PayPal doesn't allow never leaves, and every money move waits for the owner at the gate. The keyword flags are read by hand: of the 5, 3 are true sentences the rule can't tell from invented ones (backed by the merchant's own records), 2 promise to ship a new order. An earlier run of the same baseline told the never-shipped buyer of scenario 42 it was "checking the shipping status" and would send tracking, the mistake JUNCO made live on Oct 10. Raw rows for all three are in `evals/results/`.
+| Layer | What it stops | Plain model, 3 runs |
+|---|---|---|
+| Numbered evidence | A claim with no source | Its claims cite nothing, so none can be checked |
+| PayPal's allowed actions, read from the case | An action PayPal won't take on this case | 1 per run, the same case each time |
+| Message check | A message implying an order shipped when nothing shows it did | 0 to 2 per run, read by hand: "check around your delivery area in case it was left somewhere" and "I'm looking into the shipment and will follow up with the tracking details" to buyers whose orders never shipped, and "checking the shipping status" on scenario 42, JUNCO's own Oct 10 mistake |
+| Support check | A claim its own cited items contradict | 0 contradicted in JUNCO's run (228 confirmed, 11 not confirmed) |
+| The gate | Any money move past the owner's limit | Every one waits for the owner, from every source (see the Gate record on the desk) |
+
+The message check is a keyword rule, and it also flags true sentences (an order a merchant record says shipped, a promise to ship a replacement); the counts above are the flags a person read and judged misleading. New scenarios are added only from things that happened, with their case or run ID; the set stays at 43 until something does. Raw rows for every run are in `evals/results/`.
 
 ## Carrier proof (USPS, UPS)
 
