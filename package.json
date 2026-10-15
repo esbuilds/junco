@@ -14,6 +14,7 @@
     "check-lease": "tsx src/check-lease.ts",
     "check-challenge": "tsx src/check-challenge.ts",
     "check-spend": "tsx src/check-spend.ts",
+    "check-onetap": "tsx src/onetap.ts",
     "check-support": "tsx src/check-support.ts",
     "check-gate-pkg": "tsx --test packages/junco-gate/test/gate.test.ts",
     "check-hosted": "tsx src/check-hosted.ts",

@@ -3,6 +3,7 @@ import { createServer as httpServer, type IncomingMessage, type ServerResponse }
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
+import { holdPage, linkRefusal, signedLink } from './onetap.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -50,7 +51,7 @@ async function notifyHold(h: Hold) {
     const amount = h.args?.offer_amount ? `${h.args.offer_amount.value} ${h.args.offer_amount.currency_code}` : d.dispute_amount ? `${d.dispute_amount.value} ${d.dispute_amount.currency_code}` : 'n/a';
     const what = h.method.replace(/_/g, ' ');
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      text: `JUNCO is holding *${what}* on ${h.args?.dispute_id ?? 'a dispute'} (${amount}) for your OK.\nWhy: ${h.reason}\nApprove or reject: ${DESK_URL}`,
+      text: `JUNCO is holding *${what}* on ${h.args?.dispute_id ?? 'a dispute'} (${amount}) for your OK.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `Approve or reject (one tap, good for 48 hours): ${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}` : `Approve or reject: ${DESK_URL}`}`,
     }) });
     if (!r.ok) console.warn('[notify] webhook returned', r.status);
   } catch (e: any) { console.warn('[notify] failed', e.message); }
@@ -125,6 +126,22 @@ const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin ===
   ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
   : Promise.resolve(holds);
 const resolveHold = async (id: string, verb: 'approve' | 'reject' | 'settle') => (await gateFor(id))[verb](id);
+// The owner's decision, from the desk or a one-tap link: Slack hears how it ended, and it goes in the case's timeline
+// next to the hold it answers. A stale refusal throws (nothing ran); Slack hears that too.
+async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who: string): Promise<Hold> {
+  const asked = readHolds().find((x) => x.id === id);
+  const h = await resolveHold(id, verb).catch((e) => {
+    if (asked && verb === 'approve' && /^Not run/.test(e.message)) notifyDecision(asked, `refused at approval. ${e.message}`);
+    throw e;
+  });
+  if (verb === 'settle') return h;
+  const done = verb === 'reject' ? `rejected by ${who}, nothing sent` : h.status === 'completed' ? `approved by ${who}, and PayPal accepted it`
+    : `approved by ${who}, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}`;
+  notifyDecision(h, `${done}.`);
+  agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
+    `${h.method.replace(/_/g, ' ')} ${done}${verb === 'approve' && h.status !== 'completed' ? `: ${(h.result ?? '').slice(0, 200)}` : ''}`);
+  return h;
+}
 
 // The Gate record (v3.14): every money move proposed to the gate from every source, with its verdict and outcome.
 function gateRecordView() {
@@ -365,6 +382,23 @@ httpServer(async (req, res) => {
     if (req.method === 'POST' && req.url === '/webhooks/paypal') return await webhook(req, res);
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
   if (process.env.CHALLENGE_PUBLIC === '1' && req.url?.startsWith('/mcp/challenge')) return void mcpChallenge(req, res).catch((e) => json(res, 400, { error: { message: e.message } }));
+  // M5 one-tap links: the signature authorizes this one hold, in place of the desk password and the owner cookie.
+  // GET only shows it; the POST from its buttons decides, as the owner, through decideHold.
+  const tap = req.url?.match(/^\/h\/([\w-]+)(?:\?|$)/);
+  if (tap) return void (async () => {
+    const u = new URL(req.url!, 'http://x'), id = tap[1];
+    const form = req.method === 'POST' ? new URLSearchParams(await readRaw(req, 10_000)) : null;
+    const q = { e: form?.get('e') ?? u.searchParams.get('e'), s: form?.get('s') ?? u.searchParams.get('s') };
+    const why = linkRefusal(process.env.OWNER_TOKEN, id, q.e, q.s);
+    const page = (note?: { ok: boolean; text: string }) => { res.writeHead(why ? 403 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); res.end(holdPage(why ? null : readHolds().find((h) => h.id === id) ?? null, q, DESK_URL, note)); };
+    if (why) return page({ ok: false, text: why });
+    const verb = form?.get('verb');
+    if (req.method !== 'POST' || (verb !== 'approve' && verb !== 'reject')) return page();
+    try {
+      const h = await actor.run({ owner: true, session: 'one-tap' }, () => decideHold(id, verb, 'the owner (one-tap link)'));
+      page({ ok: h.status === 'completed' || h.status === 'rejected', text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? 'Approved. PayPal accepted it.' : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
+    } catch (e: any) { page({ ok: false, text: e.message }); }
+  })().catch((e) => json(res, 400, { error: { message: e.message } }));
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   const url = new URL(req.url ?? '/', 'http://x');
   if (url.pathname === '/owner') { // the owner's browser, once: everyone else shares the desk password
@@ -621,16 +655,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
-    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle')) {
-      const asked = readHolds().find((x) => x.id === p[2]);
-      const h = await resolveHold(p[2], p[3]).catch((e) => { // a stale refusal throws; Slack still hears how it ended
-        if (asked && p[3] === 'approve' && /^Not run/.test(e.message)) notifyDecision(asked, `refused at approval. ${e.message}`);
-        throw e;
-      }); // the owner's decision goes in the case's timeline, next to the hold it answers
-      if (p[3] !== 'settle') notifyDecision(h, p[3] === 'reject' ? 'rejected by the owner, nothing sent.' : h.status === 'completed' ? 'approved by the owner, and PayPal accepted it.' : `approved by the owner, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}.`);
-      if (p[3] !== 'settle') agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', p[3] === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`, `${h.method.replace(/_/g, ' ')} ${p[3] === 'reject' ? 'rejected by the owner' : `approved by the owner${h.status === 'completed' ? ', and PayPal accepted it' : `: ${(h.result ?? '').slice(0, 200)}`}`}`);
-      return json(res, 200, h);
-    }
+    if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
+      return json(res, 200, await decideHold(p[2], p[3], 'the owner'));
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
     if (isClaudeDown(e)) return json(res, 503, { error: { message: pausedText() }, paused: true }); // read-only mode (v3.14)
