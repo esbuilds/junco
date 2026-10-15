@@ -78,8 +78,8 @@ export function checkArgs(method: string, a: any): string | null {
   return null;
 }
 
-export async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown } = {}) {
-  const headers: Record<string, string> = { Authorization: `Bearer ${await ctx.token()}` };
+export async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown; headers?: Record<string, string> } = {}) {
+  const headers: Record<string, string> = { Authorization: `Bearer ${await ctx.token()}`, ...init.headers };
   let body: BodyInit | undefined;
   if (init.form !== undefined) {
     // disputes write endpoints take multipart with a JSON part named `input`
@@ -92,7 +92,8 @@ export async function paypal(ctx: Ctx, method: string, path: string, init: { jso
   }
   const r = await fetch(ctx.baseUrl + path, { method, headers, body });
   const text = await r.text();
-  return { status: r.status, body: text ? JSON.parse(text) : {} };
+  // PayPal's sandbox sometimes answers a 5xx with an HTML page or nothing; report the status, don't throw on the parse.
+  try { return { status: r.status, body: text ? JSON.parse(text) : {} }; } catch { return { status: r.status, body: { raw: text.slice(0, 200) } }; }
 }
 
 export async function run(ctx: Ctx, method: string, a: any): Promise<string> {
