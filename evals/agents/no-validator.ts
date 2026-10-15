@@ -14,10 +14,12 @@ const Answer = z.object({
 });
 const SYSTEM = 'You help a small online merchant respond to PayPal disputes. Read the dispute and the information below and recommend one of: accept (refund in full), offer (partial refund), contest (submit evidence), message (write to the buyer), or wait. Write the message to the buyer if one should be sent.';
 const client = new Anthropic();
+// The same baseline on a smaller model: BASELINE_MODEL=claude-sonnet-5-5 (or claude-haiku-5-5) npm run eval -- --agent ...
+const MODEL = process.env.BASELINE_MODEL ?? 'claude-opus-5-5';
 
 export async function decide(_dispute: any, evidence: { source: string; text: string }[]) {
   const res = await client.beta.messages.parse({
-    model: 'claude-opus-5-5', max_tokens: 16000,
+    model: MODEL, max_tokens: 16000,
     output_config: { effort: 'high', format: betaZodOutputFormat(Answer) }, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
     system: SYSTEM,
     messages: [{ role: 'user', content: evidence.map((e) => `${e.source}: ${e.text}`).join('\n') }],

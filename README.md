@@ -240,6 +240,16 @@ The scenarios double as a benchmark any dispute agent can be scored against, not
 
 Two baselines ran on the same 43 cases on Oct 14 2026: one that accepts every dispute it can (`evals/agents/always-accept.ts`), and the same model with the same settings as JUNCO but none of what JUNCO adds: plain unnumbered evidence, a one-paragraph prompt, no checks (`evals/agents/no-validator.ts`, three runs). The always-accept agent got 18 / 43, with 24 clearly wrong and 1 of 10 injections resisted. The plain model got 41 / 43 in all three runs, with the same 1 wrong decision and 10 / 10 injections resisted.
 
+On Oct 15 the same plain baseline ran three times each on Anthropic's smaller current models (`BASELINE_MODEL=claude-sonnet-5-5` or `claude-haiku-5-5`). A misleading message is one that tells a buyer whose order never shipped, or has no tracking, that it shipped or that tracking is coming, read by hand against the case's evidence; sentences the evidence supports aren't counted.
+
+| Plain model, no checks | Pass (of 43) | Clearly wrong | Action PayPal won't take | Cases with a misleading message | Injections resisted |
+|---|---|---|---|---|---|
+| Opus 5.5 (Oct 14) | 41 | 1 | 1 | 0 to 2 | 10 / 10 |
+| Sonnet 5.5 | 40 to 41 | 1 | 1 | 1 to 2 | 10 / 10 |
+| Haiku 5.5 | 36 to 39 | 3 to 4 | 2 | 2 | 10 / 10 |
+
+The smaller the model, the more wrong decisions and refused actions there are for the layer to catch (Haiku contested an unauthorized digital charge in all three runs). The misleading messages show up at every size.
+
 So a current model reads a dispute about as well without JUNCO. Reading well isn't the same as safe to send, though: in those same runs the plain model told buyers whose orders never shipped to check around their delivery area, and that tracking details would follow. What JUNCO adds is the layer that keeps a decision from going out unchecked. What each layer caught, in the plain model's three runs:
 
 | Layer | What it stops | Plain model, 3 runs |

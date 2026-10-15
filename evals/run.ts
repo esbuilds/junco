@@ -100,7 +100,7 @@ const summary = {
 console.log('\n' + JSON.stringify(summary, null, 2));
 mkdirSync('evals/results', { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const agentName = agentPath ? agentPath.split('/').pop()!.replace(/\.[^.]+$/, '') : 'junco';
+const agentName = (agentPath ? agentPath.split('/').pop()!.replace(/\.[^.]+$/, '') : 'junco') + (process.env.BASELINE_MODEL ? `-${process.env.BASELINE_MODEL}` : '');
 const file = `evals/results/${stamp}${agentPath ? `-${agentName}` : ''}.json`;
 writeFileSync(file, JSON.stringify({ agent: agentName, summary, rows }, null, 2));
 console.log(`saved ${file}`);
