@@ -114,6 +114,26 @@ export function CaseWidget() {
       {SHOW_REPEAT_BUYER && (c.buyer_disputes ?? 0) >= 2 && (
         <div className="jd-repeat" role="note">Repeat buyer: this buyer has opened {c.buyer_disputes} disputes with you. Shown for you only; JUNCO's recommendation doesn't use it.</div>
       )}
+      {(() => {
+        // v3.15 move 1: an order a shopping agent placed. What it was asked next to what it bought, from the store's record.
+        const rec = c.evidence.find((e) => e.source.startsWith('agent checkout record'));
+        if (!rec) return null;
+        const list = c.evidence.find((e) => e.source.startsWith('product listing at time of order'));
+        const why = c.evidence.find((e) => e.source.startsWith("agent's stated reason"));
+        const asked = rec.text.match(/Instruction the agent sent with the order: "(.*)" Budget given: (\S+)\.$/);
+        const row = (label: string, e: typeof rec | undefined, text?: string) => e && (
+          <div className={hl === e.id ? 'jd-hl' : undefined}><span className="jd-muted">{label}</span> {text ?? e.text} <button type="button" className="jd-cite" {...litProps(e.id)}>{e.id}</button></div>
+        );
+        return (
+          <div className="jd-agent" role="note" aria-label="Bought by a shopping agent">
+            <strong>Bought by an AI shopping agent for the buyer</strong>
+            {row('Asked:', rec, asked ? `"${asked[1]}" (budget ${asked[2]})` : undefined)}
+            {row('Bought:', list)}
+            {row('Its reason:', why)}
+            <div className="jd-muted jd-src">The store's own record of the agent checkout, not a PayPal mandate.</div>
+          </div>
+        );
+      })()}
       <h3>PayPal allows now</h3>
       <div className="jd-chips">
         {c.allowed.length
