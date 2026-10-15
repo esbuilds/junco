@@ -131,6 +131,18 @@ Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the age
 
 `/mcp/paypal` serves PayPal's own hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools) behind the same gate, with JUNCO's dispute tools added. Every hosted tool has a class in `policy.json`; the Policy page lists them.
 
+## When an AI agent did the buying
+
+Shopping agents are starting to pay for things on people's behalf, and when the buyer doesn't like what their agent picked, the dispute lands on the seller. Dispute this store has a third kind of case for this, and every part of it runs live in PayPal's sandbox:
+
+1. The sandbox buyer saves PayPal for the demo store once (a Vault v3 setup token the buyer approves).
+2. A shopping agent (Claude Sonnet 5.5, `src/shopper.ts`) gets an instruction and a budget, reads the store's three-bag catalog, and buys one bag or declines. The store charges the saved PayPal account with Orders v2 (`vault_id`, merchant-initiated), and refuses anything over the budget the agent sent. Nothing about the agent's choice is scripted. Asked for a waterproof bag for kayaking under $70, it declines, since the only waterproof bag is $74. Asked for "a carry-on weekend bag that looks nice", it buys the waxed weekender and calls it carry-on size, though at 25 cm deep it's over the 23 cm many airlines allow.
+3. The store keeps its record of that checkout: what the agent was asked, the listing it bought, and the reason it gave.
+4. The buyer disputes the order as not as described, with PayPal's sub-reason DIFFERENT.
+5. JUNCO gets the store's record as numbered evidence, compares what the agent was asked with what the listing said, and recommends like on any other case, through the same checks and the same gate. The case opens with that comparison at the top.
+
+What this is and isn't: the checkout record is the store's own, not a mandate signed by PayPal or a card network. JUNCO doesn't use PayPal's Agent Ready or Store Sync, which aren't open in sandbox. The order is an ordinary Orders v2 payment from a vaulted PayPal account, the primitive those products build on. PayPal's sandbox keeps a dispute's sub-reason when it's filed by API but drops the buyer's written description, so these cases carry no words from the buyer and JUNCO has to ask.
+
 ## Break the mandate
 
 A page on the desk where a visitor plays the buyer and tries to make JUNCO give away more than the owner allowed: write a message, or start from a fair complaint, a haggler or an attacker. PayPal's sandbox lets this app file disputes as the buyer and nothing else, so the buyer in the challenge is simulated and the seller-side actions are real: JUNCO works a real never-shipped sandbox case, and whatever it proposes goes through the gate. Three cards show the exact call it made, what the gate decided and why, and what PayPal's re-read confirmed (or that nothing was sent); JUNCO's own reasoning is shown apart from them, labelled as the AI's. A "faulty agent" switch makes the agent concede the full amount without reading anything, to show the gate holds when the AI is wrong. Every run gets a shareable page at `/run/<id>`; the visitor's message appears there only if they choose to share it.
