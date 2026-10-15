@@ -74,7 +74,15 @@ const r2 = readRuns(); r2.push({ at: young, visitor: 'system', buyer_txn: 'E', k
 writeFileSync('.junco/store-runs.json', JSON.stringify(r2));
 assert.match(refusal('ip3', 'unshipped')!, /too recent/);
 assert.match(extraFor('PP-READY')[0].text, new RegExp(`Delivered, ${new Date(Date.parse(paid) + 44 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} UTC$`));
-console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back');
+// v3.15 move 1: an agent order arrives through addToPool, is its own kind, and carries the agent checkout record as evidence.
+const { addToPool, readPool } = await import('./store-dispute.js');
+addToPool([{ buyer_txn: 'AGENT00000000000F', amount: '62', tracking: false, scan: 'USPS 9400: Delivered', agent: { instruction: 'carry-on bag', budget: '70.00', sku: 'WKD-01', listing: 'WKD-01 listing', reason: 'fits', agent: 'test agent', extra: 'dropped' } }]);
+assert.deepEqual(Object.keys(readPool().at(-1)!.agent!), ['instruction', 'budget', 'sku', 'listing', 'reason', 'agent']);
+const r3 = readRuns(); r3.push({ at: iso(0), visitor: 'system', buyer_txn: 'AGENT00000000000F', kind: 'agent', scan: 'USPS 9400: Delivered', dispute_id: 'PP-AGENT' });
+writeFileSync('.junco/store-runs.json', JSON.stringify(r3));
+assert.deepEqual(extraFor('PP-AGENT').map((e) => e.source), ['agent checkout record (kept by merchant)', 'product listing at time of order (merchant)', "agent's stated reason for the purchase (kept by merchant)", 'carrier delivery scan (entered by merchant)']);
+assert.match(extraFor('PP-AGENT')[0].text, /"carry-on bag" Budget given: \$70\.00/);
+console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back, agent orders carry their checkout record');
 
 // Recorded run (v3.12 update R3): a pin until an aged run exists, then the newest aged run.
 setPin({ dispute_id: 'PP-PAST', until_aged: true });

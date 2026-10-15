@@ -7,11 +7,11 @@ import { Panel } from './Panel';
 // by the sandbox buyer, and watches JUNCO work it. Two kinds: an order never shipped (JUNCO holds an accept for the
 // visitor to approve or reject) and an order with a delivery record entered by this demo store (JUNCO sends it as
 // supporting info). Steps come from the agent's activity log, including PayPal's own re-read after an action.
-type Kind = 'unshipped' | 'delivered';
+type Kind = 'unshipped' | 'delivered' | 'agent';
 type RunView = { dispute_id: string; kind: Kind | null; at: string; lease_until: string; yours: boolean; steps: Activity[] };
 type Status = { kinds: Record<Kind, { live_left: number; can_run: string | null }>; mine: RunView | null; recent: RunView[] };
-const KINDS: Kind[] = ['unshipped', 'delivered'];
-const LABEL: Record<Kind, string> = { unshipped: 'An order that was never shipped', delivered: 'An order that was delivered' };
+const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
+const LABEL: Record<Kind, string> = { unshipped: 'An order that was never shipped', delivered: 'An order that was delivered', agent: 'An order an AI agent bought' };
 
 export function StoreDisputeWidget() {
   const { data, error, reload } = usePoll<Status>('/api/store-dispute', 4000);
@@ -32,7 +32,7 @@ export function StoreDisputeWidget() {
   const opened = useRef(false);
   useEffect(() => { if (live && !opened.current) { opened.current = true; selectCase(data!.mine!.dispute_id); } }, [live, data]);
 
-  const left = data ? data.kinds.unshipped.live_left + data.kinds.delivered.live_left : 0;
+  const left = data ? KINDS.reduce((n, k) => n + (data.kinds[k]?.live_left ?? 0), 0) : 0;
   return (
     <Panel title="Dispute this store" subtitle={data ? `${left} live case${left === 1 ? '' : 's'} left` : 'Loading'} live>
       <div id="store-dispute" />
@@ -41,7 +41,9 @@ export function StoreDisputeWidget() {
         watch JUNCO work it. The case is yours for 30 minutes; nobody else can approve or send anything on it. Never
         shipped: JUNCO should hold an accept for you to approve or reject. Delivered: the store has a delivery record it
         entered itself, and JUNCO should send it to PayPal on its own. PayPal's sandbox opens some of these as ordinary
-        cases and some as chargebacks under review, where only supporting info or an accept is possible.
+        cases and some as chargebacks under review, where only supporting info or an accept is possible. An AI agent bought it:
+        the buyer's shopping agent paid with PayPal the buyer saved for this store, and the buyer says the item isn't what
+        they wanted; JUNCO weighs what the agent was asked against what it bought, from the store's record of that checkout.
       </p>
       <div className="jd-row">
         {KINDS.map((k) => (
@@ -58,7 +60,7 @@ export function StoreDisputeWidget() {
         <div className="jd-store-run">
           <strong>{recorded ? 'Recorded: an earlier visitor\'s run' : 'Your case'}</strong>{' '}
           <button type="button" className="jd-linkish" onClick={() => selectCase(shown.dispute_id)}>{shown.dispute_id}</button>
-          {shown.kind && <span className="jd-muted"> · {shown.kind === 'unshipped' ? 'never shipped' : 'delivery record entered by this demo store'}</span>}
+          {shown.kind && <span className="jd-muted"> · {shown.kind === 'unshipped' ? 'never shipped' : shown.kind === 'agent' ? 'bought by a shopping agent' : 'delivery record entered by this demo store'}</span>}
           {!recorded && <span className="jd-muted"> · {live
             ? `yours to act on until ${new Date(shown.lease_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
             : shown.yours ? 'your 30 minutes are over; this run is read-only now' : 'read-only'}</span>}

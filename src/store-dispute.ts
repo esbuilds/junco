@@ -5,14 +5,19 @@
 // into a ready set (STRATEGY v3.12): a visitor leases one that is already unlocked and JUNCO starts on it at once.
 // Two kinds: an order never shipped (JUNCO holds an accept for the visitor) and an order with a delivery record entered
 // by this demo store (JUNCO sends supporting info). PayPal itself never says "delivered" for a sandbox order.
+// A third kind (v3.15 move 1): an order a shopping agent placed for the buyer, paying with a PayPal account the buyer saved
+// for this store (Orders v2 with a vault_id, merchant-initiated), disputed by the buyer as not as described. The store's
+// record of that agent checkout (what the agent was asked, the listing it bought, the reason it gave) is evidence. It is
+// the store's own record, not a PayPal-signed mandate.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mirror } from './persist.js';
 import type { Ctx } from './disputes.js';
 
-export type Kind = 'unshipped' | 'delivered';
-export const KINDS: Kind[] = ['unshipped', 'delivered'];
-export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; added: string };
+export type Kind = 'unshipped' | 'delivered' | 'agent';
+export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
+export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string };
+export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
 export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; kind?: Kind; scan?: string; dispute_id?: string; error?: string; challenge?: boolean;
@@ -24,7 +29,7 @@ export const readPool = () => read<PoolEntry[]>(POOL, []);
 export const readRuns = () => read<Run[]>(RUNS, []);
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
-const kindOf = (p: PoolEntry): Kind | null => (!p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
+const kindOf = (p: PoolEntry): Kind | null => (p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
 const unused = (kind: Kind) => readPool().filter((p) => kindOf(p) === kind && !used().has(p.buyer_txn));
 
 // Cases must look their age (Oct 10: a same-day order made JUNCO say "too early to expect delivery", and a delivery
@@ -32,7 +37,7 @@ const unused = (kind: Kind) => readPool().filter((p) => kindOf(p) === kind && !u
 // the store's 2-day ship-by window; a delivered one once its record (44 hours after payment) is in the past. Payment
 // time is when the pool entry was added (the filler adds it minutes after paying).
 const DAY = 24 * 3600_000;
-const MIN_AGE: Record<Kind, number> = { unshipped: 3 * DAY, delivered: 2 * DAY };
+const MIN_AGE: Record<Kind, number> = { unshipped: 3 * DAY, delivered: 2 * DAY, agent: 2 * DAY };
 const DELIVERED_AFTER = 44 * 3600_000;
 const paidAt = (buyer_txn: string) => Date.parse(readPool().find((p) => p.buyer_txn === buyer_txn)?.added ?? '') || 0;
 const oldEnough = (kind: Kind, buyer_txn: string) => Date.now() - paidAt(buyer_txn) >= MIN_AGE[kind];
@@ -41,7 +46,7 @@ const oldEnough = (kind: Kind, buyer_txn: string) => Date.now() - paidAt(buyer_t
 const fileable = (kind: Kind) => unused(kind);
 
 // Never-shipped cases also serve Break the mandate (v3.12 update 2 ruling 3), so more of them are kept ready.
-export const READY_PER_KIND: Record<Kind, number> = { unshipped: Number(process.env.STORE_READY_UNSHIPPED ?? 4), delivered: Number(process.env.STORE_READY_DELIVERED ?? 2) };
+export const READY_PER_KIND: Record<Kind, number> = { unshipped: Number(process.env.STORE_READY_UNSHIPPED ?? 4), delivered: Number(process.env.STORE_READY_DELIVERED ?? 2), agent: Number(process.env.STORE_READY_AGENT ?? 2) };
 export const RETIRE_MS = 3 * DAY; // after a case becomes offerable; a judge must never get one whose window is closing
 const waiting = (r: Run) => !!r.dispute_id && !r.leased_at && !r.retired_at;
 export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at && oldEnough(kind, r.buyer_txn));
@@ -50,9 +55,18 @@ export const isWaiting = (id: string) => readRuns().some((r) => r.dispute_id ===
 // The demo store's own delivery record for a delivered case, as a merchant record on the case's evidence.
 export const extraFor = (id: string) => {
   const run = readRuns().find((r) => r.dispute_id === id);
-  if (!run?.scan) return [];
+  if (!run) return [];
   const at = new Date(paidAt(run.buyer_txn) + DELIVERED_AFTER).toISOString().slice(0, 16).replace('T', ' ');
-  return [{ source: 'carrier delivery scan (entered by merchant)', text: `${run.scan.replace(/, \d{4}-\d\d-\d\d \d\d:\d\d UTC$/, '')}, ${at} UTC` }];
+  const scan = run.scan ? [{ source: 'carrier delivery scan (entered by merchant)', text: `${run.scan.replace(/, \d{4}-\d\d-\d\d \d\d:\d\d UTC$/, '')}, ${at} UTC` }] : [];
+  const a = readPool().find((p) => p.buyer_txn === run.buyer_txn)?.agent;
+  if (!a) return scan;
+  const paid = new Date(paidAt(run.buyer_txn)).toISOString().slice(0, 16).replace('T', ' ');
+  return [
+    { source: 'agent checkout record (kept by merchant)', text: `Placed ${paid} UTC through the store's agent checkout by ${a.agent}, acting for the buyer, paid with a PayPal account the buyer saved for this store. Instruction the agent sent with the order: "${a.instruction}" Budget given: $${a.budget}.` },
+    { source: 'product listing at time of order (merchant)', text: a.listing },
+    { source: "agent's stated reason for the purchase (kept by merchant)", text: a.reason },
+    ...scan,
+  ];
 };
 // Filed cases still waiting (unlocking or aging) count too: they will be offered.
 export const liveLeft = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r)).length + unused(kind).length;
@@ -77,7 +91,9 @@ export function addToPool(entries: any[]): number {
   const fresh = entries
     .filter((e) => typeof e?.buyer_txn === 'string' && /^[A-Z0-9]{17}$/.test(e.buyer_txn) && !have.has(e.buyer_txn) && Number(e.amount) > 0)
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking,
-      ...(typeof e.scan === 'string' && e.tracking && { scan: e.scan.slice(0, 500) }), added: new Date().toISOString() }));
+      ...(typeof e.scan === 'string' && (e.tracking || e.agent) && { scan: e.scan.slice(0, 500) }),
+      ...(e.agent && { agent: Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])) as AgentRecord }),
+      added: new Date().toISOString() }));
   if (fresh.length) write(POOL, [...pool, ...fresh]);
   return fresh.length;
 }
@@ -173,7 +189,7 @@ export async function fileOne(ctx: Ctx, kind: Kind): Promise<Run> {
   const form = new FormData();
   form.append('input', new Blob([JSON.stringify({
     disputed_transactions: [{ buyer_transaction_id: entry.buyer_txn }],
-    reason: 'MERCHANDISE_OR_SERVICE_NOT_RECEIVED',
+    reason: kind === 'agent' ? 'MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED' : 'MERCHANDISE_OR_SERVICE_NOT_RECEIVED',
     dispute_amount: { currency_code: 'USD', value: entry.amount },
     extensions: { merchant_contacted: false, merchandize_dispute_properties: { issue_type: 'PRODUCT' } },
   })], { type: 'application/json' }));
