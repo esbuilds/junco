@@ -9,43 +9,12 @@ import { decide as policyDecide, gate as wrap, jsonStore, type Decision, type Gu
 
 export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
 export type Policy = PkgPolicy & { ship_within_days?: number };
-export type CaseState = { stage: string; amount: string };
+export type { CaseState };
 export type Hold = PkgHold & { case?: CaseState; before?: Trail };
 
-// PayPal link rel each dispute write needs. JUNCO's own tools check it again in run(); the stock accept does not.
-const REL: Record<string, string> = {
-  accept_dispute_claim: 'accept_claim', make_dispute_offer: 'make_offer', send_dispute_message: 'send_message',
-  provide_dispute_evidence: 'provide_evidence', provide_dispute_supporting_info: 'provide_supporting_info',
-};
-const caseState = (d: any): CaseState => ({ stage: d.dispute_life_cycle_stage, amount: `${d.dispute_amount?.value} ${d.dispute_amount?.currency_code}` });
-
-// Why an approval must not run now, or null. The owner approved the case as it was when held; a case that moved on needs asking again.
-export function staleReason(h: Hold, d: any): string | null {
-  if (d.status === 'RESOLVED') return `the case is already resolved`;
-  const now = caseState(d);
-  if (h.case && h.case.stage !== now.stage) return `the case moved from ${h.case.stage} to ${now.stage} since this was held`;
-  if (h.case && h.case.amount !== now.amount) return `the disputed amount changed from ${h.case.amount} to ${now.amount} since this was held`;
-  const rel = REL[h.method];
-  if (rel && !(d.links ?? []).some((l: any) => l.rel === rel)) return `PayPal no longer allows ${rel} on this case`;
-  return null;
-}
-
-// What a write leaves on the case, read before it runs. If the call's outcome is unknown, a re-read compares against it.
-export type Trail = { status: string; messages: number; evidences: number; info: number; offers: number; rels: string[] };
-const trail = (d: any): Trail => ({ status: d.status, messages: d.messages?.length ?? 0, evidences: d.evidences?.length ?? 0,
-  info: d.supporting_info?.length ?? 0, offers: d.offer?.history?.length ?? 0, rels: (d.links ?? []).map((l: any) => l.rel) });
-// Did this write land? true / false from the re-read, null when the method leaves nothing on the case we can compare.
-export function landed(method: string, before: Trail, d: any): boolean | null {
-  const now = trail(d);
-  switch (method) {
-    case 'accept_dispute_claim': return now.status === 'RESOLVED' || now.status !== before.status || !now.rels.includes('accept_claim');
-    case 'send_dispute_message': return now.messages > before.messages;
-    case 'make_dispute_offer': return now.offers > before.offers || now.status !== before.status;
-    case 'provide_dispute_evidence': return now.evidences > before.evidences;
-    case 'provide_dispute_supporting_info': return now.info > before.info;
-    default: return null;
-  }
-}
+// The PayPal dispute hooks (snapshot, stale refusal, did-it-land) live in the package, shared with the junco-gate CLI.
+import { caseState, staleReason, trail, landed, type CaseState, type Trail } from '../packages/junco-gate/src/paypal.js';
+export { staleReason, landed, type Trail };
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
 

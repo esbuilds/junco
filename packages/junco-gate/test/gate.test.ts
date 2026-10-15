@@ -74,3 +74,28 @@ test('allowed but refused upstream: the log carries the error, so it never reads
   assert.equal(log[0].verdict, 'allow');
   assert.match(log[0].error ?? '', /403/);
 });
+
+// The PayPal hooks the CLI uses (--paypal): a held accept snapshots the case; if PayPal moves it on before the owner
+// approves, approval re-reads it and refuses, and the accept never runs.
+test('paypal hooks: a case that moved on is refused as stale', async () => {
+  const { paypalDisputeHooks } = await import('../src/paypal.js');
+  let accepted = 0;
+  let dispute: any = { status: 'WAITING_FOR_SELLER_RESPONSE', dispute_life_cycle_stage: 'INQUIRY', dispute_amount: { value: '62.00', currency_code: 'USD' }, links: [{ rel: 'accept_claim' }] };
+  const server = new McpServer({ name: 'toy-paypal', version: '1.0.0' });
+  server.registerTool('accept_dispute_claim', { description: 'Refund in full', inputSchema: { dispute_id: z.string() } }, async () => {
+    accepted++; return { content: [{ type: 'text', text: '{"ok":true}' }] };
+  });
+  const g = gate(server, { default: 'deny', tools: { accept_dispute_claim: 'hold' } }, {
+    store: jsonStore(join(mkdtempSync(join(tmpdir(), 'gate-')), 'holds.json')), ...paypalDisputeHooks(async () => dispute),
+  });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a);
+  const client = new Client({ name: 'test', version: '1.0.0' });
+  await client.connect(b);
+  const r: any = await client.callTool({ name: 'accept_dispute_claim', arguments: { dispute_id: 'PP-R-X' } });
+  const { hold_id } = JSON.parse(r.content[0].text);
+  dispute = { ...dispute, dispute_life_cycle_stage: 'CHARGEBACK', status: 'UNDER_REVIEW' };
+  await assert.rejects(g.approve(hold_id), /moved from INQUIRY to CHARGEBACK/);
+  assert.equal(accepted, 0);
+  assert.equal(g.holds()[0].status, 'stale');
+});

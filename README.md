@@ -149,7 +149,9 @@ A page on the desk where a visitor plays the buyer and tries to make JUNCO give 
 
 ## The gate on its own: junco-gate
 
-`packages/junco-gate` is the gate as a package for any MCP server: a policy per tool (read, allowed write, hold, not exposed, amount limits, default deny), holds bound to the exact call, guards, a re-check before an approved call runs, tracked outcomes, an action log, and `mirror()` to wrap someone else's server over any transport. `examples/wrap-any-server.ts` puts it in front of the official filesystem server: reads go through, writes wait for the owner, everything else is refused. Its three tests (allowed, held, stale) run with `npm run check-gate-pkg`. JUNCO's `src/gate.ts` is the same package with PayPal-specific hooks.
+`packages/junco-gate` is the gate as a package for any MCP server: a policy per tool (read, allowed write, hold, not exposed, amount limits, default deny), holds bound to the exact call, guards, a re-check before an approved call runs, tracked outcomes, an action log, and `mirror()` to wrap someone else's server over any transport. `examples/wrap-any-server.ts` puts it in front of the official filesystem server: reads go through, writes wait for the owner, everything else is refused. Its tests (allowed, held, stale, and a PayPal case that moved on) run with `npm run check-gate-pkg`. JUNCO's `src/gate.ts` is the same package with the desk's hooks.
+
+It's also one command. `junco-gate --paypal` is an MCP server that sits in front of PayPal's own hosted MCP server, so any MCP client (Claude Desktop, Cursor, an agent framework) gets PayPal's tools under the owner's policy. With JUNCO's `policy.json` the client sees 22 of PayPal's 46 tools, refunds and dispute accepts come back held, and `junco-gate approve <id>` re-reads the dispute through PayPal's own server before running the exact held call, or refuses it as stale. Setup is in `packages/junco-gate/README.md`.
 
 ## Tools added
 

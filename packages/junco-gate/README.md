@@ -2,7 +2,32 @@
 
 An owner's policy in front of any MCP server's tools. Each call an agent makes is allowed, held for the owner, or denied, and every decision goes to an action log. A buyer's message, a prompt injection or a confused model can change what the agent asks for. It can't change what the owner allowed.
 
-It was built for JUNCO, a PayPal dispute agent, where it sits in front of PayPal's hosted MCP server and JUNCO's own dispute tools. Nothing in the package is specific to PayPal.
+It was built for JUNCO, a PayPal dispute agent, where it sits in front of PayPal's hosted MCP server and JUNCO's own dispute tools. The core is not specific to PayPal; `junco-gate/paypal` adds the dispute re-checks, and the `--paypal` flag uses them.
+
+## One command in front of PayPal's MCP server
+
+```
+PAYPAL_CLIENT_ID=... PAYPAL_CLIENT_SECRET=... npx junco-gate --paypal --policy policy.json
+```
+
+This starts an MCP server on stdio that connects to PayPal's hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools) and puts the policy in front of every tool. On Oct 15 2026, with JUNCO's `policy.json`, an MCP client saw 22 of the 46 tools. A read ran, `create_refund` and `accept_dispute_claim` came back held with a hold ID, and a hidden tool was refused. Approving the held accept on a dispute PayPal had already resolved was refused as stale, and nothing was sent.
+
+To use it from Claude Desktop, add this to `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "paypal-gated": { "command": "npx", "args": ["-y", "junco-gate", "--paypal", "--policy", "/path/to/policy.json", "--webhook", "https://hooks.slack.com/services/..."],
+  "env": { "PAYPAL_CLIENT_ID": "...", "PAYPAL_CLIENT_SECRET": "..." } } } }
+```
+
+The owner works the holds from a terminal:
+
+```
+npx junco-gate holds                      # what's waiting
+npx junco-gate approve <id> --paypal      # re-reads the dispute; runs the exact call, or refuses it as stale
+npx junco-gate reject <id>                # nothing is sent
+```
+
+`--upstream <url>` puts the gate in front of any other MCP server (`--header "Authorization: Bearer ..."` for auth; a URL ending in `/sse` uses SSE, anything else streamable HTTP). Without `--paypal` there's no re-check before an approved call runs. Holds go to `.junco/holds.json` and every decision to `.junco/gate-log.jsonl`; `--webhook` posts each new hold to a Slack incoming webhook.
 
 ## What it does
 
