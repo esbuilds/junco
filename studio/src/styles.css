@@ -279,3 +279,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-topbar .jd-tag { max-width: 30vw; }
 .jd-topbar .jd-status { max-width: 20vw; }
 @media (max-width: 1280px) { .jd-topbar > .jd-muted { display: none; } .jd-tab { padding: 5px 8px; } }
+.jd-gatecard { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--jd-line); background: var(--jd-surface-2); font-size: 13px; }
+.jd-gatecard.jd-gate-held { border-left: 3px solid var(--jd-warn); }
+.jd-gatecard.jd-gate-refused, .jd-gatecard.jd-gate-failed { border-left: 3px solid var(--jd-danger); }
+.jd-gatecard.jd-gate-allowed { border-left: 3px solid var(--jd-accent); }

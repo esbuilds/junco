@@ -3,6 +3,7 @@
 import { AgStudioAiModule, AgStudioModuleRegistry, createAiHarness, directLlmRunner, type AgAiEvent, type AgAiTool, type AgBuiltInAgentId, type AgLlmAdapter, type AgLlmResponse } from 'ag-studio';
 import { api as desk, money, TRIGGER, type Activity, type CaseDetail, type Hold } from './api';
 import { selectCase } from './store';
+import { GateCard, gateData } from './widgets/GateCard';
 
 export const QUESTION = 'Which disputes am I about to lose this week?';
 const DID = 'What did JUNCO do without me this week?';
@@ -149,7 +150,8 @@ async function loadPayPalTools() {
     name: t.name, description: t.description, kind: 'client' as const,
     schema: () => ({ name: t.name, description: t.description, parameters: t.inputSchema }),
     async execute(call, ctx) {
-      try { return ctx.success((await desk<{ text: string }>(`/api/studio-ai/tools/${encodeURIComponent(t.name)}`, { method: 'POST', json: call.args })).text); }
+      // The gate's verdict rides along as data for the chat's gate card (v3.15 move 3).
+      try { const { text } = await desk<{ text: string }>(`/api/studio-ai/tools/${encodeURIComponent(t.name)}`, { method: 'POST', json: call.args }); return ctx.success(text, gateData(text)); }
       catch (e: any) { return ctx.error(e.message); }
     },
   }));
@@ -170,11 +172,14 @@ export const aiToolDisplay = {
 // so the gated tool set is listed here (the names the desk's MCP server serves).
 const PAYPAL_TOOLS = ['list_disputes', 'get_dispute', 'accept_dispute_claim', 'provide_dispute_evidence', 'make_dispute_offer', 'send_dispute_message', 'provide_dispute_supporting_info', 'add_order_tracking'];
 const said = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
+// Writes open to a gate card (held, refused or allowed, with Approve and Reject on a hold); the row's pill says which.
+const READS = new Set(['list_disputes', 'get_dispute']);
+const PILL: Record<string, string> = { held: 'held for owner', refused: 'refused', allowed: 'allowed', failed: 'PayPal refused' };
 export const aiToolDisplayAll: Record<string, any> = {
-  ...Object.fromEntries(PAYPAL_TOOLS.map((name) => [name, { label: ({ args }: any) => ({
-    text: `${said(name)}${args?.dispute_id ? `, ${args.dispute_id}` : ''}`,
-    pill: args?.offer_amount?.value ? `$${args.offer_amount.value}` : undefined,
-  }) }])),
+  ...Object.fromEntries(PAYPAL_TOOLS.map((name) => [name, { label: ({ args, result }: any) => ({
+    text: `${said(name)}${args?.dispute_id ? `, ${args.dispute_id}` : ''}${args?.offer_amount?.value ? `, $${args.offer_amount.value}` : ''}`,
+    pill: !READS.has(name) && result?.success ? PILL[result.data?.gate] : undefined,
+  }), ...(!READS.has(name) && { detail: GateCard }) }])),
   ...aiToolDisplay,
 };
 
@@ -190,7 +195,8 @@ export function aiSetup() {
     return createAiHarness(api, ({ builtIn }) => ({
       // Turn limits stop a confused agent looping on paid calls (one cold run once took 63 calls and 4 minutes).
       agents: (Object.keys(builtIn) as AgBuiltInAgentId[]).map((id) => directLlmRunner(id !== 'lead' ? { ...builtIn[id], adapter, maxTurns: 8 } : {
-        ...builtIn.lead, adapter, maxTurns: 10,
+        ...builtIn.lead, adapter, maxTurns: 10, name: 'JUNCO',
+        description: "JUNCO's dispute assistant: answers about cases from JUNCO's evidence, asks Studio's agents for charts and widgets, and acts on PayPal only through the owner's policy gate.",
         instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
         tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []), ...junco, ...paypalTools],
       })),
