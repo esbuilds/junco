@@ -380,7 +380,7 @@ async function mcpChallenge(req: IncomingMessage, res: ServerResponse) {
 }
 
 httpServer(async (req, res) => {
-  if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); } // for the host's health check, no data
+  if (req.url === '/healthz') { res.writeHead(200); return res.end(`ok ${(process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7)}`); } // the host's health check; the commit tells a deploy check which build answers
   try {
     if (req.method === 'POST' && req.url === '/webhooks/paypal') return await webhook(req, res);
   } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: { message: 'Bad webhook' } }); }
