@@ -34,11 +34,13 @@ const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.
 
 // The owner's decision on a hold, to the same Slack channel as the hold itself, so the channel never shows a hold
 // as still waiting after it was settled (Oct 15: a rejected $40 offer stayed "for your OK" in Slack).
+// What a hold acts on, in Slack's words: a dispute, a payment (refunds) or an invoice.
+const target = (a: any) => a?.dispute_id ?? (a?.capture_id ? `payment ${a.capture_id}` : a?.invoice_id ? `invoice ${a.invoice_id}` : a?.order_id ? `order ${a.order_id}` : 'the store');
 function notifyDecision(h: Pick<Hold, 'method' | 'args'>, outcome: string) {
   const url = process.env.HOLD_WEBHOOK_URL;
   if (!url) return;
   void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-    text: `Decided: *${h.method.replace(/_/g, ' ')}* on ${h.args?.dispute_id ?? h.args?.order_id ?? 'a case'}: ${outcome}`,
+    text: `Decided: *${h.method.replace(/_/g, ' ')}* on ${target(h.args)}: ${outcome}`,
   }) }).catch((e) => console.warn('[notify] failed', e.message));
 }
 
@@ -48,10 +50,11 @@ async function notifyHold(h: Hold) {
   if (!url) return;
   try {
     const d = h.args?.dispute_id ? (await paypal(ctx, 'GET', `/v1/customer/disputes/${encodeURIComponent(h.args.dispute_id)}`)).body : {};
-    const amount = h.args?.offer_amount ? `${h.args.offer_amount.value} ${h.args.offer_amount.currency_code}` : d.dispute_amount ? `${d.dispute_amount.value} ${d.dispute_amount.currency_code}` : 'n/a';
+    const m = h.args?.offer_amount ?? h.args?.amount ?? d.dispute_amount;
+    const amount = m?.value ? ` (${m.value} ${m.currency_code ?? ''})`.replace(' )', ')') : '';
     const what = h.method.replace(/_/g, ' ');
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      text: `JUNCO is holding *${what}* on ${h.args?.dispute_id ?? 'a dispute'} (${amount}) for your OK.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `Approve or reject (one tap, good for 48 hours): ${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}` : `Approve or reject: ${DESK_URL}`}`,
+      text: `JUNCO is holding *${what}* on ${target(h.args)}${amount} for your OK.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `<${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}|Approve or reject>, one tap, good for 48 hours` : `Approve or reject: ${DESK_URL}`}`,
     }) });
     if (!r.ok) console.warn('[notify] webhook returned', r.status);
   } catch (e: any) { console.warn('[notify] failed', e.message); }
