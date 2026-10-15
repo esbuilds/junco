@@ -25,14 +25,16 @@ export function linkRefusal(key: string | undefined, id: string, e: string | nul
 }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const what = (h: any) => `${String(h.method).replace(/_/g, ' ')}${h.args?.dispute_id ? ` on ${h.args.dispute_id}` : ''}`;
+// "Refund $5.00 on payment 22B5...", "Make dispute offer $40.00 on PP-R-OKQ-...": the action, the money, what it acts on.
+const target = (a: any) => a?.dispute_id ?? (a?.capture_id ? `payment ${a.capture_id}` : a?.invoice_id ? `invoice ${a.invoice_id}` : '');
+const what = (h: any) => { const m = String(h.method).replace(/^create_/, '').replace(/_/g, ' '); return m.charAt(0).toUpperCase() + m.slice(1); };
 const amount = (h: any) => h.args?.offer_amount?.value ?? h.args?.amount?.value ?? h.args?.amount;
 
 // The page: what is held and why, and two buttons. `note` is the outcome after a POST, or why the link can't be used.
 export function holdPage(h: any | null, q: { e: string | null; s: string | null }, desk: string, note?: { ok: boolean; text: string }) {
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
-    <h1>${esc(what(h))}${amount(h) ? `, $${esc(amount(h))}` : ''}</h1>
-    <p class="m">Held for you because ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
+    <h1>${esc(what(h))}${amount(h) ? ` $${esc(amount(h))}` : ''}${target(h.args) ? ` on ${esc(target(h.args))}` : ''}</h1>
+    <p class="m">Held for you. ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
     ${h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : ''}
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && !(note && !note.ok && /link/.test(note.text)) ? `
