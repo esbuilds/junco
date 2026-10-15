@@ -96,7 +96,7 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
         store.write([...store.read(), hold]);
         log(name, args, verdict, reason, hold.id);
         o.onHold?.(hold);
-        return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action.' });
+        return text({ held: true, hold_id: hold.id, reason, next: 'Not executed. The owner must approve this action. If they approve, this exact call runs once; do not call it again, and tell the user it is waiting for the owner.' });
       },
     });
   }
