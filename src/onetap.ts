@@ -30,7 +30,7 @@ const amount = (h: any) => h.args?.offer_amount?.value ?? h.args?.amount?.value 
 
 // The page: what is held and why, and two buttons. `note` is the outcome after a POST, or why the link can't be used.
 export function holdPage(h: any | null, q: { e: string | null; s: string | null }, desk: string, note?: { ok: boolean; text: string }) {
-  const body = !h ? `<p>No such hold.</p>` : `
+  const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
     <h1>${esc(what(h))}${amount(h) ? `, $${esc(amount(h))}` : ''}</h1>
     <p class="m">Held for you because ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
     ${h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : ''}
@@ -67,5 +67,6 @@ if (process.argv[1]?.endsWith('onetap.ts')) {
   const page = holdPage({ method: 'make_dispute_offer', args: { dispute_id: '<x>', offer_amount: { value: '40.00' } }, reason: 'r', status: 'pending' }, { e, s }, 'https://d');
   assert.ok(page.includes('&#60;x&#62;') && page.includes('method="post"'));
   assert.ok(!holdPage({ method: 'm', args: {}, reason: 'r', status: 'rejected' }, { e, s }, 'https://d').includes('<form'));
+  assert.ok(holdPage(null, { e, s }, 'https://d', { ok: false, text: 'this link is not valid' }).includes('this link is not valid'));
   console.log('one-tap: signed per hold, expiry can\'t be stretched, expired refused, page escapes and offers buttons only while pending');
 }
