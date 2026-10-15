@@ -428,7 +428,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       if (req.method === 'GET' && (p[3] === 'file.md' || p[3] === 'file.html')) {
         const d = await agent.getDispute(id);
         const savedRec = readRecs()[id];
-        const input = { d, evidence: savedRec?.evidence ?? collectEvidence(d, await gatherFromPayPal(ctx, d)), saved: savedRec ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id) };
+        const input = { d, evidence: savedRec?.evidence ?? collectEvidence(d, [...(await gatherFromPayPal(ctx, d)), ...extraFor(id)]), saved: savedRec ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id) };
         const md = p[3] === 'file.md';
         res.writeHead(200, { 'Content-Type': md ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8', ...(md && { 'Content-Disposition': `attachment; filename="${id}.md"` }) });
         return res.end(md ? caseMarkdown(input) : caseHtml(input));
@@ -436,7 +436,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
       if (req.method === 'GET' && !p[3]) {
         const d = await agent.getDispute(id);
         const savedRec = readRecs()[id];
-        const evidence = savedRec?.evidence ?? collectEvidence(d, await gatherFromPayPal(ctx, d)); // the set the saved recommendation cites
+        const evidence = savedRec?.evidence ?? collectEvidence(d, [...(await gatherFromPayPal(ctx, d)), ...extraFor(id)]); // the set the saved recommendation cites
         return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, negotiation: readNegotiations()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
