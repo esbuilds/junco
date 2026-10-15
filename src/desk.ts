@@ -1,6 +1,6 @@
 // Dispute desk: a small web app over the gated MCP server. Every action goes through the same gate an AI agent hits.
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -30,6 +30,16 @@ import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extr
 
 const ctx = await sandboxCtx();
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+
+// The owner's decision on a hold, to the same Slack channel as the hold itself, so the channel never shows a hold
+// as still waiting after it was settled (Oct 15: a rejected $40 offer stayed "for your OK" in Slack).
+function notifyDecision(h: Pick<Hold, 'method' | 'args'>, outcome: string) {
+  const url = process.env.HOLD_WEBHOOK_URL;
+  if (!url) return;
+  void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    text: `Decided: *${h.method.replace(/_/g, ' ')}* on ${h.args?.dispute_id ?? h.args?.order_id ?? 'a case'}: ${outcome}`,
+  }) }).catch((e) => console.warn('[notify] failed', e.message));
+}
 
 // "My phone buzzed": one Slack-compatible webhook call per new hold. Off unless HOLD_WEBHOOK_URL is set.
 async function notifyHold(h: Hold) {
@@ -612,7 +622,12 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle')) {
-      const h = await resolveHold(p[2], p[3]); // the owner's decision goes in the case's timeline, next to the hold it answers
+      const asked = readHolds().find((x) => x.id === p[2]);
+      const h = await resolveHold(p[2], p[3]).catch((e) => { // a stale refusal throws; Slack still hears how it ended
+        if (asked && p[3] === 'approve' && /^Not run/.test(e.message)) notifyDecision(asked, `refused at approval. ${e.message}`);
+        throw e;
+      }); // the owner's decision goes in the case's timeline, next to the hold it answers
+      if (p[3] !== 'settle') notifyDecision(h, p[3] === 'reject' ? 'rejected by the owner, nothing sent.' : h.status === 'completed' ? 'approved by the owner, and PayPal accepted it.' : `approved by the owner, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}.`);
       if (p[3] !== 'settle') agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', p[3] === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`, `${h.method.replace(/_/g, ' ')} ${p[3] === 'reject' ? 'rejected by the owner' : `approved by the owner${h.status === 'completed' ? ', and PayPal accepted it' : `: ${(h.result ?? '').slice(0, 200)}`}`}`);
       return json(res, 200, h);
     }
@@ -656,7 +671,10 @@ setInterval(() => void kick(), 5 * 60_000);
 // The self-check (v3.14 item 3): every 30 minutes, the parts a judge's visit needs. A change in what's failing (and its
 // clearing) posts once to HOLD_WEBHOOK_URL; the desk header shows the last result. A paused AI counts as a failure.
 type Check = { at: string; failed: string[]; checks: Record<string, string> };
-let lastCheck: Check | null = null;
+// The last result is kept in .junco (mirrored to Postgres), so a restart still knows what was failing and the
+// all-clear reaches Slack (Oct 15: a deploy forgot a PayPal failure and Slack never heard it cleared).
+const CHECK_FILE = '.junco/selfcheck.json';
+let lastCheck: Check | null = (() => { try { return JSON.parse(readFileSync(CHECK_FILE, 'utf8')); } catch { return null; } })();
 async function selfCheck() {
   const checks: Record<string, string> = {};
   const t = async (k: string, f: () => Promise<string | void>) => { try { checks[k] = (await f()) ?? 'ok'; } catch (e: any) { checks[k] = `FAILED: ${String(e.message).slice(0, 160)}`; } };
@@ -672,6 +690,7 @@ async function selfCheck() {
   const failed = Object.entries(checks).filter(([, v]) => v.startsWith('FAILED')).map(([k]) => k);
   const before = lastCheck?.failed.join(',') ?? '';
   lastCheck = { at: new Date().toISOString(), failed, checks };
+  mkdirSync('.junco', { recursive: true }); writeFileSync(CHECK_FILE, JSON.stringify(lastCheck)); mirror(CHECK_FILE, lastCheck);
   if (failed.join(',') !== before && (failed.length || before) && process.env.HOLD_WEBHOOK_URL) {
     const text = failed.length ? `JUNCO self-check: ${failed.map((k) => `${k}: ${checks[k].slice(8)}`).join('; ')}. Desk: ${DESK_URL}` : `JUNCO self-check: all systems live again. ${DESK_URL}`;
     await fetch(process.env.HOLD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch((e) => console.warn('[self-check] webhook', e.message));
