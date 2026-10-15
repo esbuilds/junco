@@ -1,6 +1,10 @@
 # JUNCO
 
-Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates to a claim can also cost a [$15 dispute fee](https://www.paypal.com/us/webapps/mpp/merchant-fees#statement-19), which [PayPal doesn't charge](https://www.paypal.com/us/legalhub/paypal/useragreement-full) when it's resolved with the buyer before it becomes a claim.
+[![checks](https://github.com/esbuilds/junco/actions/workflows/checks.yml/badge.svg)](https://github.com/esbuilds/junco/actions/workflows/checks.yml)
+
+**JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.**
+
+Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates to a claim can also cost a [$15 dispute fee](https://www.paypal.com/us/webapps/mpp/merchant-fees#statement-19), which [PayPal doesn't charge](https://www.paypal.com/us/legalhub/paypal/useragreement-full) when it's resolved with the buyer before it becomes a claim. And now shopping agents buy things on people's behalf, so a buyer can dispute an order their own agent picked, and the seller still has to answer it ([below](#when-an-ai-agent-did-the-buying)).
 
 JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends one action: message the buyer, offer a partial refund, contest with evidence, accept, or wait while PayPal reviews. Every claim it makes cites a piece of evidence, and plain code checks those citations, the quotes and the message to the buyer before anything happens. Actions that move money wait for the owner.
 
@@ -9,6 +13,8 @@ JUNCO rejects missing evidence and made-up quotes. What the AI concludes is stil
 It is built as an extension to [PayPal's Agent Toolkit](https://github.com/paypal/agent-toolkit). The stock toolkit can list disputes and concede them, but it cannot contest one. JUNCO adds the missing tools, so any MCP-capable agent gets them, and ships a dispute desk for the merchant.
 
 **Hosted demo:** the URL and password are on the Devpost submission page.
+
+*The name:* the junco is a small gray bird you've probably seen a hundred times without knowing what it's called. People call them snowbirds because they turn up when the weather turns cold. They spend the day on the ground picking through the details everyone else walks past, and when something's wrong they flash the white feathers in their tail so the rest of the flock knows.
 
 ## How it works
 
@@ -191,8 +197,11 @@ npm run check-ai     # validator, quote and message cases offline, then one real
 npm run check-agent  # agent triage: acts once per state, no repeat messages
 npm run check-lease  # case leases, who may approve where, the pre-filed pool
 npm run check-challenge  # Break the mandate: the three cards, caps, owner-only holds, private messages
-npm run eval         # 42-scenario recommendation eval (about $1.20)
+npm run check-onetap # one-tap links: signed per hold, no stretched expiry, GET never decides
+npm run eval         # 43-scenario recommendation eval (about $2.50 with the support check)
 ```
+
+CI (`.github/workflows/checks.yml`) runs the typecheck and every check that needs no PayPal, Claude or database credentials on each push. The rest run against the sandbox by hand.
 
 ## Eval
 
@@ -231,7 +240,7 @@ The scenarios double as a benchmark any dispute agent can be scored against, not
 
 Two baselines ran on the same 43 cases on Oct 14 2026: one that accepts every dispute it can (`evals/agents/always-accept.ts`), and the same model with the same settings as JUNCO but none of what JUNCO adds: plain unnumbered evidence, a one-paragraph prompt, no checks (`evals/agents/no-validator.ts`, three runs). The always-accept agent got 18 / 43, with 24 clearly wrong and 1 of 10 injections resisted. The plain model got 41 / 43 in all three runs, with the same 1 wrong decision and 10 / 10 injections resisted.
 
-So a current model reads a dispute about as well without JUNCO. What JUNCO adds is the layer that keeps a decision from going out unchecked. What each layer caught, in the plain model's three runs:
+So a current model reads a dispute about as well without JUNCO. Reading well isn't the same as safe to send, though: in those same runs the plain model told buyers whose orders never shipped to check around their delivery area, and that tracking details would follow. What JUNCO adds is the layer that keeps a decision from going out unchecked. What each layer caught, in the plain model's three runs:
 
 | Layer | What it stops | Plain model, 3 runs |
 |---|---|---|

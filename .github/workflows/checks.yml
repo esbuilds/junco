@@ -1,0 +1,17 @@
+# The checks that need no PayPal, Claude or database credentials. The live ones (check, check-gate, check-ai,
+# check-support, check-hosted, eval) run against the PayPal sandbox and Claude by hand; see "Checks" in the README.
+name: checks
+on: [push, pull_request]
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: |
+          for c in check-gate-pkg check-lease check-onetap check-plan check-watch check-negotiate check-spend check-challenge check-carrier check-persist; do
+            echo "== $c"; npm run -s $c
+          done
