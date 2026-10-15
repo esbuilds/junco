@@ -191,7 +191,9 @@ export async function fileOne(ctx: Ctx, kind: Kind): Promise<Run> {
     disputed_transactions: [{ buyer_transaction_id: entry.buyer_txn }],
     reason: kind === 'agent' ? 'MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED' : 'MERCHANDISE_OR_SERVICE_NOT_RECEIVED',
     dispute_amount: { currency_code: 'USD', value: entry.amount },
-    extensions: { merchant_contacted: false, merchandize_dispute_properties: { issue_type: 'PRODUCT' } },
+    // Agent orders: the buyer says the item was different from what they expected. PayPal's sandbox keeps the sub-reason
+    // on API-filed disputes but drops a description (Oct 15, PP-R-ZBL), so no buyer words are sent.
+    extensions: { merchant_contacted: false, merchandize_dispute_properties: { issue_type: 'PRODUCT', ...(kind === 'agent' && { product_details: { sub_reasons: ['DIFFERENT'] } }) } },
   })], { type: 'application/json' }));
   const r = await fetch(`${ctx.baseUrl}/v1/customer/disputes`, {
     method: 'POST', body: form,

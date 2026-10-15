@@ -95,10 +95,25 @@ function describeOffer(o: any) {
   return `Buyer asked for ${amt(o.buyer_requested_amount)}; seller offered ${amt(o.seller_offered_amount)} (${o.offer_type ?? 'n/a'}).${hist.length ? ` History: ${hist.join('; ')}.` : ''}`;
 }
 
+// What the buyer said was wrong, from PayPal's product fields on a not-as-described case: a summary item, plus the
+// buyer's own description as a quoted item when PayPal has one (Oct 15: the sandbox keeps sub-reasons on API-filed
+// disputes but drops the description; website-filed cases carry it).
+const SUB_REASON: Record<string, string> = { DAMAGED: 'the product was damaged', DIFFERENT: 'the product was different from what was expected', MISSING_PARTS: 'the product had missing parts', OTHER: 'other' };
+function buyerIssue(dispute: any): Omit<Evidence, 'id'>[] {
+  const p = dispute.extensions?.merchandize_dispute_properties?.product_details;
+  if (!p) return [];
+  const subs = (p.sub_reasons ?? []).map((s: string) => `${s} (${SUB_REASON[s] ?? s.toLowerCase()})`).join(', ');
+  return [
+    { source: 'paypal buyer issue fields', text: `What the buyer reported as filed with PayPal: sub-reasons ${subs || 'not stated'}; product received: ${p.product_received ?? 'not stated'}${p.product_received_time ? ` (${p.product_received_time})` : ''}.` },
+    ...(p.description?.trim() ? [{ source: 'paypal note from the buyer, describing the issue', text: p.description.trim() }] : []),
+  ];
+}
+
 // Turn the PayPal dispute plus merchant-supplied records into numbered evidence the model can cite.
 export function collectEvidence(dispute: any, merchantRecords: Omit<Evidence, 'id'>[] = []): Evidence[] {
   const items: Omit<Evidence, 'id'>[] = [
     { source: 'paypal', text: `Reason: ${dispute.reason}. Amount: ${dispute.dispute_amount?.value} ${dispute.dispute_amount?.currency_code}. Stage: ${dispute.dispute_life_cycle_stage}. Channel: ${dispute.dispute_channel ?? 'unknown'}. Status: ${dispute.status}. Seller response due: ${dispute.seller_response_due_date ?? 'not set'}. PayPal currently allows: ${(dispute.links ?? []).map((l: any) => l.rel).filter((r: string) => r !== 'self').join(', ') || 'nothing'}.` },
+    ...buyerIssue(dispute),
     ...(dispute.messages ?? []).map((m: any) => ({ source: `paypal message from ${String(m.posted_by).toLowerCase()}`, text: `${String(m.time_posted).slice(0, 16).replace('T', ' ')} UTC: "${m.content}"` })),
     // The note is someone's own words, so it is its own item (quoted); the rest is JUNCO's summary of PayPal's fields.
     ...(dispute.evidences ?? []).flatMap((e: any) => [

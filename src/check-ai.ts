@@ -18,6 +18,9 @@ assert.match(validate({ ...base, decision: 'contest', evidence_type: 'PROOF_OF_F
 assert.match(validate({ ...base, decision: 'message' }, ev, dispute).join(), /without message_to_buyer/);
 assert.deepEqual(validate({ ...base, decision: 'wait' }, ev, { ...dispute, links: [{ rel: 'self' }] }), []);
 assert.deepEqual(validate({ ...base, decision: 'contest', evidence_type: 'OTHER' }, ev, { ...dispute, links: [{ rel: 'provide_supporting_info' }] }), []);
+// The buyer's issue fields on a not-as-described case: a PayPal summary (not quotable), the buyer's description quoted.
+const nad = collectEvidence({ ...dispute, extensions: { merchandize_dispute_properties: { product_details: { sub_reasons: ['DIFFERENT'], description: 'Too deep for the sizer.' } } } });
+assert.deepEqual(nad.slice(1).map((e) => [e.quotable, e.text.slice(0, 40)]), [[false, 'What the buyer reported as filed with Pa'], [true, 'Too deep for the sizer.']]);
 // Quote check: source text (E2, a merchant record) needs a word-for-word quote; JUNCO's own summary (E1) doesn't.
 assert.equal(ev[0].quotable, false); assert.equal(ev[1].quotable, true);
 const claim = (evidence_ids: string[], quote: string | null) => ({ ...base, claims: [{ text: 'Delivered', evidence_ids, quote }] });
