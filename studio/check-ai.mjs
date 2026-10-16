@@ -126,6 +126,9 @@ for (let n = 1; n <= RUNS; n++) {
   // JUNCO tool calls, read from the conversation Studio sent with each model turn.
   f.calls = [...new Map(sent.flatMap((b) => (JSON.parse(b ?? '{}').input ?? []).filter((i) => i.type === 'function_call' && i.name.startsWith('junco_'))
     .map((i) => [i.callId, { name: i.name, args: JSON.parse(i.arguments || '{}') }]))).values()];
+  // Hand-offs from JUNCO to Studio's built-in agents (its delegate_to calls), printed so the trace can be checked.
+  f.delegated = [...new Map(sent.flatMap((b) => (JSON.parse(b ?? '{}').input ?? []).filter((i) => i.type === 'function_call' && i.name === 'delegate_to')
+    .map((i) => [i.callId, JSON.parse(i.arguments || '{}')]))).values()];
   const why = [...(timedOut ? ['still working after 4 minutes'] : []), ...Q.judge(f)];
   const usage = await p.evaluate(() => window.__studioUsage);
   const shot = `${tmpdir()}/junco-check-ai-${NAME}-${n}.png`;
@@ -133,6 +136,7 @@ for (let n = 1; n <= RUNS; n++) {
   results.push({ ok: !why.length, seconds, ...usage });
   console.log(`run ${n}: ${why.length ? 'MISS (' + why.join('; ') + ')' : 'ok'}, ${seconds}s, ${usage.calls} calls, ` +
     `${usage.input} in (${usage.cached} cached, ${usage.cacheWrite} written), ${usage.output} out  ${shot}`);
+  if (f.delegated.length) console.log(`  handed to: ${f.delegated.map((d) => JSON.stringify(d).slice(0, 120)).join(' | ')}`);
   if (why.length) console.log(`  answer: ${f.panel.split('\n').filter(Boolean).slice(-4).join(' / ').slice(0, 400)}`);
   await ctx.close();
 }

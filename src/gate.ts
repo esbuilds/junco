@@ -85,12 +85,14 @@ const OUTCOME: Record<string, string> = { pending: 'held, waiting for the owner'
   failed: 'approved by the owner, PayPal refused it', unknown: 'approved by the owner, outcome unknown (re-check PayPal)',
   rejected: 'rejected by the owner, nothing sent', stale: 'stale: the case moved on, nothing sent' };
 const amountText = (args: any, h?: Hold) => { const a = args?.offer_amount ?? args?.amount; return a?.value ? `${a.value} ${a.currency_code ?? ''}`.trim() : (h?.case as CaseState | undefined)?.amount ?? null; };
+// Why a stale hold was refused, from its stored result ("Not run: <why>").
+const staleWhy = (h: Hold) => { try { return JSON.parse(h.result ?? '').error.message.replace(/^Not run: /, ''); } catch { return 'refused at approval'; } };
 // runs: Break the mandate records (challenge.ts). A run whose move made a real hold is that hold's row; any other money
 // run is its own row (the run record names the source), and the log entry it left on the desk's server is skipped.
 export function gateRecord(holds: Hold[], runs: any[], moves: Move[], tagOf: (h: Hold) => string | undefined): RecordRow[] {
   const rows: RecordRow[] = holds.filter((h) => MONEY.includes(h.method)).map((h) => ({
     at: h.created, source: tagOf(h) ?? 'unknown', dispute_id: h.args?.dispute_id ?? null, method: h.method, amount: amountText(h.args, h),
-    verdict: 'hold', outcome: OUTCOME[h.status] ?? h.status, hold_id: h.id, reason: h.reason }));
+    verdict: 'hold', outcome: h.status === 'stale' && h.method === 'create_refund' ? `stale: ${staleWhy(h)}, nothing sent` : OUTCOME[h.status] ?? h.status, hold_id: h.id, reason: h.reason }));
   const money = runs.filter((r) => r.proposed && MONEY.includes(r.proposed.method) && !r.gate.hold_id);
   const fromRun = (m: Move) => money.some((r) => r.dispute_id === m.args?.dispute_id && r.proposed.method === m.method && Math.abs(Date.parse(r.at) - Date.parse(m.at)) < 120_000);
   for (const m of moves) if (!fromRun(m)) rows.push({ at: m.at, source: m.source, dispute_id: m.args?.dispute_id ?? null, method: m.method, amount: amountText(m.args),
