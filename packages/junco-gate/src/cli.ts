@@ -76,13 +76,20 @@ const readDispute = async (id: string) => {
   const r: any = await (await upstream()).callTool({ name: 'get_dispute', arguments: { dispute_id: id } });
   return JSON.parse(r.content?.[0]?.text ?? '');
 };
+// PayPal's hosted MCP has no tool that reads a capture, so a held refund's re-read goes to the REST API.
+const readCapture = async (id: string) => {
+  const { token } = await paypalToken(process.env.PAYPAL_CLIENT_ID!, process.env.PAYPAL_CLIENT_SECRET!);
+  const r = await fetch(`https://api-m.sandbox.paypal.com/v2/payments/captures/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(`Could not re-read payment ${id} (${r.status})`);
+  return r.json();
+};
 const notify = (h: Hold) => {
   const line = `Held ${h.method} ${JSON.stringify(h.args).slice(0, 200)}: ${h.reason}. Approve with: junco-gate approve ${h.id}`;
   say(line);
   if (o.webhook) void fetch(o.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: line }) }).catch((e) => say('webhook', e.message));
 };
 const opts: GateOptions = {
-  store, onHold: notify, ...(o.paypal && paypalDisputeHooks(readDispute)),
+  store, onHold: notify, ...(o.paypal && paypalDisputeHooks(readDispute, readCapture)),
   log: (d) => { mkdirSync(dirname(o.log!), { recursive: true }); appendFileSync(o.log!, JSON.stringify(d) + '\n'); },
 };
 

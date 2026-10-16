@@ -8,7 +8,7 @@ import type { Ctx } from './disputes.js';
 import { gate, type Policy, type Hold } from './gate.js';
 import type { Decision } from '../packages/junco-gate/src/index.js';
 import { mirror } from '../packages/junco-gate/src/mirror.js';
-import { addDisputeTools, caseReader } from './server.js';
+import { addDisputeTools, captureReader, caseReader } from './server.js';
 
 const HOSTED = 'https://mcp.sandbox.paypal.com/sse'; // ponytail: sandbox only; /mcp and /http are 404 there, SSE works
 
@@ -55,6 +55,6 @@ export function hosted(): Promise<Conn> {
 export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: Hold) => void, log?: (d: Decision) => void) {
   const { server } = await mirror(async () => (await hosted()).client, 'junco-gate-paypal-hosted', () => { conn = null; });
   addDisputeTools(server, ctx);
-  const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted', log);
+  const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted', log, captureReader(ctx));
   return { server, holds };
 }

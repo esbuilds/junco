@@ -91,6 +91,19 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
           } catch (e: any) { log(name, args, verdict, reason, undefined, e.message); throw e; }
         }
         if (verdict === 'deny') { log(name, args, verdict, reason); return text({ error: { type: 'denied_by_policy', message: reason } }); }
+        // The same call asked again (an agent retrying, or asking twice) never makes a second hold.
+        // ponytail: exact-args match, forever; a call that differs only in a note gets its own hold and the stale re-read catches it.
+        const key = JSON.stringify(args);
+        const dup = store.read().find((h) => h.method === name && h.origin === o.origin && JSON.stringify(h.args) === key && ['pending', 'executing', 'completed', 'unknown'].includes(h.status));
+        if (dup?.status === 'pending' || dup?.status === 'executing') {
+          log(name, args, 'hold', `the same call is already held as ${dup.id}`, dup.id);
+          return text({ held: true, hold_id: dup.id, duplicate: true, reason: dup.reason, next: `Not held again: this exact call is already waiting for the owner as hold ${dup.id}. Do not call it again.` });
+        }
+        if (dup) {
+          const why = `this exact call already ran as hold ${dup.id} (${dup.status})`;
+          log(name, args, 'deny', why);
+          return text({ error: { type: 'duplicate_call', message: `Not held: ${why}. Nothing was sent.` } });
+        }
         const hold: Hold = { id: randomUUID().slice(0, 8), method: name, args, reason, created: new Date().toISOString(), status: 'pending', ...(o.origin && { origin: o.origin }) };
         if (o.snapshot) hold.case = await o.snapshot(hold).catch(() => undefined);
         store.write([...store.read(), hold]);

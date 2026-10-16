@@ -99,3 +99,13 @@ test('paypal hooks: a case that moved on is refused as stale', async () => {
   assert.equal(accepted, 0);
   assert.equal(g.holds()[0].status, 'stale');
 });
+
+test('duplicate: the same call asked twice joins the waiting hold; after it ran, a repeat is refused', async () => {
+  const t = await setup();
+  const r = await t.call(500), again = await t.call(500);
+  assert.equal(again.hold_id, r.hold_id); assert.equal(again.duplicate, true);
+  assert.equal(t.holds.holds().length, 1);
+  await t.holds.approve(r.hold_id);
+  assert.equal((await t.call(500)).error.type, 'duplicate_call');
+  assert.deepEqual(t.ledger, [500]);
+});

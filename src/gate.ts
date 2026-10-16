@@ -10,10 +10,10 @@ import { decide as policyDecide, gate as wrap, jsonStore, type Decision, type Gu
 export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
 export type Policy = PkgPolicy & { ship_within_days?: number };
 export type { CaseState };
-export type Hold = PkgHold & { case?: CaseState; before?: Trail };
+export type Hold = PkgHold & { case?: CaseState | CaptureState; before?: Trail | CaptureState };
 
 // The PayPal dispute hooks (snapshot, stale refusal, did-it-land) live in the package, shared with the junco-gate CLI.
-import { caseState, staleReason, trail, landed, type CaseState, type Trail } from '../packages/junco-gate/src/paypal.js';
+import { staleReason, landed, paypalDisputeHooks, type CaseState, type CaptureState, type Trail } from '../packages/junco-gate/src/paypal.js';
 export { staleReason, landed, type Trail };
 
 export const loadPolicy = (path = 'policy.json'): Policy => JSON.parse(readFileSync(path, 'utf8'));
@@ -84,7 +84,7 @@ const OUTCOME: Record<string, string> = { pending: 'held, waiting for the owner'
   completed: 'approved by the owner, PayPal accepted it', approved: 'approved by the owner (outcome not recorded)',
   failed: 'approved by the owner, PayPal refused it', unknown: 'approved by the owner, outcome unknown (re-check PayPal)',
   rejected: 'rejected by the owner, nothing sent', stale: 'stale: the case moved on, nothing sent' };
-const amountText = (args: any, h?: Hold) => { const a = args?.offer_amount ?? args?.amount; return a?.value ? `${a.value} ${a.currency_code ?? ''}`.trim() : h?.case?.amount ?? null; };
+const amountText = (args: any, h?: Hold) => { const a = args?.offer_amount ?? args?.amount; return a?.value ? `${a.value} ${a.currency_code ?? ''}`.trim() : (h?.case as CaseState | undefined)?.amount ?? null; };
 // runs: Break the mandate records (challenge.ts). A run whose move made a real hold is that hold's row; any other money
 // run is its own row (the run record names the source), and the log entry it left on the desk's server is skipped.
 export function gateRecord(holds: Hold[], runs: any[], moves: Move[], tagOf: (h: Hold) => string | undefined): RecordRow[] {
@@ -129,16 +129,13 @@ export async function settleResolved(getCase: (id: string) => Promise<any>) {
 }
 
 // getCase reads a dispute from PayPal; without it, approvals run the stored call with no re-read (offline checks).
+// getCapture reads a payment, so a held refund is refused if the payment changed (refunded already) since it was held.
 // origin tags holds from a server other than the desk's own (PayPal hosted), so approval runs on the same server.
 // log: the action log (every allow, hold and deny); the desk records MCP clients' allowed writes from it.
-export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string, log?: (d: Decision) => void) {
-  const read = (h: PkgHold) => (getCase && h.args?.dispute_id ? getCase(h.args.dispute_id) : null);
+export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string, log?: (d: Decision) => void, getCapture?: (id: string) => Promise<any>) {
   return wrap(server, policy, {
     store, guards, origin, log, onHold: onHold as (h: PkgHold) => void,
     allow: (method, args) => standing(method, args),
-    snapshot: async (h) => { const d = await read(h); return d ? caseState(d) : undefined; },
-    beforeRun: async (h) => { const d = await read(h); return d ? { refuse: staleReason(h as Hold, d), trail: trail(d) } : {}; },
-    landed: async (h) => { const d = h.before ? await read(h)?.catch(() => null) : null; return d ? landed(h.method, h.before, d) : null; },
-    unknownErrors: ['hosted_unavailable', 'upstream_unavailable'],
+    ...paypalDisputeHooks(getCase ?? (async () => null), getCapture),
   });
 }

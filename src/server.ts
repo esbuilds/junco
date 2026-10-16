@@ -43,6 +43,12 @@ export const caseReader = (ctx: Ctx) => async (id: string) => {
   return d.body;
 };
 
+export const captureReader = (ctx: Ctx) => async (id: string) => {
+  const c = await paypal(ctx, 'GET', `/v2/payments/captures/${encodeURIComponent(id)}`);
+  if (c.status !== 200) throw new Error(`Could not re-read payment ${id} (${c.status})`);
+  return c.body;
+};
+
 let hydrated = false;
 export async function createServer(ctx: Ctx & { accessToken: string }, given?: Policy, onHold?: (h: Hold) => void, log?: (d: Decision) => void) {
   if (!hydrated) { // once per process: later servers (one per remote MCP request) share the files the first one restored
@@ -59,7 +65,7 @@ export async function createServer(ctx: Ctx & { accessToken: string }, given?: P
   server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
-  return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx), undefined, log) }; // gate last, so it wraps every tool
+  return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx), undefined, log, captureReader(ctx)) }; // gate last, so it wraps every tool
 }
 
 if (process.argv[1]?.endsWith('server.ts')) {

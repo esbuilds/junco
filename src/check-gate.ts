@@ -52,7 +52,8 @@ const open = (o: any = {}) => kase({ links: [{ rel: 'send_message' }], ...o });
 let calls = 0, reply: () => any = () => ({ content: [{ type: 'text', text: '{"ok":true}' }] }), now = open();
 const fake: any = { _registeredTools: { send_dispute_message: { handler: async () => { calls++; return reply(); }, update(u: any) { this.handler = u.callback; } } } };
 const g = gate(fake, { default: 'deny', tools: { send_dispute_message: 'hold' } }, undefined, async () => now);
-const ask = async () => JSON.parse((await fake._registeredTools.send_dispute_message.handler({ dispute_id: 'PP-T2' }, {})).content[0].text).hold_id;
+const run = Date.now(); let n = 0; // holds persist in .junco/holds.json, so args are unique per run; each ask is a different message: the same call twice is refused as a duplicate (checked below)
+const ask = async () => JSON.parse((await fake._registeredTools.send_dispute_message.handler({ dispute_id: 'PP-T2', message: `m${run}-${++n}` }, {})).content[0].text).hold_id;
 assert.equal((await g.approve(await ask())).status, 'completed');
 reply = () => ({ content: [{ type: 'text', text: '{"error":{"type":"action_not_allowed"}}' }] });
 assert.equal((await g.approve(await ask())).status, 'failed');
@@ -63,6 +64,20 @@ const lost = await ask();
 assert.equal((await g.approve(lost)).status, 'failed');
 assert.equal(calls, 4); await assert.rejects(g.approve(lost), /already failed/); assert.equal(calls, 4);
 console.log('lifecycle: completed, refused -> failed, dropped call settled by re-read both ways, never re-run');
+
+// The double refund: an agent asks for the same refund twice. The repeat joins the waiting hold; once it ran, a repeat is
+// refused; a second refund worded differently gets its own hold, and approving it is refused because the payment changed.
+let pay = { id: `CAP${run}`, status: 'COMPLETED', update_time: 't0' }, refunds = 0;
+const rf: any = { _registeredTools: { create_refund: { handler: async () => { refunds++; pay = { ...pay, status: 'PARTIALLY_REFUNDED', update_time: 't1' }; return { content: [{ type: 'text', text: '{"id":"R1"}' }] }; }, update(u: any) { this.handler = u.callback; } } } };
+const rg = gate(rf, { default: 'deny', tools: { create_refund: 'hold' } }, undefined, undefined, 'check-refund', undefined, async () => pay);
+const refund = async (note: string) => JSON.parse((await rf._registeredTools.create_refund.handler({ capture_id: `CAP${run}`, amount: { value: '3.00', currency_code: 'USD' }, note_to_payer: note }, {})).content[0].text);
+const first = await refund('Sorry'), again = await refund('Sorry'), reworded = await refund('Sorry again');
+assert.equal(again.hold_id, first.hold_id); assert.equal(again.duplicate, true); assert.notEqual(reworded.hold_id, first.hold_id);
+assert.equal((await rg.approve(first.hold_id)).status, 'completed');
+assert.equal((await refund('Sorry')).error?.type, 'duplicate_call');
+await assert.rejects(rg.approve(reworded.hold_id), /went from COMPLETED to PARTIALLY_REFUNDED/);
+assert.equal(refunds, 1);
+console.log('double refund: repeat joins the hold, repeat after it ran refused, reworded second refund refused on re-read; one refund sent');
 
 const [a, b] = InMemoryTransport.createLinkedPair();
 const { server, holds } = await createServer(await sandboxCtx(), policy);

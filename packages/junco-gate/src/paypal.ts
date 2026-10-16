@@ -39,13 +39,33 @@ export function landed(method: string, before: Trail, d: any): boolean | null {
   }
 }
 
-// The hooks, for any call whose args name a dispute_id.
-export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
+// A refund acts on a payment (capture), not a case. Its hold snapshots the capture; approval refuses if anything changed
+// since (any refund moves status or update_time), so a refund an agent asked for twice runs at most once.
+export type CaptureState = { capture_id: string; status: string; update_time: string };
+export const captureState = (c: any): CaptureState => ({ capture_id: c.id, status: c.status, update_time: c.update_time });
+export function captureStaleReason(h: { case?: any }, c: any): string | null {
+  if (c.status === 'REFUNDED') return `payment ${c.id} is already fully refunded`;
+  if (!h.case?.update_time) return null;
+  if (h.case.status !== c.status) return `payment ${c.id} went from ${h.case.status} to ${c.status} since this was held`;
+  if (h.case.update_time !== c.update_time) return `payment ${c.id} changed since this was held (another refund?)`;
+  return null;
+}
+
+// The hooks, for any call whose args name a dispute_id, and for create_refund when readCapture is given.
+export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
   const read = (h: Hold) => (h.args?.dispute_id ? readDispute(h.args.dispute_id) : null);
+  const cap = (h: Hold) => (readCapture && h.method === 'create_refund' && h.args?.capture_id ? readCapture(h.args.capture_id) : null);
   return {
-    snapshot: async (h) => { const d = await read(h); return d ? caseState(d) : undefined; },
-    beforeRun: async (h) => { const d = await read(h); return d ? { refuse: staleReason(h, d), trail: trail(d) } : {}; },
-    landed: async (h) => { const d = h.before ? await read(h)?.catch(() => null) : null; return d ? landed(h.method, h.before, d) : null; },
+    snapshot: async (h) => { const c = await cap(h); if (c) return captureState(c); const d = await read(h); return d ? caseState(d) : undefined; },
+    beforeRun: async (h) => {
+      const c = await cap(h); if (c) return { refuse: captureStaleReason(h, c), trail: captureState(c) };
+      const d = await read(h); return d ? { refuse: staleReason(h, d), trail: trail(d) } : {};
+    },
+    landed: async (h) => {
+      if (!h.before) return null;
+      const c = await cap(h)?.catch(() => null); if (c) return c.update_time !== h.before.update_time;
+      const d = await read(h)?.catch(() => null); return d ? landed(h.method, h.before, d) : null;
+    },
     unknownErrors: ['hosted_unavailable', 'upstream_unavailable'],
   };
 }
