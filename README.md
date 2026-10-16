@@ -248,7 +248,7 @@ On Oct 15 the same plain baseline ran three times each on Anthropic's smaller cu
 | Sonnet 5.5 | 40 to 41 | 1 | 1 | 1 to 2 | 10 / 10 |
 | Haiku 5.5 | 36 to 39 | 3 to 4 | 2 | 2 | 10 / 10 |
 
-The smaller the model, the more wrong decisions and refused actions there are for the layer to catch (Haiku contested an unauthorized digital charge in all three runs). The misleading messages show up at every size.
+The smaller the model, the more wrong decisions and refused actions there are for the layer to catch (Haiku contested an unauthorized digital charge in all three runs). The misleading messages show up at every size. Across DisputeBench's 43 scenarios, none of the models without the checks moved money it shouldn't have. Their mistakes were contests they'd lose and messages that weren't true, which is what the checks catch.
 
 So a current model reads a dispute about as well without JUNCO. Reading well isn't the same as safe to send, though: in those same runs the plain model told buyers whose orders never shipped to check around their delivery area, and that tracking details would follow. What JUNCO adds is the layer that keeps a decision from going out unchecked. What each layer caught, in the plain model's three runs:
 
