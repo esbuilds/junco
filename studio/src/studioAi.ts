@@ -194,13 +194,19 @@ export function aiSetup() {
     void loadPayPalTools().catch((e) => console.warn('[studio-ai] PayPal tools unavailable', e.message));
     return createAiHarness(api, ({ builtIn }) => ({
       // Turn limits stop a confused agent looping on paid calls (one cold run once took 63 calls and 4 minutes).
-      agents: (Object.keys(builtIn) as AgBuiltInAgentId[]).map((id) => directLlmRunner(id !== 'lead' ? { ...builtIn[id], adapter, maxTurns: 8 } : {
-        ...builtIn.lead, adapter, maxTurns: 10, name: 'JUNCO',
-        description: "JUNCO's dispute assistant: answers about cases from JUNCO's evidence, asks Studio's agents for charts and widgets, and acts on PayPal only through the owner's policy gate.",
-        instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
-        tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []), ...junco, ...paypalTools],
-      })),
-      primary: 'lead',
+      // JUNCO is its own agent (id 'junco', where every thread starts): the built-in lead's instructions and Studio tools,
+      // JUNCO's tools, and its own delegate_to to Studio's built-in specialists. The built-ins stay registered unchanged.
+      agents: [
+        ...(Object.keys(builtIn) as AgBuiltInAgentId[]).map((id) => directLlmRunner({ ...builtIn[id], adapter, maxTurns: id === 'lead' ? 10 : 8 })),
+        directLlmRunner({
+          ...builtIn.lead, id: 'junco', adapter, maxTurns: 10, name: 'JUNCO',
+          description: "JUNCO's dispute assistant: answers about cases from JUNCO's evidence, asks Studio's agents for charts and widgets, and acts on PayPal only through the owner's policy gate.",
+          instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
+          tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []).filter((t) => t.name !== 'delegate_to'),
+            ctx.tools.delegateTo(['data', 'widget', 'page', 'planning']), ...junco, ...paypalTools],
+        }),
+      ],
+      primary: 'junco',
       promptStarters: [{ label: QUESTION, prompt: PROMPT }, { label: DID, prompt: DID }, { label: TRACKING, prompt: TRACKING }],
     }));
   };
