@@ -136,6 +136,6 @@ export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, ge
   return wrap(server, policy, {
     store, guards, origin, log, onHold: onHold as (h: PkgHold) => void,
     allow: (method, args) => standing(method, args),
-    ...paypalDisputeHooks(getCase ?? (async () => null), getCapture),
+    ...paypalDisputeHooks(getCase ?? (async () => null), getCapture, readHolds),
   });
 }

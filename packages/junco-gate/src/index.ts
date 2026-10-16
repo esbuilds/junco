@@ -15,7 +15,7 @@ export type Policy = { default: Verdict; tools: Record<string, Rule> };
 // 'approved' only appears on holds stored by older versions.
 export type HoldStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'unknown' | 'approved' | 'rejected' | 'stale';
 export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: HoldStatus; result?: string;
-  case?: any; origin?: string; before?: any };
+  case?: any; origin?: string; before?: any; ran?: string }; // ran: when an approved hold started running
 export type Store = { read(): Hold[]; write(holds: Hold[]): void };
 export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
 // error: for an allowed call, the error the tool returned (logged after the call), so the log never shows a refused call as done.
@@ -129,7 +129,7 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
       store.write(holds);
       throw Object.assign(new Error(`Not run: ${pre.refuse}. Nothing was sent.`), { code: 400 });
     }
-    h.status = 'executing'; if (pre.trail !== undefined) h.before = pre.trail;
+    h.status = 'executing'; h.ran = new Date().toISOString(); if (pre.trail !== undefined) h.before = pre.trail;
     store.write(holds); // mark first so a crash mid-call can't run it twice; a hold left executing settles like unknown
     try {
       const r = await originals[h.method](h.args, {});

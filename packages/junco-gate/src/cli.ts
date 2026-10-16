@@ -89,7 +89,7 @@ const notify = (h: Hold) => {
   if (o.webhook) void fetch(o.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: line }) }).catch((e) => say('webhook', e.message));
 };
 const opts: GateOptions = {
-  store, onHold: notify, ...(o.paypal && paypalDisputeHooks(readDispute, readCapture)),
+  store, onHold: notify, ...(o.paypal && paypalDisputeHooks(readDispute, readCapture, () => store.read())),
   log: (d) => { mkdirSync(dirname(o.log!), { recursive: true }); appendFileSync(o.log!, JSON.stringify(d) + '\n'); },
 };
 

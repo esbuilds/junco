@@ -51,19 +51,26 @@ export function captureStaleReason(h: { case?: any }, c: any): string | null {
   return null;
 }
 
-// The hooks, for any call whose args name a dispute_id, and for create_refund when readCapture is given.
-export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
+// A refund on the same payment that this gate ran after h was held. PayPal's capture doesn't always show a refund
+// (sandbox Oct 16: a PENDING capture kept its status and update_time after a $3 refund), so the gate's own record decides.
+export const refundRanSince = (h: Hold, holds: Hold[]) => holds.find((x) => x.id !== h.id && x.method === 'create_refund' && x.args?.capture_id === h.args?.capture_id
+  && ['executing', 'completed', 'unknown'].includes(x.status) && (x.ran ?? x.created) > h.created);
+
+// The hooks, for any call whose args name a dispute_id, and for create_refund (holds: this gate's store; readCapture: PayPal).
+export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>, holds?: () => Hold[]): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
   const read = (h: Hold) => (h.args?.dispute_id ? readDispute(h.args.dispute_id) : null);
   const cap = (h: Hold) => (readCapture && h.method === 'create_refund' && h.args?.capture_id ? readCapture(h.args.capture_id) : null);
   return {
     snapshot: async (h) => { const c = await cap(h); if (c) return captureState(c); const d = await read(h); return d ? caseState(d) : undefined; },
     beforeRun: async (h) => {
+      const other = h.method === 'create_refund' && holds ? refundRanSince(h, holds()) : undefined;
+      if (other) return { refuse: `another refund on payment ${h.args.capture_id} ran after this was held (hold ${other.id})` };
       const c = await cap(h); if (c) return { refuse: captureStaleReason(h, c), trail: captureState(c) };
       const d = await read(h); return d ? { refuse: staleReason(h, d), trail: trail(d) } : {};
     },
     landed: async (h) => {
       if (!h.before) return null;
-      const c = await cap(h)?.catch(() => null); if (c) return c.update_time !== h.before.update_time;
+      if (h.method === 'create_refund') return null; // the capture may not show the refund (see refundRanSince): stays unknown, the owner checks
       const d = await read(h)?.catch(() => null); return d ? landed(h.method, h.before, d) : null;
     },
     unknownErrors: ['hosted_unavailable', 'upstream_unavailable'],

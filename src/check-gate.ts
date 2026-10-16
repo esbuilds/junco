@@ -75,7 +75,10 @@ const first = await refund('Sorry'), again = await refund('Sorry'), reworded = a
 assert.equal(again.hold_id, first.hold_id); assert.equal(again.duplicate, true); assert.notEqual(reworded.hold_id, first.hold_id);
 assert.equal((await rg.approve(first.hold_id)).status, 'completed');
 assert.equal((await refund('Sorry')).error?.type, 'duplicate_call');
-await assert.rejects(rg.approve(reworded.hold_id), /went from COMPLETED to PARTIALLY_REFUNDED/);
+await assert.rejects(rg.approve(reworded.hold_id), /another refund on payment CAP\d+ ran after this was held/);
+// PayPal's own record also refuses: a capture that changed (refunded outside this gate) since the hold.
+const outside = await refund('Outside'); pay = { ...pay, status: 'REFUNDED', update_time: 't2' };
+await assert.rejects(rg.approve(outside.hold_id), /already fully refunded/);
 assert.equal(refunds, 1);
 console.log('double refund: repeat joins the hold, repeat after it ran refused, reworded second refund refused on re-read; one refund sent');
 
