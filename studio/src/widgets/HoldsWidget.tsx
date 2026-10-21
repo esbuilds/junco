@@ -40,7 +40,6 @@ export function HoldsWidget() {
             {h.args?.offer_amount ? ` for ${money(h.args.offer_amount.value, h.args.offer_amount.currency_code)}` : ''}
             <div className="jd-held-why">Held: {h.reason}</div>
             {h.asked_by && <div className="jd-held-why">Asked by the {h.asked_by}</div>}
-            {h.status === 'pending' && h.recheck && <div className="jd-held-why jd-recheck">Re-check: PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</div>}
             {h.status !== 'pending' && <div className="jd-held-why">Status: {HOLD_STATUS[h.status] ?? h.status}. It won't be sent again.</div>}
           </div>
           <div className="jd-row">
@@ -49,6 +48,8 @@ export function HoldsWidget() {
               <button type="button" className="jd-btn jd-danger" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
             </> : <button type="button" className="jd-btn" disabled={busy === h.id} onClick={() => decide(h, 'settle')}>Re-check PayPal</button>}
           </div>
+          {/* Under the buttons, full width, so Approve and Reject stay in view on a phone and in a short panel. */}
+          {h.status === 'pending' && h.recheck && <div className="jd-held-why jd-recheck" style={{ flexBasis: '100%' }}>Re-check: PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</div>}
         </div>
       ))}
     </Panel>
