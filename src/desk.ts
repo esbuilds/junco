@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { holdPage, linkRefusal, signedLink } from './onetap.js';
+import { bearer, challenge as signIn, oauth } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -117,12 +118,12 @@ const AGENT_MODE = process.env.AGENT_MODE === 'on';
 
 // PayPal's hosted MCP server behind the gate (M4). Its holds carry origin 'paypal-hosted' and are approved on one shared
 // hosted gate, so the stored call runs on the server it was asked of.
-const onMcpHold = (via: string) => (h: Hold) => { tagHold(h, `MCP client${via}`); agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from an MCP client${via}: ${h.reason}`); void notifyHold(h); };
+const onMcpHold = (via: string, caller = 'MCP client') => (h: Hold) => { tagHold(h, `${caller}${via}`); agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from ${caller === 'MCP client' ? 'an MCP client' : `the ${caller}`}${via}: ${h.reason}`); void notifyHold(h); };
 // MCP clients' allowed writes go in the activity log too, so a held action and a completed one show side by side.
-const onMcpWrite = (via: string) => (d: Decision) => {
-  logMove(`MCP client${via}`)(d);
+const onMcpWrite = (via: string, caller = 'MCP client') => (d: Decision) => {
+  logMove(`${caller}${via}`)(d);
   if (d.verdict !== 'allow' || policy.tools[d.method] === 'read') return;
-  agent.log(d.args?.dispute_id ?? d.args?.order_id ?? d.args?.capture_id ?? 'mcp', 'mcp', d.error ? 'failed' : 'done', `${d.method.replace(/_/g, ' ')} from an MCP client${via}: allowed (${d.reason})${d.error ? `, but the call failed: ${d.error}` : ', and PayPal accepted it'}`);
+  agent.log(d.args?.dispute_id ?? d.args?.order_id ?? d.args?.capture_id ?? 'mcp', 'mcp', d.error ? 'failed' : 'done', `${d.method.replace(/_/g, ' ')} from ${caller === 'MCP client' ? 'an MCP client' : `the ${caller}`}${via}: allowed (${d.reason})${d.error ? `, but the call failed: ${d.error}` : ', and PayPal accepted it'}`);
 };
 let hostedGate: Promise<{ approve: (id: string) => Promise<Hold>; reject: (id: string) => Promise<Hold>; settle: (id: string) => Promise<Hold> }> | null = null;
 const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin === 'paypal-hosted'
@@ -402,8 +403,14 @@ httpServer(async (req, res) => {
       page({ ok: h.status === 'completed' || h.status === 'rejected', text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? 'Approved. PayPal accepted it.' : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
     } catch (e: any) { page({ ok: false, text: e.message }); }
   })().catch((e) => json(res, 400, { error: { message: e.message } }));
-  if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
+  // S1: OAuth for Claude connectors (DCR, PKCE, a password page). An MCP path takes a bearer token or, as before, the
+  // desk password (mcp-remote); with neither, the 401 points Claude at the sign-in metadata.
+  try { if (await oauth(req, res, DESK_URL, readRaw, PASSWORD)) return; } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: 'invalid_request', error_description: e.message }); }
   const url = new URL(req.url ?? '/', 'http://x');
+  const mcpPath = url.pathname === '/mcp' || url.pathname === '/mcp/paypal', token = mcpPath ? bearer(req) : null;
+  if (token) return actor.run({ owner: token.role === 'owner', session: `connector-${token.client_id}` }, () => route(req, res, url, 'Claude connector'));
+  if (mcpPath && !authorized(req)) return signIn(res, DESK_URL, url.pathname);
+  if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   if (url.pathname === '/owner') { // the owner's browser, once: everyone else shares the desk password
     if (!process.env.OWNER_TOKEN || url.searchParams.get('token') !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
     res.writeHead(302, { Location: '/', 'Set-Cookie': `junco_owner=${encodeURIComponent(process.env.OWNER_TOKEN)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=5184000${process.env.RENDER ? '; Secure' : ''}` });
@@ -412,7 +419,7 @@ httpServer(async (req, res) => {
   return actor.run(actorOf(req, res), () => route(req, res, url));
 }).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
 
-async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
+async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller?: string) {
   if (req.method !== 'GET' && url.pathname !== '/api/studio-ai') dropCases(); // any owner action may change a case; the next list is fresh (the assistant only reads)
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
@@ -421,8 +428,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (url.pathname === '/mcp' || url.pathname === '/mcp/paypal') {
     try {
       const { server: s } = url.pathname === '/mcp/paypal'
-        ? await createHostedServer(ctx, policy, onMcpHold(" via PayPal's hosted server"), onMcpWrite(" via PayPal's hosted server"))
-        : await createServer(ctx, policy, onMcpHold(''), onMcpWrite(''));
+        ? await createHostedServer(ctx, policy, onMcpHold(" via PayPal's hosted server", caller), onMcpWrite(" via PayPal's hosted server", caller))
+        : await createServer(ctx, policy, onMcpHold('', caller), onMcpWrite('', caller));
       const t = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => { void t.close(); void s.close(); });
       await s.connect(t);

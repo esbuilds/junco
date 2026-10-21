@@ -31,7 +31,8 @@
     "check-carrier": "tsx src/check-carrier.ts",
     "bench:export": "tsx evals/export.ts",
     "check-negotiate": "tsx src/check-negotiate.ts",
-    "check-studio-ai": "node studio/check-ai.mjs"
+    "check-studio-ai": "node studio/check-ai.mjs",
+    "check-connector": "tsx src/check-connector.ts"
   },
   "keywords": [],
   "author": "",
