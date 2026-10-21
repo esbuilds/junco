@@ -15,9 +15,9 @@
     "add_order_tracking": "allow",
 
     "get_order": "read",
-    "list_transactions": "read",
+    "list_transactions": "hidden",
     "get_refund": "read",
-    "get_merchant_insights": "read",
+    "get_merchant_insights": "hidden",
     "get_shipment_tracking": "read",
     "create_shipment_tracking": "allow",
     "update_shipment_tracking": "hold",
