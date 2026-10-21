@@ -285,3 +285,12 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-gatecard.jd-gate-refused, .jd-gatecard.jd-gate-failed { border-left: 3px solid var(--jd-danger); }
 .jd-gatecard.jd-gate-allowed { border-left: 3px solid var(--jd-accent); }
 .jd-recheck { font-weight: 600; }
+/* Visitors: no Studio widget toolbar (its close icon would drop a panel from their saved layout). */
+.jd-visitor [class*="ag-studio-widget-toolbar"] { display: none !important; }
+/* Phones and narrow tablets: the header wraps to a second line instead of clipping the page tabs. */
+@media (max-width: 900px) {
+  .jd-topbar { height: auto; flex-wrap: wrap; row-gap: 4px; padding-top: 6px; padding-bottom: 6px; }
+  .jd-topbar nav { flex-wrap: wrap; overflow-x: visible; margin-left: 0; }
+  .jd-host .ag-studio-layout-canvas { min-width: 0 !important; } /* Studio's 720 px minimum; panels are stacked full width instead */
+}
+.jd-deadline { margin: 6px 0; padding-top: 6px; border-top: 1px dashed var(--jd-line); font-weight: 600; color: var(--jd-ink); }

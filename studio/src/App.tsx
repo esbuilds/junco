@@ -76,6 +76,7 @@ function withSavedDesk(l: typeof layout) {
   return { ...l, pages: l.pages.map((p: any) => p.id !== 'desk' ? p : { ...p, widgetLayout: Object.fromEntries(Object.entries(p.widgetLayout).map(([k, v]) => [k, (saved[k] as object) ?? v])) }) };
 }
 function saveDesk(e: any) {
+  if (narrow) return; // the phone's stacked layout is not the desk layout
   const desk = (e?.state?.pages ?? []).find((p: any) => p.id === 'desk');
   if (!desk?.widgetLayout) return;
   try { localStorage.setItem(DESK_LAYOUT_KEY, JSON.stringify(desk.widgetLayout)); } catch { /* not saved; the layout still works */ }
@@ -110,7 +111,20 @@ const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'],
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;
 
+// Phones (coldjudge F1): below 900 px the Desk is view mode, so the assistant panel never covers the queue and holds,
+// and the one-panel pages span the full width. Read once at load.
+const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
+// Every panel full width, stacked in reading order (top to bottom, then left to right).
+const stack = (wl: Record<string, { xTrack: number; yTrack: number; xSpan: number; ySpan: number }>) => {
+  let y = 0;
+  return Object.fromEntries(Object.entries(wl).sort(([, a], [, b]) => a.yTrack - b.yTrack || a.xTrack - b.xTrack)
+    .map(([k, v]) => { const at = y; y += v.ySpan + 2; return [k, { ...v, xTrack: 0, xSpan: 12, yTrack: at, ySpan: v.ySpan + 2 }]; })); // +2: text wraps more
+};
+const fit = (l: typeof layout) => !narrow ? l : { ...l, pages: l.pages.map((p: any) => ({ ...p, widgetLayout: stack(p.widgetLayout) })) };
+
 export function App() {
+  // The owner (cookie) keeps Studio's widget toolbar; visitors don't get its close icon (coldjudge F10).
+  const owner = usePoll<{ owner?: boolean }>('/api/status', 60000).data?.owner;
   const [start, setStart] = useState(() => !startSeen());
   useEffect(() => { const on = (e: Event) => setPage((e as CustomEvent).detail); window.addEventListener('jd-go', on); return () => window.removeEventListener('jd-go', on); }, []);
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
@@ -122,7 +136,7 @@ export function App() {
   const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [rowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <AgStudioProvider licenseKey={studioKey}>
-      <div className="jd-app">
+      <div className={owner ? 'jd-app' : 'jd-app jd-visitor'}>
       <header className="jd-topbar">
         <strong>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
         <nav aria-label="Pages">
@@ -141,9 +155,9 @@ export function App() {
           // Desk widgets read the desk API themselves; the Insights page runs on this Studio data source.
           data={data as any}
           widgets={widgets}
-          initialState={{ ...withSavedDesk(layout), selectedPageId: page } as any}
+          initialState={{ ...fit(withSavedDesk(layout)), selectedPageId: page } as any}
           onStateUpdated={saveDesk}
-          mode={ai && page === 'desk' ? 'edit' : 'view'}
+          mode={ai && page === 'desk' && !narrow ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}

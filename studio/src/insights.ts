@@ -48,7 +48,8 @@ export const insightsPage = {
     byDeadline: { id: 'byDeadline', type: 'column-chart-grouped', format: title('Amount by deadline'), dataMapping: { categoryKey: [{ id: 'disputes.deadline' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
     ledger: { id: 'ledger', type: 'junco-ledger', dataMapping: {} }, // moved off the Desk (v3.14)
     matching: { id: 'matching', type: 'junco-matching', dataMapping: {} }, // the rows behind the charts, filtered by Studio (v3.14)
-    outcomes: { id: 'outcomes', type: 'bar-chart-stacked', format: title('Simulated lifecycle outcomes by reason (sandbox verdicts chosen by us)'), dataMapping: { categoryKey: [{ id: 'disputes.reason' }], valueKey: [{ id: 'disputes.kept', aggregation: 'sum' }, { id: 'disputes.refunded', aggregation: 'sum' }] } },
+    // coldjudge F9: was simulated outcomes by reason (one bar from two sandbox verdicts); now money by JUNCO's call.
+    outcomes: { id: 'outcomes', type: 'bar-chart-grouped', format: title('Amount by what JUNCO says'), dataMapping: { categoryKey: [{ id: 'disputes.junco_says' }], valueKey: [{ id: 'disputes.amount', aggregation: 'sum' }] } },
   },
   widgetLayout: {
     byReason: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 6 },

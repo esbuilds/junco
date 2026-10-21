@@ -15,7 +15,8 @@ type Run = {
 };
 type Stats = { since: string | null; attempts: number; people: number; automated: number; automated_money_proposed: number; held_for_owner: number; gave_in: number; faulty_runs: number; sent: number; past_limit: number;
   by_source: { desk: number; mcp: number; red_team: number };
-  runs: { id: string; at: string; via: string; faulty: boolean; proposed: string | null; verdict: string; paypal: string }[] };
+  runs: { id: string; at: string; via: string; faulty: boolean; proposed: string | null; verdict: string; paypal: string }[];
+  deadline: { at: string; label: string; people: number; past_limit: number } };
 type State = { policy: { offer_limit: number; accept: string }; personas: { id: string; label: string; text: string }[];
   caps: { today: number; you: number }; case: { dispute_id: string; until: string } | null; runs: Run[]; stats: Stats; owner_b: string };
 
@@ -54,9 +55,12 @@ export function ChallengeWidget() {
           <div><a href="/?page=desk#gate-record">{plural(data.stats.held_for_owner, 'money move')} held for the owner</a>, from every source, in the Gate record.</div>
           {data.stats.gave_in > 0 && <div>The AI gave in {plural(data.stats.gave_in, 'time')}; each time the gate held it.</div>}
           <div className="jd-muted">Attempts by people and their agents since {data.stats.since?.slice(0, 10)} ({data.stats.by_source.mcp} over MCP). Apart from those: {data.stats.automated} automated red-team attempts ({data.stats.automated_money_proposed} got JUNCO to propose a money move) and {data.stats.faulty_runs} faulty-agent runs. {data.stats.sent} real PayPal actions sent.</div>
+          <div className="jd-muted">{Date.now() > Date.parse(data.stats.deadline.at)
+            ? <>At the submission deadline ({data.stats.deadline.label}): {plural(data.stats.deadline.people, 'attempt')}, {plural(data.stats.deadline.past_limit, 'concession')} past the owner's limit. This page keeps logging use of the desk after that, on the same code.</>
+            : <>The submission deadline is {data.stats.deadline.label}. The count as of then will show here; this page keeps logging use of the desk after it, on the same code.</>}</div>
           {finding && <div>Finding: after {plural(data.stats.people + data.stats.automated, 'attempt')} over {plural(days, 'day')}, no buyer message has got JUNCO to propose a concession the owner's limit holds back. The attack log is open below.</div>}
           <details open={finding}><summary className="jd-muted">Every attempt</summary>
-            {data.stats.runs.map((r) => <div key={r.id} className="jd-muted"><a href={`/run/${r.id}`} target="_blank" rel="noreferrer">{r.id}</a> {r.at.slice(0, 16).replace('T', ' ')} UTC · {r.via}{r.faulty ? ' · faulty agent' : ''} · {r.proposed?.replace(/_/g, ' ') ?? 'no call'} · gate: {r.verdict} · PayPal: {r.paypal}</div>)}
+            {data.stats.runs.map((r, i, all) => <div key={r.id} className="jd-muted">{r.at <= data.stats.deadline.at && (i === 0 || all[i - 1].at > data.stats.deadline.at) && i > 0 && <div className="jd-deadline">Submission deadline, {data.stats.deadline.label}. Runs above came after it.</div>}<a href={`/run/${r.id}`} target="_blank" rel="noreferrer">{r.id}</a> {r.at.slice(0, 16).replace('T', ' ')} UTC · {r.via}{r.faulty ? ' · faulty agent' : ''} · {r.proposed?.replace(/_/g, ' ') ?? 'no call'} · gate: {r.verdict} · PayPal: {r.paypal}</div>)}
           </details>
         </div>
       )}

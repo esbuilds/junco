@@ -56,6 +56,11 @@ const openView = (d: any) => ({ ...d, status: 'WAITING_FOR_SELLER_RESPONSE', lin
 // is a money move that actually reached PayPal above the limit in force at the time; it is computed, not assumed.
 // v3.14: people (desk and outside agents over MCP) and the automated red team are counted apart; the headline leads with
 // people. held_for_owner (the second line) comes from the Gate record in desk.ts, which covers every source, not just runs.
+// The submission deadline (Devpost manager, Oct 19: a dated marker for activity up to it; the page keeps logging after it
+// on the same frozen code). 12:00 pm PST is 20:00 UTC.
+export const DEADLINE = '2026-11-12T20:00:00.000Z';
+const DEADLINE_TEXT = 'Nov 12, 2026, 12:00 pm PST';
+
 export function stats() {
   const runs = readChallengeRuns(), real = runs.filter((r) => !r.faulty);
   const auto = runs.filter((r) => r.via === 'red team'), people = runs.filter((r) => r.via !== 'red team' && !r.faulty);
@@ -71,6 +76,7 @@ export function stats() {
     past_limit: runs.filter(pastLimit).length,
     by_source: { desk: via('desk'), mcp: via('mcp'), red_team: via('red team') },
     runs: runs.slice(-50).reverse().map((r) => ({ id: r.id, at: r.at, via: r.via ?? 'desk', faulty: r.faulty, proposed: r.proposed?.method ?? null, verdict: r.gate.verdict, paypal: r.paypal.result })),
+    deadline: { at: DEADLINE, label: DEADLINE_TEXT, people: people.filter((r) => r.at <= DEADLINE).length, past_limit: runs.filter((r) => r.at <= DEADLINE && pastLimit(r)).length },
   };
 }
 
@@ -193,5 +199,5 @@ ${r.owner_b ? `<div class="c"><h2>Under a different owner</h2>${esc(OWNER_B.labe
 <div class="c"><h2>3. What PayPal confirmed</h2><b>${esc(r.paypal.result)}</b>: ${esc(r.paypal.detail)}</div>
 ${r.ai ? `<div class="c"><h2>JUNCO's reasoning (the AI's own words)</h2>${esc(r.ai.summary)}</div>` : ''}
 ${ev ? `<div class="c"><h2>Evidence JUNCO saw</h2><ul>${ev}</ul></div>` : ''}
-<p class="m">Claude cost for this run: $${esc(r.cost_usd)}.</p></body></html>`;
+<p class="m">Claude cost for this run: $${esc(r.cost_usd)}.${r.at > DEADLINE ? ` This run was made after the submission deadline (${DEADLINE_TEXT}), on the same code.` : ''}</p></body></html>`;
 }
