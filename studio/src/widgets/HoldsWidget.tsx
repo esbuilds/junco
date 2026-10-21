@@ -29,7 +29,7 @@ export function HoldsWidget() {
     );
   }
   return (
-    <Panel title="Waiting for you" subtitle={holds.length ? `${holds.length} held action${holds.length === 1 ? '' : 's'}` : 'Nothing held'} live>
+    <Panel title="Waiting for you" subtitle={holdsLine(holds)} live>
       {error && <div className="jd-result jd-err">{error}</div>}
       {err && <div className="jd-result jd-err">{err}</div>}
       {holds.map((h) => (
@@ -53,4 +53,11 @@ export function HoldsWidget() {
       ))}
     </Panel>
   );
+}
+
+// Same count as the Gate record's "waiting": approved holds still settling with PayPal are named apart.
+function holdsLine(holds: { status: string }[]) {
+  const waiting = holds.filter((h) => h.status === 'pending').length, settling = holds.length - waiting;
+  if (!holds.length) return 'Nothing held';
+  return [waiting && `${waiting} waiting for you`, settling && `${settling} approved, outcome being checked with PayPal`].filter(Boolean).join(' · ');
 }

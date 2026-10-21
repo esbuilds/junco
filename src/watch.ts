@@ -69,7 +69,7 @@ export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: stri
     const prev = readOrders()[captureId];
     const a = assess(base, shipWithinDays());
     const key = a.flags.map((f) => f.code).join(',');
-    const reason = !a.flags.length ? null : prev?.reason_key === key ? prev.reason : await explain(base, a.flags).catch(() => a.flags[0].text);
+    const reason = !a.flags.length ? null : prev?.reason_key === key && whole(prev.reason) ? prev.reason : await explain(base, a.flags).catch(() => a.flags[0].text);
     const next = save({ ...base, ...a, reason, reason_key: key, checked_at: new Date().toISOString() });
     const what = `${next.currency} ${next.amount}${next.item ? ` (${next.item})` : ''}`;
     if (!prev) log(next.order_id || captureId, trigger, next.status === 'protected' ? 'order protected' : next.status === 'at_risk' ? 'order at risk' : 'watching order',
@@ -80,6 +80,7 @@ export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: stri
     return next;
   }
 
+  const whole = (t?: string | null) => !!t && /[.!?]$/.test(t);
   // One plain sentence for the owner. The flags are already decided; the model only words them from these facts.
   async function explain(o: any, flags: Flag[]) {
     const res = await client.messages.create({
@@ -87,8 +88,8 @@ export function makeWatch(ctx: Ctx, shipWithinDays: () => number, log: (id: stri
       system: 'Write one short sentence (under 25 words) telling a small online seller what to do about this order now. Use only the facts and flags given. No greeting, no em dashes.',
       messages: [{ role: 'user', content: `Order: ${o.currency} ${o.amount}${o.item ? `, ${o.item}` : ''}, paid ${o.captured_at}, ship to ${o.ship_to ?? 'unknown'}.\nFlags:\n${flags.map((f) => `- ${f.text}`).join('\n')}` }],
     });
-    const text = res.content.find((b: any) => b.type === 'text') as any;
-    return (text?.text ?? flags[0].text).trim();
+    const text = (res.content.find((b: any) => b.type === 'text') as any)?.text?.trim();
+    return res.stop_reason === 'end_turn' && whole(text) ? text : flags[0].text; // a cut-off sentence (Oct 21: "...with the") never shows
   }
 
   const open = () => Object.values(readOrders()).filter((o) => o.status !== 'protected').map((o) => o.capture_id);

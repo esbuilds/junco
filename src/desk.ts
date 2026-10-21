@@ -500,7 +500,10 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
         refusal, replay, orders: Object.keys(readOrders()).length,
       });
     }
-    if (req.method === 'GET' && url.pathname === '/api/activity') return json(res, 200, { agent_mode: AGENT_MODE, items: readActivity().slice(-50).reverse() });
+    if (req.method === 'GET' && url.pathname === '/api/activity') { // a red-team run that failed or skipped is the owner's news, not a judge's
+      const mine = actor.getStore()?.owner, items = readActivity().filter((a) => mine || a.trigger !== 'red team' || !['failed', 'skipped'].includes(a.step));
+      return json(res, 200, { agent_mode: AGENT_MODE, items: items.slice(-50).reverse() });
+    }
     if (p[0] === 'api' && p[1] === 'cases' && p[2]) {
       const id = p[2];
       const leased = req.method !== 'GET' && leaseRefusal(id);
@@ -651,7 +654,9 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     }
     if (req.method === 'GET' && url.pathname === '/api/challenge/stats') return json(res, 200, challengeStats()); // the counter (v3.13)
     if (req.method === 'GET' && url.pathname === '/api/status') // the header's status line (v3.14 item 3)
-      return json(res, 200, { check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } });
+      return json(res, 200, actor.getStore()?.owner // the self-check is the owner's; visitors only hear when the AI is paused
+        ? { owner: true, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } }
+        : { owner: false, check: null, ai_paused: claudeDown() });
     if (req.method === 'POST' && url.pathname === '/api/status/check') { // owner: run the self-check now
       if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
       await actor.exit(selfCheck); return json(res, 200, lastCheck);

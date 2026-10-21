@@ -39,7 +39,7 @@ export function TryWidget() {
         <button type="button" className="jd-tab" aria-current={mode === 'own' ? 'page' : undefined} onClick={() => setMode('own')}>Write your own</button>
       </div>
       {mode === 'pick' ? (
-        <label className="jd-try-field">One of the 41 eval scenarios
+        <label className="jd-try-field">One of the {list?.length ?? 43} eval scenarios
           <select value={pick} onChange={(e) => setPick(e.target.value)}>
             {tags.map((t) => <optgroup key={t} label={t}>{(list ?? []).filter((s) => s.tag === t).map((s) => <option key={s.id} value={s.id}>{s.why}</option>)}</optgroup>)}
           </select>

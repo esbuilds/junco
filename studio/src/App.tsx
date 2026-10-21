@@ -30,14 +30,14 @@ const layout = {
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
     },
     widgetLayout: {
-      holds: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 7 },
-      activity: { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 7 },
-      gate: { xTrack: 0, yTrack: 7, xSpan: 12, ySpan: 10 },
-      queue: { xTrack: 0, yTrack: 17, xSpan: 7, ySpan: 22 },
-      case: { xTrack: 7, yTrack: 17, xSpan: 5, ySpan: 22 },
-      store: { xTrack: 0, yTrack: 39, xSpan: 12, ySpan: 14 },
-      stats: { xTrack: 0, yTrack: 53, xSpan: 12, ySpan: 4 },
-      risk: { xTrack: 0, yTrack: 57, xSpan: 7, ySpan: 7 },
+      holds: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 9 },
+      activity: { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 9 },
+      gate: { xTrack: 0, yTrack: 9, xSpan: 12, ySpan: 10 },
+      queue: { xTrack: 0, yTrack: 19, xSpan: 7, ySpan: 22 },
+      case: { xTrack: 7, yTrack: 19, xSpan: 5, ySpan: 22 },
+      store: { xTrack: 0, yTrack: 41, xSpan: 12, ySpan: 14 },
+      stats: { xTrack: 0, yTrack: 55, xSpan: 12, ySpan: 4 },
+      risk: { xTrack: 0, yTrack: 59, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
@@ -124,7 +124,7 @@ export function App() {
     <AgStudioProvider licenseKey={studioKey}>
       <div className="jd-app">
       <header className="jd-topbar">
-        <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><CaseBanner page={page} /><StatusLine />
+        <strong>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
         <nav aria-label="Pages">
           <button type="button" className="jd-tab" aria-expanded={start} onClick={() => setStart(!start)}>Start here</button>
           {PAGES.map(([id, label]) => (
