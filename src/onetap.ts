@@ -36,6 +36,7 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
     <h1>${esc(what(h))}${amount(h) ? ` $${esc(amount(h))}` : ''}${target(h.args) ? ` on ${esc(target(h.args))}` : ''}</h1>
     <p class="m">Held for you. ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
     ${h.case && 'stage' in h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">When it was held the payment was ${esc(h.case.status)}.</p>` : ''}
+    ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: PayPal says this changed since it was held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)} on this payment, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && !(note && !note.ok && /link/.test(note.text)) ? `
     <form method="post">

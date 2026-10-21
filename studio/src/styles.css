@@ -283,3 +283,4 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-gatecard.jd-gate-held { border-left: 3px solid var(--jd-warn); }
 .jd-gatecard.jd-gate-refused, .jd-gatecard.jd-gate-failed { border-left: 3px solid var(--jd-danger); }
 .jd-gatecard.jd-gate-allowed { border-left: 3px solid var(--jd-accent); }
+.jd-recheck { font-weight: 600; }

@@ -4,8 +4,9 @@
 import { paypal } from './disputes.js';
 import { sandboxCtx } from './server.js';
 
-// Dispute events wake the agent; captured payments feed Shipment watch.
-const EVENTS = ['CUSTOMER.DISPUTE.CREATED', 'CUSTOMER.DISPUTE.UPDATED', 'CUSTOMER.DISPUTE.RESOLVED', 'PAYMENT.CAPTURE.COMPLETED'].map((name) => ({ name }));
+// Dispute events wake the agent; captured payments feed Shipment watch; dispute events and refunds flag pending holds
+// for re-check (a reported refund also refuses a held refund on the same payment).
+const EVENTS = ['CUSTOMER.DISPUTE.CREATED', 'CUSTOMER.DISPUTE.UPDATED', 'CUSTOMER.DISPUTE.RESOLVED', 'PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED'].map((name) => ({ name }));
 const ctx = await sandboxCtx();
 const base = process.argv[2];
 let list = await paypal(ctx, 'GET', '/v1/notifications/webhooks');

@@ -10,7 +10,10 @@ import { decide as policyDecide, gate as wrap, jsonStore, type Decision, type Gu
 export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
 export type Policy = PkgPolicy & { ship_within_days?: number };
 export type { CaseState };
-export type Hold = PkgHold & { case?: CaseState | CaptureState; before?: Trail | CaptureState };
+// recheck (S4): PayPal's webhook said the case or payment changed after the hold was made; refund: a refund PayPal
+// reported on the same payment after that.
+export type Recheck = { at: string; event: string; refund?: { id: string; at: string } };
+export type Hold = PkgHold & { case?: CaseState | CaptureState; before?: Trail | CaptureState; recheck?: Recheck };
 
 // The PayPal dispute hooks (snapshot, stale refusal, did-it-land) live in the package, shared with the junco-gate CLI.
 import { staleReason, landed, paypalDisputeHooks, type CaseState, type CaptureState, type Trail } from '../packages/junco-gate/src/paypal.js';
@@ -135,9 +138,29 @@ export async function settleResolved(getCase: (id: string) => Promise<any>) {
 // origin tags holds from a server other than the desk's own (PayPal hosted), so approval runs on the same server.
 // log: the action log (every allow, hold and deny); the desk records MCP clients' allowed writes from it.
 export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string, log?: (d: Decision) => void, getCapture?: (id: string) => Promise<any>) {
+  const hooks = paypalDisputeHooks(getCase ?? (async () => null), getCapture, readHolds);
   return wrap(server, policy, {
     store, guards, origin, log, onHold: onHold as (h: PkgHold) => void,
     allow: (method, args) => standing(method, args),
-    ...paypalDisputeHooks(getCase ?? (async () => null), getCapture, readHolds),
+    ...hooks,
+    // The one-refund rule's second witness: a refund PayPal itself reported on this payment after the hold was made.
+    beforeRun: async (h) => {
+      const r = (h as Hold).recheck?.refund;
+      return h.method === 'create_refund' && r ? { refuse: `PayPal reported refund ${r.id} on payment ${h.args.capture_id} after this was held` } : hooks.beforeRun!(h);
+    },
   });
+}
+
+// S4: a PayPal webhook touched the case or payment of pending holds. Holds made before the change are flagged
+// "re-check" (the owner sees it before tapping); approval still re-reads PayPal as the backstop. Returns the flagged.
+export function flagHolds(on: { dispute_id?: string; capture_id?: string }, event: string, changedAt: string, refund?: { id: string; at: string }): Hold[] {
+  const holds = readHolds(), when = Date.parse(changedAt) || Date.now();
+  const hit = holds.filter((h) => h.status === 'pending' && Date.parse(h.created) < when
+    && ((!!on.dispute_id && h.args?.dispute_id === on.dispute_id) || (!!on.capture_id && h.args?.capture_id === on.capture_id)));
+  for (const h of hit) {
+    const after = refund && Date.parse(refund.at) > Date.parse(h.created) ? refund : h.recheck?.refund;
+    h.recheck = { at: new Date(when).toISOString(), event, ...(after && { refund: after }) };
+  }
+  if (hit.length) store.write(holds);
+  return hit;
 }

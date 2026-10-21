@@ -36,10 +36,11 @@ export function HoldsWidget() {
         <div key={h.id} className="jd-hold">
           <div>
             <strong>{human(h.method)}</strong> on{' '}
-            <button type="button" className="jd-linkish" onClick={() => selectCase(h.args?.dispute_id ?? null)}>{h.args?.dispute_id}</button>
+            {h.args?.dispute_id ? <button type="button" className="jd-linkish" onClick={() => selectCase(h.args.dispute_id)}>{h.args.dispute_id}</button> : h.args?.capture_id ? `payment ${h.args.capture_id}` : 'the store'}
             {h.args?.offer_amount ? ` for ${money(h.args.offer_amount.value, h.args.offer_amount.currency_code)}` : ''}
             <div className="jd-held-why">Held: {h.reason}</div>
             {h.asked_by && <div className="jd-held-why">Asked by the {h.asked_by}</div>}
+            {h.status === 'pending' && h.recheck && <div className="jd-held-why jd-recheck">Re-check: PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</div>}
             {h.status !== 'pending' && <div className="jd-held-why">Status: {HOLD_STATUS[h.status] ?? h.status}. It won't be sent again.</div>}
           </div>
           <div className="jd-row">

@@ -17,7 +17,7 @@ import { createHostedServer, hosted } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { randomUUID } from 'node:crypto';
-import { guards, settleResolved, readHolds, gateRecord, logMove, readMoves, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
+import { guards, settleResolved, flagHolds, readHolds, gateRecord, logMove, readMoves, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
@@ -311,6 +311,14 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   }
   json(res, 200, { ok: true }); // answer PayPal now; triage can take minutes
   dropCases(); // PayPal says something changed
+  // S4: PayPal says a case or payment changed; pending holds on it are flagged and the owner hears before tapping.
+  const changedAt = event.resource?.update_time ?? event.create_time ?? new Date().toISOString();
+  if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED') {
+    const capture = String(event.resource?.links?.find((l: any) => l.rel === 'up')?.href ?? '').split('/').pop();
+    if (capture) recheck(flagHolds({ capture_id: capture }, event.event_type, changedAt, { id: String(event.resource.id), at: event.resource.create_time ?? changedAt }));
+    return;
+  }
+  if (String(event.event_type).startsWith('CUSTOMER.DISPUTE.') && typeof event.resource?.dispute_id === 'string') recheck(flagHolds({ dispute_id: event.resource.dispute_id }, event.event_type, changedAt));
   // Shipment watch: a captured payment starts being watched for tracking.
   if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' && typeof event.resource?.id === 'string')
     return void watch.refresh(event.resource.id, event.event_type).catch((e) => console.error('[watch]', e.message));
@@ -320,6 +328,19 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   if (negotiations.isActive(id)) negotiations.step(id, event.event_type).catch((e) => console.error('[negotiate]', e));
   else if (plans.isActive(id)) plans.tick(id, event.event_type).catch((e) => console.error('[plan]', e));
   else if (AGENT_MODE || readRuns().some((r) => r.dispute_id === id)) agent.triage(id, event.event_type) // store disputes always run.catch((e) => console.error('[agent]', e));
+}
+
+// A flagged hold, in the case's timeline and in Slack, with the one-tap link again so the owner decides on the news.
+function recheck(flagged: Hold[]) {
+  for (const h of flagged) {
+    const why = h.recheck?.refund ? `PayPal reported refund ${h.recheck.refund.id} on this payment after it was held, so approving will refuse it` : 'approving re-reads it first';
+    const text = `PayPal says ${target(h.args)} changed (${h.recheck!.event}) since JUNCO held ${h.method.replace(/_/g, ' ')}; ${why}.`;
+    agent.log(h.args?.dispute_id ?? h.args?.capture_id ?? 'mcp', 'webhook', 're-check', text);
+    const url = process.env.HOLD_WEBHOOK_URL;
+    if (url) void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      text: `Re-check: ${text}${process.env.OWNER_TOKEN ? `\n<${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}|Approve or reject>` : ''}`,
+    }) }).catch((e) => console.warn('[notify] failed', e.message));
+  }
 }
 
 // D1: case leases are checked at the gate (tool calls from the assistant and MCP clients, hold approvals) and on the
