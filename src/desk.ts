@@ -31,6 +31,7 @@ import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChalle
 import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
+const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
 const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 
 // The owner's decision on a hold, to the same Slack channel as the hold itself, so the channel never shows a hold
@@ -655,7 +656,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     if (req.method === 'GET' && url.pathname === '/api/challenge/stats') return json(res, 200, challengeStats()); // the counter (v3.13)
     if (req.method === 'GET' && url.pathname === '/api/status') // the header's status line (v3.14 item 3)
       return json(res, 200, actor.getStore()?.owner // the self-check is the owner's; visitors only hear when the AI is paused
-        ? { owner: true, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } }
+        ? { owner: true, started: STARTED, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } }
         : { owner: false, check: null, ai_paused: claudeDown() });
     if (req.method === 'POST' && url.pathname === '/api/status/check') { // owner: run the self-check now
       if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });

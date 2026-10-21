@@ -33,7 +33,8 @@
     "check-negotiate": "tsx src/check-negotiate.ts",
     "check-studio-ai": "node studio/check-ai.mjs",
     "check-connector": "tsx src/check-connector.ts",
-    "check-recheck": "tsx src/check-recheck.ts"
+    "check-recheck": "tsx src/check-recheck.ts",
+    "check-token": "tsx src/check-token.ts"
   },
   "keywords": [],
   "author": "",

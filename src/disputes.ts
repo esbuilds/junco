@@ -8,7 +8,8 @@ const MONEY = z.object({
   value: z.string().regex(/^\d+(\.\d{1,2})?$/, 'Amount like "10" or "10.00"'),
 });
 
-export type Ctx = { baseUrl: string; token: () => Promise<string> };
+// renew: fetch a new PayPal token now (after a 401); token() already renews ahead of expiry.
+export type Ctx = { baseUrl: string; token: () => Promise<string>; renew?: () => Promise<string> };
 
 export const tools = [
   {
@@ -78,7 +79,7 @@ export function checkArgs(method: string, a: any): string | null {
   return null;
 }
 
-export async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown; headers?: Record<string, string> } = {}) {
+export async function paypal(ctx: Ctx, method: string, path: string, init: { json?: unknown; form?: unknown; headers?: Record<string, string> } = {}, retried = false): Promise<{ status: number; body: any }> {
   const headers: Record<string, string> = { Authorization: `Bearer ${await ctx.token()}`, ...init.headers };
   let body: BodyInit | undefined;
   if (init.form !== undefined) {
@@ -91,6 +92,8 @@ export async function paypal(ctx: Ctx, method: string, path: string, init: { jso
     body = JSON.stringify(init.json);
   }
   const r = await fetch(ctx.baseUrl + path, { method, headers, body });
+  // A 401 means PayPal ran nothing, so one retry with a fresh token is safe even for a write.
+  if (r.status === 401 && ctx.renew && !retried) { await ctx.renew(); return paypal(ctx, method, path, init, true); }
   const text = await r.text();
   // PayPal's sandbox sometimes answers a 5xx with an HTML page or nothing; report the status, don't throw on the parse.
   try { return { status: r.status, body: text ? JSON.parse(text) : {} }; } catch { return { status: r.status, body: { raw: text.slice(0, 200) } }; }
