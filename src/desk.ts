@@ -287,6 +287,10 @@ const STATIC: Record<string, [string, string]> = {
 // Vite's hashed assets, listed once at startup so request paths never reach the filesystem.
 if (hasStudio) for (const f of readdirSync(`${STUDIO}/assets`)) STATIC[`/assets/${f}`] = [`${STUDIO}/assets/${f}`, TYPES[f.split('.').pop()!] ?? 'application/octet-stream'];
 const gz = new Map<string, Buffer>(); // ponytail: in-memory gzip cache, a few MB for the studio bundle
+// The AG Studio licence key reaches the browser at runtime, written into the studio page from this process's env, so the
+// Nov 22 key swap is an env change on the same commit. The key was already public in the bundle; this only moves it.
+const studioPage = hasStudio ? readFileSync(`${STUDIO}/index.html`, 'utf8').replace('</head>',
+  `<script>window.JUNCO_STUDIO_KEY=${JSON.stringify(process.env.AG_STUDIO_LICENSE_KEY ?? '').replace(/</g, '\\u003c')}</script></head>`) : null;
 
 // Hosted desks must set DESK_PASSWORD: the desk can approve actions that move money.
 const PASSWORD = process.env.DESK_PASSWORD;
@@ -438,6 +442,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
   }
   const p = url.pathname.split('/').filter(Boolean);
   try {
+    if (req.method === 'GET' && url.pathname === '/' && studioPage) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(studioPage); }
     if (req.method === 'GET' && STATIC[url.pathname]) {
       const [file, type] = STATIC[url.pathname];
       const headers: Record<string, string> = { 'Content-Type': type };

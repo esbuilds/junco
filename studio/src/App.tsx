@@ -107,6 +107,9 @@ const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
 const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
+// The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
+const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;
+
 export function App() {
   const [start, setStart] = useState(() => !startSeen());
   useEffect(() => { const on = (e: Event) => setPage((e as CustomEvent).detail); window.addEventListener('jd-go', on); return () => window.removeEventListener('jd-go', on); }, []);
@@ -118,7 +121,7 @@ export function App() {
   const rowsKey = JSON.stringify(cases.data ?? []);
   const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [rowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <AgStudioProvider licenseKey={__AG_STUDIO_KEY__}>
+    <AgStudioProvider licenseKey={studioKey}>
       <div className="jd-app">
       <header className="jd-topbar">
         <strong>JUNCO</strong><span className="jd-muted">Dispute desk</span><CaseBanner page={page} /><StatusLine />
