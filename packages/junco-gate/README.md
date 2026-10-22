@@ -6,25 +6,29 @@ It was built for JUNCO, a PayPal dispute agent, where it sits in front of PayPal
 
 ## One command in front of PayPal's MCP server
 
+junco-gate isn't on npm yet; run it from the repo (Node 22+):
+
 ```
-PAYPAL_CLIENT_ID=... PAYPAL_CLIENT_SECRET=... npx junco-gate --paypal --policy policy.json
+git clone https://github.com/esbuilds/junco && cd junco && npm install
+cd packages/junco-gate && npm run build && npm link     # puts the junco-gate command on your PATH
+PAYPAL_CLIENT_ID=... PAYPAL_CLIENT_SECRET=... junco-gate --paypal --policy ../../policy.json
 ```
 
-This starts an MCP server on stdio that connects to PayPal's hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools) and puts the policy in front of every tool. On Oct 15 2026, with JUNCO's `policy.json`, an MCP client saw 22 of the 46 tools. A read ran, `create_refund` and `accept_dispute_claim` came back held with a hold ID, and a hidden tool was refused. Approving the held accept on a dispute PayPal had already resolved was refused as stale, and nothing was sent.
+This starts an MCP server on stdio that connects to PayPal's hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools) and puts the policy in front of every tool. On Oct 15 2026, with JUNCO's `policy.json`, an MCP client saw 22 of the 46 tools (20 since Oct 21, when two tools that don't work in the sandbox were hidden). A read ran, `create_refund` and `accept_dispute_claim` came back held with a hold ID, and a hidden tool was refused. Approving the held accept on a dispute PayPal had already resolved was refused as stale, and nothing was sent.
 
-To use it from Claude Desktop, add this to `claude_desktop_config.json`:
+To use it from Claude Desktop, add this to `claude_desktop_config.json` (absolute paths):
 
 ```json
-{ "mcpServers": { "paypal-gated": { "command": "npx", "args": ["-y", "junco-gate", "--paypal", "--policy", "/path/to/policy.json", "--webhook", "https://hooks.slack.com/services/..."],
+{ "mcpServers": { "paypal-gated": { "command": "node", "args": ["/path/to/junco/packages/junco-gate/dist/cli.js", "--paypal", "--policy", "/path/to/junco/policy.json", "--webhook", "https://hooks.slack.com/services/..."],
   "env": { "PAYPAL_CLIENT_ID": "...", "PAYPAL_CLIENT_SECRET": "..." } } } }
 ```
 
-The owner works the holds from a terminal:
+The owner works the holds from a terminal, in the same folder:
 
 ```
-npx junco-gate holds                      # what's waiting
-npx junco-gate approve <id> --paypal      # re-reads the dispute; runs the exact call, or refuses it as stale
-npx junco-gate reject <id>                # nothing is sent
+junco-gate holds                      # what's waiting
+junco-gate approve <id> --paypal      # re-reads the dispute; runs the exact call, or refuses it as stale
+junco-gate reject <id>                # nothing is sent
 ```
 
 `--upstream <url>` puts the gate in front of any other MCP server (`--header "Authorization: Bearer ..."` for auth; a URL ending in `/sse` uses SSE, anything else streamable HTTP). Without `--paypal` there's no re-check before an approved call runs. Holds go to `.junco/holds.json` and every decision to `.junco/gate-log.jsonl`; `--webhook` posts each new hold to a Slack incoming webhook.
