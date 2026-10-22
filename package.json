@@ -34,7 +34,8 @@
     "check-studio-ai": "node studio/check-ai.mjs",
     "check-connector": "tsx src/check-connector.ts",
     "check-recheck": "tsx src/check-recheck.ts",
-    "check-token": "tsx src/check-token.ts"
+    "check-token": "tsx src/check-token.ts",
+    "check-holdcard": "tsx src/check-holdcard.ts"
   },
   "keywords": [],
   "author": "",
