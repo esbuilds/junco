@@ -1,5 +1,5 @@
 // Self-check probe, offline (a stand-in hosted connection, no PayPal): a tool list alone is not health; one real call
-// decides. PayPal's Oct 29 failure (every call PAYPAL_API_SETUP_ERROR while tools/list was fine) must read as failing.
+// decides. PayPal's Oct 28 failure (every call PAYPAL_API_SETUP_ERROR while tools/list was fine) must read as failing.
 import assert from 'node:assert/strict';
 import { hostedHealth } from './hosted.js';
 
