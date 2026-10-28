@@ -16,6 +16,10 @@ export function startProgress(opened: string[], titles: string[]) {
   return { current: i < 0 ? titles.length - 1 : i, done: titles.filter((t) => opened.includes(t)).length };
 }
 
+// The Desk's saved panel layout (App.tsx saves it, Policy's Reset the layout clears it). v2: the UI polish layout;
+// older saves are ignored.
+export const DESK_LAYOUT_KEY = 'jd-desk-layout-v2';
+
 export const START_OPENED_KEY = 'jd-start-opened';
 export function readOpened(): string[] {
   try { const v = JSON.parse(localStorage.getItem(START_OPENED_KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }

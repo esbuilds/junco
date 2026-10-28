@@ -2,7 +2,8 @@
 //   npm run check-ui
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
-import { approveLabel, splitHolds, startProgress } from './src/ui';
+import { approveLabel, DESK_LAYOUT_KEY, splitHolds, startProgress } from './src/ui';
+import { readFileSync } from 'node:fs';
 
 // Every text pair the desk uses passes WCAG AA (4.5:1) in both colour schemes.
 for (const mode of ['light', 'dark'] as const) {
@@ -31,5 +32,15 @@ assert.deepEqual(startProgress([], T6), { current: 0, done: 0 });
 assert.deepEqual(startProgress(['a', 'c'], T6), { current: 1, done: 2 });
 assert.deepEqual(startProgress(T6, T6), { current: 5, done: 6 });
 assert.deepEqual(startProgress(['zzz'], T6), { current: 0, done: 0 });
+
+// The saved-layout key lives in one place: Policy's "Reset the layout" must clear the key the Desk saves under.
+assert.equal(DESK_LAYOUT_KEY, 'jd-desk-layout-v2');
+for (const f of ['src/App.tsx', 'src/widgets/PolicyWidget.tsx'])
+  assert.ok(!/'jd-desk-layout/.test(readFileSync(new URL(f, import.meta.url), 'utf8')), `${f} spells the layout key instead of importing DESK_LAYOUT_KEY`);
+
+// Try it's eval verdicts are told apart by more than their words: wrong reads as a failure, pass does not.
+const css = readFileSync(new URL('src/styles.css', import.meta.url), 'utf8');
+assert.match(css, /\.jd-v-wrong\s*\{[^}]*--jd-danger/, 'a wrong verdict uses the danger colour');
+assert.match(css, /\.jd-v-pass\s*\{/, 'a passing verdict has its own style');
 
 console.log('check-ui: ok');

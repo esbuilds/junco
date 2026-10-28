@@ -11,6 +11,7 @@ import { usePoll } from './store';
 import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
 import { T, isDark } from './theme';
+import { DESK_LAYOUT_KEY } from './ui';
 import './styles.css';
 
 // Pre-built desk layout (UI polish): KPI strip and Waiting for your OK in the main column, Start here and Agent
@@ -33,14 +34,14 @@ const layout = {
     },
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
-      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: 15 },
+      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: 18 },
       start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 17 },
-      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: 20 },
-      queue: { xTrack: 0, yTrack: 20, xSpan: 9, ySpan: 17 },
-      case: { xTrack: 0, yTrack: 37, xSpan: 12, ySpan: 22 },
-      gate: { xTrack: 0, yTrack: 59, xSpan: 12, ySpan: 12 },
-      store: { xTrack: 0, yTrack: 71, xSpan: 12, ySpan: 14 },
-      risk: { xTrack: 0, yTrack: 85, xSpan: 7, ySpan: 7 },
+      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: 23 },
+      queue: { xTrack: 0, yTrack: 23, xSpan: 9, ySpan: 17 },
+      case: { xTrack: 0, yTrack: 40, xSpan: 12, ySpan: 22 },
+      gate: { xTrack: 0, yTrack: 62, xSpan: 12, ySpan: 12 },
+      store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 14 },
+      risk: { xTrack: 0, yTrack: 88, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
@@ -78,7 +79,6 @@ const layout = {
 
 // v3.14 item 5: the owner can resize Desk panels from any edge (Studio's edit mode, on whenever the assistant is); this
 // browser remembers the sizes. Only positions of the desk's own panels are kept, so a stale save can't add or drop a panel.
-export const DESK_LAYOUT_KEY = 'jd-desk-layout-v2'; // v2: the UI polish layout; older saves are ignored
 function withSavedDesk(l: typeof layout) {
   let saved: Record<string, unknown> = {};
   try { saved = JSON.parse(localStorage.getItem(DESK_LAYOUT_KEY) ?? '{}') ?? {}; } catch { /* private mode or a bad save: defaults */ }

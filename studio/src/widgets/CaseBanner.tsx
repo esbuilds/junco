@@ -14,5 +14,5 @@ export function CaseBanner({ page }: { page: string }) {
     : ['LIVE', "PayPal's sandbox"];
   // A dot whose shape says which: solid LIVE, hollow RECORDED, dashed SIMULATED, so they never look alike.
   const word = kind[0] + kind.slice(1).toLowerCase();
-  return <span className={`jd-env jd-env-${kind.toLowerCase()}`} title={`${kind}: ${text}`} aria-live="polite"><i aria-hidden="true" /><strong>{word}</strong> · {text}</span>;
+  return <span className={`jd-env jd-env-${kind.toLowerCase()}`} title={`${kind}: ${text}`} aria-live="polite"><i aria-hidden="true" /><span className="jd-env-text"><strong>{word}</strong> · {text}</span></span>;
 }

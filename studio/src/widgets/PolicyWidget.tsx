@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { usePoll } from '../store';
 import { Panel } from './Panel';
+import { DESK_LAYOUT_KEY } from '../ui';
 
 // Owner policy: what JUNCO may do on its own and what waits for approval. The gate reads it on every call.
 type PolicyView = { offer_limit: number; ship_within_days: number; negotiation: { open_pct: number; ceiling_pct: number; max_rounds: number }; auto: Record<string, boolean> };
@@ -97,7 +98,7 @@ export function PolicyWidget() {
         <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>
       </div>
       {msg && <div className={`jd-result ${msg.ok ? 'jd-ok' : 'jd-err'}`}>{msg.text}</div>}
-      <p className="jd-muted">The desk is yours to arrange: on the Desk, drag any edge of a panel to resize it, and this browser remembers it. <button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem('jd-desk-layout'); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
+      <p className="jd-muted">The desk is yours to arrange: on the Desk, drag any edge of a panel to resize it, and this browser remembers it. <button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem(DESK_LAYOUT_KEY); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
       <ToolMatrix />
     </Panel>
   );

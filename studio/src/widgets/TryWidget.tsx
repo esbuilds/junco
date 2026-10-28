@@ -61,7 +61,7 @@ export function TryWidget() {
             <>
               <span className={`jd-badge jd-b-${rec.decision}`}>{DECISION_LABEL[rec.decision]}</span>
               {rec.offer_amount && <strong> ${rec.offer_amount}</strong>}
-              {verdict && <span className={`jd-badge ${verdict === 'pass' ? 'jd-b-contest' : verdict === 'wrong' ? 'jd-b-accept' : 'jd-b-held'}`} style={{ marginLeft: 8 }}>{verdict === 'pass' ? 'Matches the eval' : verdict === 'wrong' ? 'Eval says wrong' : 'Outside the eval\'s expected answers'}</span>}
+              {verdict && <span className={`jd-badge ${verdict === 'pass' ? 'jd-v-pass' : verdict === 'wrong' ? 'jd-v-wrong' : 'jd-b-held'}`} style={{ marginLeft: 8 }}>{verdict === 'pass' ? 'Matches the eval' : verdict === 'wrong' ? 'Eval says wrong' : 'Outside the eval\'s expected answers'}</span>}
               <p>{rec.summary}</p>
               <ul className="jd-claims">{rec.claims.map((c, i) => <li key={i}>{c.text} {c.evidence_ids.map((e) => <span key={e} className="jd-cite">{e}</span>)}{(() => { const s = claimSupport(c, res.evidence); return <>{s.quote && <div className="jd-quote"><q>{s.quote.text}</q> <span className="jd-muted">Quote found in {s.quote.where}.</span></div>}{s.facts.map((f) => <div key={f.id} className="jd-fact"><span className="jd-muted">From {f.from}:</span> {f.text}</div>)}</>; })()}</li>)}</ul>
               {rec.claims.some((c) => claimSupport(c, res.evidence).quote) && <p className="jd-muted jd-note">{QUOTE_NOTE}</p>}
