@@ -1,46 +1,13 @@
 // BLACK BOX, the desk's side (goals 4 to 6): which label an event wears, PayPal's refund id after an approve, and the
-// printable receipt. The Incident itself comes from src/incident.ts (Builder A); until that lands, a hand-written fixture.
+// printable receipt. The Incident itself comes from src/incident.ts.
 import qrcode from 'qrcode-generator';
-import type { Incident, IncidentEvent, IncidentSummary, Mode, WhatIf } from './incident-types.js';
+import type { Incident, IncidentEvent, Mode } from './incident-types.js';
 
-// ponytail: fixture stand-ins for A's listIncidents/buildIncident/whatIf; swap to './incident.js' when black-box-core lands
-export const FIXTURE: Incident = {
-  id: 'FIXTURE-BT-0001',
-  title: 'Agent bought WKD-01 for "waterproof bag for kayaking"',
-  authority: { instruction: 'Buy a waterproof bag for kayaking, under 40 dollars', budget: '40.00 USD', agent: 'Claude shopping agent' },
-  purchase: { sku: 'WKD-01', listing: 'Roll-top dry bag, 20 L', reason: 'Matched "waterproof" and "kayaking" in the listing', amount: '34.00 USD', order_id: 'FIXTURE0ORDER0001', capture_id: 'FIXTURE0CAPTURE01' },
-  dispute_id: 'PP-D-FIXTURE-1',
-  events: [
-    { id: 'purchase:FIXTURE-BT-0001', at: '2026-10-21T15:02:10.000Z', kind: 'purchase', actor: 'shopping agent', summary: 'The shopping agent bought WKD-01 for 34.00 USD for "waterproof bag for kayaking".', source: 'pool', ref: { buyer_txn: 'FIXTURE-BT-0001' } },
-    { id: 'payment:FIXTURE0CAPTURE01', at: '2026-10-21T15:02:14.000Z', kind: 'payment', actor: 'PayPal', summary: 'PayPal captured 34.00 USD.', source: 'PayPal', ref: { order_id: 'FIXTURE0ORDER0001', capture_id: 'FIXTURE0CAPTURE01' } },
-    { id: 'dispute:PP-D-FIXTURE-1', at: '2026-10-23T09:40:00.000Z', kind: 'dispute', actor: 'buyer', summary: 'The buyer disputed it as not as described: the bag leaked.', source: 'store-runs', ref: { dispute_id: 'PP-D-FIXTURE-1', buyer_txn: 'FIXTURE-BT-0001' } },
-    { id: 'agent:2026-10-23T09:41:30.000Z', at: '2026-10-23T09:41:30.000Z', kind: 'agent', actor: 'JUNCO agent', summary: 'JUNCO read the case and proposed a full refund of 34.00 USD.', source: 'activity', ref: { dispute_id: 'PP-D-FIXTURE-1' } },
-    { id: 'gate:2026-10-23T09:41:31.000Z', at: '2026-10-23T09:41:31.000Z', kind: 'gate', actor: 'gate', summary: 'The gate held the refund: refunds wait for the owner.', source: 'gate-log', ref: { capture_id: 'FIXTURE0CAPTURE01', rule: 'create_refund: hold' } },
-    { id: 'hold:fx01', at: '2026-10-23T09:41:31.000Z', kind: 'hold', actor: 'gate', summary: 'Refund of 34.00 USD held for the owner, one-tap link sent.', source: 'holds', ref: { hold_id: 'fx01', capture_id: 'FIXTURE0CAPTURE01' } },
-    { id: 'webhook:2026-10-23T11:05:00.000Z', at: '2026-10-23T11:05:00.000Z', kind: 'webhook', actor: 'PayPal', summary: 'PayPal sent CUSTOMER.DISPUTE.UPDATED; the held refund was flagged for a re-check.', source: 'activity', ref: { dispute_id: 'PP-D-FIXTURE-1', hold_id: 'fx01' } },
-    { id: 'approval:fx01', at: '2026-10-23T12:20:00.000Z', kind: 'approval', actor: 'owner', summary: 'The owner approved the refund from the one-tap link.', source: 'holds', ref: { hold_id: 'fx01' } },
-    { id: 'paypal:FIXTURE0REFUND01', at: '2026-10-23T12:20:02.000Z', kind: 'paypal', actor: 'PayPal', summary: 'PayPal made refund FIXTURE0REFUND01, status COMPLETED.', source: 'PayPal', ref: { refund_id: 'FIXTURE0REFUND01', capture_id: 'FIXTURE0CAPTURE01' } },
-  ],
-  counts: { proposed: 1, approved: 1, executed: 1, outcome_unknown: 0 },
-  missing: ["The buyer's own words to the shopping agent were not recorded, only the instruction the agent saved."],
-};
-export const listIncidents = async (): Promise<IncidentSummary[]> =>
-  [{ id: FIXTURE.id, title: FIXTURE.title, dispute_id: FIXTURE.dispute_id, counts: FIXTURE.counts, last_at: FIXTURE.events.at(-1)!.at }];
-export const buildIncident = async (id: string): Promise<Incident | null> => (id === FIXTURE.id ? FIXTURE : null);
-export async function whatIf(eventId: string, change: { refund_limit: number }): Promise<WhatIf> {
-  const amount = 34, limit = change.refund_limit;
-  return {
-    mode: 'what-if', event_id: eventId, method: 'create_refund', args: { capture_id: 'FIXTURE0CAPTURE01', amount: { value: '34.00', currency_code: 'USD' } },
-    change: `refund limit none -> ${limit} USD`, before: { verdict: 'hold', reason: 'refunds wait for the owner' },
-    after: amount <= limit ? { verdict: 'allow', reason: `34.00 is within the ${limit} USD refund limit` } : { verdict: 'hold', reason: `34.00 is over the ${limit} USD refund limit` },
-    paypal_calls: 0,
-  };
-}
-
-// LIVE: something PayPal's sandbox did or said. RECORDED: the desk's own record (agent, gate, hold, owner).
-// WHAT-IF events are never in an Incident; they come back from whatIf() and the page draws them apart.
+// LIVE: something PayPal's sandbox did or recorded. RECORDED: a decision made only inside the desk (agent, gate, hold,
+// owner), except a gate event that allowed the move, which went straight to PayPal. WHAT-IF events are never in an
+// Incident; they come back from whatIf() and the page draws them apart. public/incident.html and Studio repeat this rule.
 const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
-export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) ? 'live' : 'recorded');
+export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded');
 
 // PayPal's refund id and status from a hold's stored result. The result is the tool's text: PayPal's JSON, sometimes
 // wrapped (hosted MCP content, or a settle's `was`), sometimes prose. Null when no refund id is in it.

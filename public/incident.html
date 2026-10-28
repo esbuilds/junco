@@ -55,6 +55,7 @@
   .refs { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
   label { font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
+  select { max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
   input[type=number] { width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
   .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .btn:disabled { opacity: .6; cursor: default; }
@@ -78,8 +79,9 @@
     <section class="card"><h2>What the buyer allowed</h2><div id="authority"></div></section>
     <section class="card"><h2>The purchase</h2><div id="purchase"></div></section>
     <section class="card"><h2>What if</h2>
-      <p class="muted" style="margin:0">Re-run the gate on <span id="wi-target">the recorded request</span> with a different refund limit. Nothing is sent to PayPal.</p>
-      <div class="row"><label>Refund limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
+      <p class="muted" style="margin:0">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers). Nothing is sent to PayPal.</p>
+      <div class="row"><label style="flex:1 1 100%">Recorded request<select id="target"></select></label>
+        <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
         <button class="btn" id="rerun">Re-run</button></div>
       <div id="wi-out" aria-live="polite"></div></section>
     <section class="card" id="missing-card" hidden><h2>Not in the records</h2><ul id="missing" style="margin:0;padding-left:18px"></ul></section>
@@ -89,13 +91,15 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const id = decodeURIComponent(location.pathname.split('/')[2] ?? '');
-const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook']; // same rule as modeOf in src/incident-view.ts
+// Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
+const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
+const modeOf = (e) => LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded';
 const LABEL = { live: 'LIVE', recorded: 'RECORDED', 'what-if': 'WHAT-IF' };
 const when = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const dl = (pairs) => `<dl>${pairs.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
 const item = (mode, at, actor, summary, refs) => `<li class="${mode}"><div class="meta"><span class="mode ${mode}">${LABEL[mode]}</span><span>${esc(at)}</span><span>${esc(actor)}</span></div>
   <div>${summary}</div>${refs ? `<div class="refs">${esc(refs)}</div>` : ''}</li>`;
-let inc, target;
+let inc;
 
 function render() {
   document.title = `JUNCO Incident ${inc.id}`;
@@ -104,23 +108,23 @@ function render() {
   const c = inc.counts;
   $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
     .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
-  $('#rail').innerHTML = inc.events.map((e) => item(LIVE.includes(e.kind) ? 'live' : 'recorded', when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
+  $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
     Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
   const a = inc.authority, p = inc.purchase;
   $('#authority').innerHTML = a ? dl([['Instruction', a.instruction], ['Budget', a.budget], ['Agent', a.agent]]) : '<p class="muted">Not in the records.</p>';
   $('#purchase').innerHTML = p ? dl([['Item', `${p.sku}, ${p.listing}`], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
   $('#missing-card').hidden = !inc.missing.length;
   $('#missing').innerHTML = inc.missing.map((m) => `<li>${esc(m)}</li>`).join('');
-  // The what-if re-runs the gate's decision on a money move: the latest gate or hold event.
-  target = [...inc.events].reverse().find((e) => e.kind === 'gate' || e.kind === 'hold');
-  $('#wi-target').textContent = target ? `"${target.summary}"` : 'the recorded request';
-  $('#rerun').disabled = !target;
+  // The what-if re-runs the gate's decision on a recorded call: a hold or a gate-log event, latest first.
+  const calls = inc.events.filter((e) => e.kind === 'gate' || e.kind === 'hold').reverse();
+  $('#target').innerHTML = calls.map((e) => `<option value="${esc(e.id)}">${esc(when(e.at))}: ${esc(e.summary.slice(0, 90))}</option>`).join('') || '<option value="">No recorded money moves</option>';
+  $('#rerun').disabled = !calls.length;
 }
 
 $('#rerun').addEventListener('click', async (ev) => {
   ev.target.disabled = true;
   try {
-    const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: target.id, refund_limit: Number($('#limit').value) }) });
+    const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: $('#target').value, max_amount: Number($('#limit').value) }) });
     const w = await r.json();
     if (!r.ok) throw new Error(w.error?.message ?? r.status);
     const same = w.before.verdict === w.after.verdict;

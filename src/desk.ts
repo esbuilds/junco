@@ -22,7 +22,8 @@ import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.j
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
-import { acceptedText, buildIncident, listIncidents, paypalRefund, receiptPage, whatIf as incidentWhatIf } from './incident-view.js';
+import { acceptedText, paypalRefund, receiptPage } from './incident-view.js';
+import { buildIncident, listIncidents, whatIf as incidentWhatIf } from './incident.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
@@ -674,10 +675,11 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       if (req.method === 'GET' && p[0] === 'incident' && tail === 'receipt') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(receiptPage(inc, `${DESK_URL}/incident/${encodeURIComponent(inc.id)}`)); }
       if (req.method === 'GET' && p[0] === 'api' && !tail) return json(res, 200, inc);
       if (req.method === 'POST' && p[0] === 'api' && tail === 'what-if') {
-        const b = await readBody(req), limit = Number(b?.refund_limit);
-        if (!Number.isFinite(limit) || limit < 0 || limit > 10_000) return json(res, 400, { error: { message: 'refund_limit must be a number from 0 to 10000' } });
+        const b = await readBody(req), limit = Number(b?.max_amount);
+        if (!Number.isFinite(limit) || limit < 0 || limit > 10_000) return json(res, 400, { error: { message: 'max_amount must be a number from 0 to 10000' } });
         if (!inc.events.some((e) => e.id === b?.event_id)) return json(res, 400, { error: { message: 'event_id must be an event of this incident' } });
-        return json(res, 200, await incidentWhatIf(b.event_id, { refund_limit: limit }));
+        try { return json(res, 200, incidentWhatIf(b.event_id, { max_amount: Math.round(limit * 100) / 100 })); }
+        catch (e: any) { return json(res, 400, { error: { message: e.message } }); } // e.g. a recorded call with no amount limit
       }
     }
     if (req.method === 'GET' && p[0] === 'run' && p[1] && !p[2]) { // a run's shareable page (permalink)

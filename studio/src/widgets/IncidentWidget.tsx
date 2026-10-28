@@ -6,8 +6,9 @@ import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
-// Same rule as modeOf in src/incident-view.ts: PayPal's own events are LIVE, the desk's records are RECORDED.
+// Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
 const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
+const modeOf = (e: Incident['events'][number]) => LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded';
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function IncidentWidget() {
@@ -20,11 +21,12 @@ export function IncidentWidget() {
   const [limit, setLimit] = useState('30');
   const [w, setW] = useState<WhatIf | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { setW(null); setErr(null); }, [id]);
-  const target = inc && [...inc.events].reverse().find((e) => e.kind === 'gate' || e.kind === 'hold');
+  const calls = inc ? inc.events.filter((e) => e.kind === 'gate' || e.kind === 'hold').reverse() : [];
+  const [target, setTarget] = useState('');
+  useEffect(() => { setW(null); setErr(null); setTarget(''); }, [id]);
   const rerun = async () => {
     setErr(null);
-    try { setW(await api<WhatIf>(`/api/incident/${encodeURIComponent(inc!.id)}/what-if`, { method: 'POST', json: { event_id: target!.id, refund_limit: Number(limit) } })); }
+    try { setW(await api<WhatIf>(`/api/incident/${encodeURIComponent(inc!.id)}/what-if`, { method: 'POST', json: { event_id: target || calls[0].id, max_amount: Number(limit) } })); }
     catch (e: any) { setErr(e.message); }
   };
 
@@ -47,7 +49,7 @@ export function IncidentWidget() {
         <p><strong>Buyer allowed:</strong> {inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</p>
         <p><strong>Bought:</strong> {inc.purchase ? `${inc.purchase.sku}, ${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</p>
         <ol className="jd-rail">
-          {inc.events.map((e) => { const mode = LIVE.includes(e.kind) ? 'live' : 'recorded'; return (
+          {inc.events.map((e) => { const mode = modeOf(e); return (
             <li key={e.id} className={`jd-rail-${mode}`}>
               <div className="jd-muted"><span className={`jd-mode jd-mode-${mode}`}>{mode.toUpperCase()}</span> {when(e.at)} · {e.actor}</div>
               <div>{e.summary}</div>
@@ -61,8 +63,11 @@ export function IncidentWidget() {
           )}
         </ol>
         {inc.missing.length > 0 && <p className="jd-muted">Not in the records: {inc.missing.join(' ')}</p>}
-        {target && <div className="jd-row">
-          <label className="jd-muted">Refund limit (USD) <input type="number" min={0} max={10000} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 90 }} /></label>
+        {calls.length > 0 && <div className="jd-row">
+          <select aria-label="Recorded request" value={target || calls[0].id} onChange={(e) => setTarget(e.target.value)} style={{ maxWidth: '100%' }}>
+            {calls.map((e) => <option key={e.id} value={e.id}>{when(e.at)}: {e.summary.slice(0, 80)}</option>)}
+          </select>
+          <label className="jd-muted">Amount limit (USD) <input type="number" min={0} max={10000} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 90 }} /></label>
           <button type="button" className="jd-btn" onClick={rerun}>Re-run the gate</button>
         </div>}
         {err && <div className="jd-result jd-err">{err}</div>}
