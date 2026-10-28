@@ -66,6 +66,10 @@ assert.deepEqual(a.authority, { instruction: 'bag WKD-01', budget: '70 USD', age
 assert.equal(a.purchase?.capture_id, CAP);
 assert.equal(a.events[0].at, '2026-10-20T09:56:00.000Z'); assert.ok(!a.missing.some((x) => /purchase time/.test(x))); // PayPal's capture time, not the pool post
 assert.deepEqual(a.events.map((e) => e.at), a.events.map((e) => e.at).sort()); // oldest first
+const modes = Object.fromEntries(a.events.map((e) => [e.id, e.mode]));
+assert.deepEqual(modes, { [`purchase:${A}`]: 'live', [`dispute:${D}`]: 'live', [`dispute:${D}:leased`]: 'recorded', 'agent:2026-10-23T10:02:00.000Z': 'recorded',
+  [`gate:${MOVE_AT}`]: 'live', 'hold:hoffer1': 'recorded', 'approval:hoffer1': 'recorded', 'paypal:hoffer1': 'live', 'hold:haccept1': 'recorded', 'approval:haccept1': 'recorded',
+  'hold:hoffer2': 'recorded', 'approval:hoffer2': 'recorded', 'paypal:hoffer2': 'live', 'hold:hrefund1': 'recorded', 'webhook:hrefund1': 'live', 'approval:hrefund1': 'recorded', 'paypal:hrefund1': 'live' });
 assert.deepEqual([...new Set(a.events.map((e) => e.kind))].sort(), ['agent', 'approval', 'dispute', 'gate', 'hold', 'paypal', 'purchase', 'webhook']);
 assert.ok(!JSON.stringify(a).includes('PP-OTHER') && !a.events.some((e) => e.ref?.hold_id === 'hother1')); // nothing from another case
 assert.equal(a.events.find((e) => e.id === 'paypal:hrefund1')?.ref?.refund_id, 'RFCHECK1'); // PayPal's refund id, from the hold's result
@@ -118,7 +122,11 @@ assert.equal((await call('junco_what_if', { event_id: 'hold:hrefund1', max_amoun
 assert.ok((await call('junco_what_if', { event_id: 'hold:hrefund1', max_amount: 50, budget: 1 })).err);
 assert.equal(JSON.parse(readFileSync('.junco/holds.json', 'utf8')).length, 5); // no tool call made a hold
 await client.close();
-console.log('tools: three read tools pass the gate; no hold made');
+// The toolkit path (/mcp) carries them too: PayPal's hosted calls can fail while the toolkit's REST calls work (Oct 29).
+const { createServer } = await import('./server.js');
+const { server: toolkit } = await createServer({ accessToken: 'offline', baseUrl: 'http://offline', token: async () => 'offline' } as any, policy);
+for (const t of ['junco_list_incidents', 'junco_get_incident', 'junco_what_if', 'junco_hold_status']) assert.ok((toolkit as any)._registeredTools[t], `/mcp lacks ${t}`);
+console.log('tools: three read tools pass the gate; no hold made; /mcp has them and the hold card too');
 
 // Backfill: a re-posted pool entry gives an old agent record its capture_id, and changes nothing else.
 const { addToPool, readPool } = await import('./store-dispute.js');

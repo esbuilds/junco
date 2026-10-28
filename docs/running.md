@@ -59,6 +59,7 @@ npm run check-onetap # one-tap links: signed per hold, no stretched expiry, GET 
 npm run check-recheck   # webhook re-check flags and the reported-refund refusal, offline
 npm run check-incident  # BLACK BOX: the incident join, missing facts, and a what-if that reaches no network, offline
 npm run check-killswitch # the owner's kill switch signs every connector out; offline, on a fixture token store
+npm run check-hosted-health # the self-check calls PayPal's hosted server, not just lists it; offline
 npm run check-hosted    # PayPal's hosted MCP server behind the gate: every tool classified, a read, a hold
 npm run check-connector # the Claude connector sign-in against a running desk (DESK_URL), reads only
 npm run check-token     # a forced-expired PayPal token is renewed and the call retried once, reads only

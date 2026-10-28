@@ -13,7 +13,7 @@ import type { Decision } from '../packages/junco-gate/src/index.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createServer, sandboxCtx } from './server.js';
-import { createHostedServer, hosted } from './hosted.js';
+import { createHostedServer, hosted, hostedHealth } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { randomUUID } from 'node:crypto';
@@ -659,8 +659,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     if (req.method === 'GET' && url.pathname === '/api/challenge/stats') return json(res, 200, challengeStats()); // the counter (v3.13)
     if (req.method === 'GET' && url.pathname === '/api/status') // the header's status line (v3.14 item 3)
       return json(res, 200, actor.getStore()?.owner // the self-check is the owner's; visitors only hear when the AI is paused
-        ? { owner: true, started: STARTED, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) }, connectors: connectorSessions() }
-        : { owner: false, check: null, ai_paused: claudeDown() });
+        ? { owner: true, started: STARTED, check: lastCheck, hosted_calls: lastCheck?.hosted_calls ?? null, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) }, connectors: connectorSessions() }
+        : { owner: false, check: null, hosted_calls: lastCheck?.hosted_calls ?? null, ai_paused: claudeDown() }); // visitors need the hosted note too
     if (req.method === 'POST' && url.pathname === '/api/connectors/revoke') { // owner: the kill switch, every connector signed out
       if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
       return json(res, 200, revokeAll());
@@ -762,7 +762,8 @@ setInterval(() => void kick(), 5 * 60_000);
 
 // The self-check (v3.14 item 3): every 30 minutes, the parts a judge's visit needs. A change in what's failing (and its
 // clearing) posts once to HOLD_WEBHOOK_URL; the desk header shows the last result. A paused AI counts as a failure.
-type Check = { at: string; failed: string[]; checks: Record<string, string> };
+// hosted_calls: whether a real call to PayPal's hosted MCP server worked (the desk's /mcp/paypal note reads it).
+type Check = { at: string; failed: string[]; checks: Record<string, string>; hosted_calls?: 'ok' | 'failing' };
 // The last result is kept in .junco (mirrored to Postgres), so a restart still knows what was failing and the
 // all-clear reaches Slack (Oct 15: a deploy forgot a PayPal failure and Slack never heard it cleared).
 const CHECK_FILE = '.junco/selfcheck.json';
@@ -771,7 +772,7 @@ async function selfCheck() {
   const checks: Record<string, string> = {};
   const t = async (k: string, f: () => Promise<string | void>) => { try { checks[k] = (await f()) ?? 'ok'; } catch (e: any) { checks[k] = `FAILED: ${String(e.message).slice(0, 160)}`; } };
   await t('PayPal disputes', async () => { const r = await paypal(ctx, 'GET', '/v1/customer/disputes?page_size=1'); if (r.status !== 200) throw new Error(`PayPal answered ${r.status}`); });
-  await t("PayPal's hosted MCP server", async () => `${(await hosted()).tools.length} tools`);
+  await t("PayPal's hosted MCP server", async () => hostedHealth(await hosted()));
   await t('Claude', async () => {
     const why = claudeDown(); if (why) throw new Error(`paused: ${why}`);
     await claude().messages.create({ model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'ok' }] });
@@ -781,7 +782,7 @@ async function selfCheck() {
   await t('Postgres', async () => { const ok = await dbOk(); if (ok === null && process.env.RENDER) throw new Error('no DATABASE_URL'); return ok ? 'ok' : 'not configured (local)'; });
   const failed = Object.entries(checks).filter(([, v]) => v.startsWith('FAILED')).map(([k]) => k);
   const before = lastCheck?.failed.join(',') ?? '';
-  lastCheck = { at: new Date().toISOString(), failed, checks };
+  lastCheck = { at: new Date().toISOString(), failed, checks, hosted_calls: failed.includes("PayPal's hosted MCP server") ? 'failing' : 'ok' };
   mkdirSync('.junco', { recursive: true }); writeFileSync(CHECK_FILE, JSON.stringify(lastCheck)); mirror(CHECK_FILE, lastCheck);
   if (failed.join(',') !== before && (failed.length || before) && process.env.HOLD_WEBHOOK_URL) {
     const text = failed.length ? `JUNCO self-check: ${failed.map((k) => `${k}: ${checks[k].slice(8)}`).join('; ')}. Desk: ${DESK_URL}` : `JUNCO self-check: all systems live again. ${DESK_URL}`;

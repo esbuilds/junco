@@ -12,6 +12,8 @@ export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
   at: string;        // ISO time from the record
   kind: EventKind;
+  mode: Exclude<Mode, 'what-if'>; // live: PayPal acted (purchase, dispute opened, PayPal's answer, its webhooks, a gate allow that
+                     // went straight to PayPal); recorded: the desk's own records (agent steps, holds, approvals, denials, leases)
   actor: string;     // 'shopping agent', 'JUNCO agent', 'Claude (connector)', 'gate', 'owner', 'PayPal', 'buyer'
   summary: string;   // one plain sentence a judge can read
   source: string;    // the record it came from: 'pool', 'store-runs', 'holds', 'gate-log', 'activity', 'PayPal'
