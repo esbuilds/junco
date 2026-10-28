@@ -62,6 +62,12 @@ const tools = offered.map((t) => ({ name: t.name, description: t.description ?? 
 const SYSTEM = PROPOSE ? "You are the store's support agent. Use the tools to act on the owner's request."
   : 'You are investigating a record using the tools available. Answer only from what the tools return, and say plainly when something is not recorded.';
 const proposals: any[] = [], proposedArgs: string[] = []; // each create_refund the agent sent, and what the gate answered
+// The PayPal client is loaded only for --propose; the investigation path never holds one.
+const captureStatus = async (id: string) => {
+  const [{ sandboxCtx }, { paypal }] = await Promise.all([import('./server.js'), import('./disputes.js')]);
+  const r = await paypal(await sandboxCtx(), 'GET', `/v2/payments/captures/${encodeURIComponent(id)}`);
+  return r.status === 200 ? `${r.body.status}${r.body.status_details?.reason ? ` (${r.body.status_details.reason})` : ''}` : `unreadable (PayPal ${r.status})`;
+};
 const messages: Anthropic.MessageParam[] = [];
 
 async function ask(question: string): Promise<string> {
@@ -81,11 +87,16 @@ async function ask(question: string): Promise<string> {
     for (const c of calls) {
       const args = JSON.stringify(c.input);
       // A refund only in --propose, only on a capture the request names, and only once; anything else never leaves.
-      const badRefund = c.name === 'create_refund' && (!CAPTURES.includes((c.input as any)?.capture_id) || proposals.length > 0);
+      // And only on a payment PayPal shows COMPLETED (Oct 28: a disputed capture is PENDING with BUYER_COMPLAINT, and no test
+      // money moves on disputed payments). A read-only GET, from here, before anything reaches the desk.
+      const capture = c.name === 'create_refund' && CAPTURES.includes((c.input as any)?.capture_id) && !proposals.length ? await captureStatus((c.input as any).capture_id) : null;
+      if (capture) md.push(`- (harness) GET capture ${(c.input as any).capture_id}: ${capture}`);
+      const badRefund = c.name === 'create_refund' && (!CAPTURES.includes((c.input as any)?.capture_id) || proposals.length > 0 || capture !== 'COMPLETED');
       if (!allowed.has(c.name) || args.includes(NEVER) || badRefund) { // never sent: no hold, no write
         refused.push(c.name);
         md.push(`- **${c.name}** ${args}: refused by the harness, not sent`);
-        results.push({ type: 'tool_result', tool_use_id: c.id, content: `${c.name} is not available in this investigation.`, is_error: true });
+        results.push({ type: 'tool_result', tool_use_id: c.id, is_error: true,
+          content: capture && capture !== 'COMPLETED' ? `Not sent: payment ${(c.input as any).capture_id} is ${capture}, not COMPLETED.` : `${c.name} is not available in this investigation.` });
         continue;
       }
       const r: any = await mcp.callTool({ name: c.name, arguments: c.input as Record<string, unknown> });
