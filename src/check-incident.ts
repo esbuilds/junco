@@ -122,7 +122,7 @@ assert.equal((await call('junco_what_if', { event_id: 'hold:hrefund1', max_amoun
 assert.ok((await call('junco_what_if', { event_id: 'hold:hrefund1', max_amount: 50, budget: 1 })).err);
 assert.equal(JSON.parse(readFileSync('.junco/holds.json', 'utf8')).length, 5); // no tool call made a hold
 await client.close();
-// The toolkit path (/mcp) carries them too: PayPal's hosted calls can fail while the toolkit's REST calls work (Oct 29).
+// The toolkit path (/mcp) carries them too: PayPal's hosted calls can fail while the toolkit's REST calls work (Oct 28).
 const { createServer } = await import('./server.js');
 const { server: toolkit } = await createServer({ accessToken: 'offline', baseUrl: 'http://offline', token: async () => 'offline' } as any, policy);
 for (const t of ['junco_list_incidents', 'junco_get_incident', 'junco_what_if', 'junco_hold_status']) assert.ok((toolkit as any)._registeredTools[t], `/mcp lacks ${t}`);

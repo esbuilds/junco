@@ -17,7 +17,7 @@ import type { Ctx } from './disputes.js';
 export type Kind = 'unshipped' | 'delivered' | 'agent';
 export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
 // capture_id: the payment's capture (refunds name it); paid_at: when PayPal captured it. Recorded from Oct 28 on (paid_at
-// from Oct 29); older entries lack them until backfilled.
+// from Oct 28); older entries lack them until backfilled.
 export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string; paid_at?: string };
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first

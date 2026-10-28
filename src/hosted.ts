@@ -52,7 +52,7 @@ export function hosted(): Promise<Conn> {
   return p;
 }
 
-// A tool list says the server is up, not that its calls work (Oct 29: every hosted call returned PAYPAL_API_SETUP_ERROR
+// A tool list says the server is up, not that its calls work (Oct 28: every hosted call returned PAYPAL_API_SETUP_ERROR
 // "Unsupported cache mode: default" while tools/list was fine). One cheap read, the smallest page of products, tells.
 export async function hostedHealth(c: Pick<Conn, 'client' | 'tools'>): Promise<string> {
   const t = c.tools.find((x) => x.name === 'list_products');

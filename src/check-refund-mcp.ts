@@ -1,4 +1,4 @@
-// The demo's refund on /mcp (the Agent Toolkit over REST; PayPal's hosted calls fail, Oct 29), offline. A stand-in PayPal:
+// The demo's refund on /mcp (the Agent Toolkit over REST; PayPal's hosted calls fail, Oct 28), offline. A stand-in PayPal:
 // the toolkit's REST runner and fetch (the capture re-read) are replaced, so every PayPal call is counted and none leaves.
 // create_refund is held, never runs before approval, and runs once on approval; the same call again is refused; a second
 // refund on the payment is refused once one ran, as is one held before the payment changed or before PayPal reported a
@@ -69,7 +69,7 @@ await assert.rejects(holds.approve(reported.hold_id), /PayPal reported refund RF
 assert.equal(refunds.length, 1); assert.ok(reads.length >= 4); // every hold and approval re-read the payment
 await client.close();
 console.log('re-check: a payment changed since the hold, or a refund PayPal reported, refuses the approval; nothing sent');
-// The tie that let a second refund run (Oct 29): a hold made in the same millisecond another refund started running.
+// The tie that let a second refund run (Oct 28): a hold made in the same millisecond another refund started running.
 const { refundRanSince } = await import('../packages/junco-gate/src/paypal.js');
 const T = '2026-10-29T12:00:00.000Z', base = { method: 'create_refund', args: five, reason: 'r', status: 'pending' as const };
 assert.equal(refundRanSince({ ...base, id: 'h2', created: T }, [{ ...base, id: 'h1', created: '2026-10-29T11:59:00.000Z', status: 'completed', ran: T }])?.id, 'h1');
