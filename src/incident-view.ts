@@ -7,7 +7,7 @@ import type { Incident, IncidentEvent, Mode } from './incident-types.js';
 // owner), except a gate event that allowed the move, which went straight to PayPal. WHAT-IF events are never in an
 // Incident; they come back from whatIf() and the page draws them apart. public/incident.html and Studio repeat this rule.
 const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
-export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded');
+export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
 
 // PayPal's refund id and status from a hold's stored result. The result is the tool's text: PayPal's JSON, sometimes
 // wrapped (hosted MCP content, or a settle's `was`), sometimes prose. Null when no refund id is in it.

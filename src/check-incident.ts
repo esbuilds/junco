@@ -69,6 +69,8 @@ assert.ok(!JSON.stringify(a).includes('PP-OTHER') && !a.events.some((e) => e.ref
 assert.equal(a.events.find((e) => e.id === 'paypal:hrefund1')?.ref?.refund_id, 'RFCHECK1'); // PayPal's refund id, from the hold's result
 assert.match(a.events.find((e) => e.id === 'paypal:hrefund1')!.summary, /RFCHECK1 \(COMPLETED\)/);
 assert.equal(a.events.find((e) => e.id === 'hold:hrefund1')?.actor, "MCP client via PayPal's hosted server");
+assert.equal(a.events.find((e) => e.id === `gate:${MOVE_AT}`)?.ref?.rule, 'allow: 10 is within the 25 limit for make_dispute_offer'); // the verdict leads the rule (the desk's LIVE label)
+assert.ok(a.events.filter((e) => e.kind === 'hold').every((e) => e.ref?.rule?.startsWith('hold: ')));
 assert.deepEqual(a.counts, { proposed: 5, approved: 4, executed: 3, outcome_unknown: 1 });
 for (const m of [/who asked for hold haccept1/, /when hold haccept1 was rejected/, /whether hold hoffer2 reached PayPal/]) assert.ok(a.missing.some((x) => m.test(x)), `missing ${m}`);
 assert.ok(!a.missing.some((x) => /capture id/.test(x)));

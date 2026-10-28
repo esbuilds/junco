@@ -147,7 +147,7 @@ function juncoTools(api: any): AgAiTool[] {
             `Buyer allowed: ${i.authority ? `${i.authority.instruction} (budget ${i.authority.budget}, ${i.authority.agent})` : 'not in the records'}`,
             `Bought: ${i.purchase ? `${i.purchase.sku} ${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
             `Money moves: ${i.counts.proposed} proposed, ${i.counts.approved} approved, ${i.counts.executed} executed, ${i.counts.outcome_unknown} outcome unknown`,
-            ...i.events.map((e) => `${e.at.slice(0, 16).replace('T', ' ')} [${LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'LIVE' : 'RECORDED'}] ${e.id} ${e.actor}: ${e.summary}`),
+            ...i.events.map((e) => `${e.at.slice(0, 16).replace('T', ' ')} [${LIVE.includes(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'LIVE' : 'RECORDED'}] ${e.id} ${e.actor}: ${e.summary}`),
             ...(i.missing.length ? [`Not in the records: ${i.missing.join(' ')}`] : []),
           ].join('\n'));
         } catch (e: any) { return ctx.error(`No incident ${incident_id}: ${e.message}`); }

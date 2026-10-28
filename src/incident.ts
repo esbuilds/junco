@@ -59,7 +59,7 @@ function build(p: PoolEntry): Incident {
     if (money) { counts.proposed++; if (APPROVED.includes(h.status)) counts.approved++; if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
     if (!tags[h.id]) missing.push(`who asked for hold ${h.id}: it carries no caller tag`);
     events.push({ id: `hold:${h.id}`, at: h.created, kind: 'hold', actor: who(tags[h.id]), source: 'holds',
-      summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).`, ref: { ...ref, rule: h.reason } });
+      summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).`, ref: { ...ref, rule: `hold: ${h.reason}` } });
     if (h.recheck) events.push({ id: `webhook:${h.id}`, at: h.recheck.at, kind: 'webhook', actor: 'PayPal', source: 'holds',
       summary: `PayPal reported ${h.recheck.event} after this was held${h.recheck.refund ? `, including refund ${h.recheck.refund.id}` : ''}; approval re-reads PayPal first.`,
       ref: { ...ref, ...(h.recheck.refund && { refund_id: h.recheck.refund.id }) } });
@@ -88,7 +88,7 @@ function build(p: PoolEntry): Incident {
     if (m.verdict === 'allow') { counts.approved++; if (!m.error) counts.executed++; }
     events.push({ id: `gate:${m.at}`, at: m.at, kind: 'gate', actor: who(m.source), source: 'gate-log',
       summary: `${who(m.source)} asked for ${said(m.method, m.args)}; the gate ${m.verdict === 'allow' ? 'allowed' : 'denied'} it (${m.reason})${m.verdict === 'deny' ? ', nothing sent' : m.error ? `, and PayPal refused it: ${m.error.slice(0, 200)}` : ', and PayPal accepted it'}.`,
-      ref: { ...(m.args?.dispute_id && { dispute_id: m.args.dispute_id }), ...(m.args?.capture_id && { capture_id: m.args.capture_id }), rule: m.reason } });
+      ref: { ...(m.args?.dispute_id && { dispute_id: m.args.dispute_id }), ...(m.args?.capture_id && { capture_id: m.args.capture_id }), rule: `${m.verdict}: ${m.reason}` } }); // the verdict leads the rule: the desk's LIVE label reads it
   }
   // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
   for (const r of readRevocations().filter((r) => r.at > p.added))

@@ -8,7 +8,7 @@ import { Panel } from './Panel';
 
 // Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
 const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
-const modeOf = (e: Incident['events'][number]) => LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded';
+const modeOf = (e: Incident['events'][number]) => LIVE.includes(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded';
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function IncidentWidget() {
