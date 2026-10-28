@@ -29,7 +29,7 @@ console.log('labels: PayPal events and allowed gate calls LIVE; agent, hold, app
 
 const inc: Incident = {
   id: 'T1', title: '<script>x</script>', authority: { instruction: 'a dry bag under 40', budget: '40.00 USD', agent: 'shopping agent' },
-  purchase: { sku: 'WKD-01', listing: 'Dry bag', reason: 'waterproof', amount: '34.00 USD', order_id: 'O1', capture_id: 'CAPTURE0001' },
+  purchase: { sku: 'WKD-01', listing: 'WKD-01 Dry bag', reason: 'waterproof', amount: '34.00 USD', order_id: 'O1', capture_id: 'CAPTURE0001' },
   dispute_id: 'D1', events: [...live, ...recorded].map((e) => e.id === 'paypal:h1' ? { ...e, ref: { refund_id: 'REFUND0001' } } : e),
   counts: { proposed: 2, approved: 1, executed: 1, outcome_unknown: 0 }, missing: ['capture_id: this pool entry predates it'],
 };
@@ -37,6 +37,7 @@ const url = 'https://desk.example/incident/T1';
 const page = receiptPage(inc, url);
 assert.ok(page.includes('CAPTURE0001') && page.includes('>T1<') && page.includes('REFUND0001') && page.includes('capture_id: this pool entry predates it'));
 assert.ok(receiptPage({ ...inc, purchase: null }, url).includes('not recorded')); // an older entry without a capture id says so
+assert.ok(page.includes('<td>WKD-01 Dry bag</td>') && !page.includes('WKD-01, WKD-01')); // the listing alone: it already starts with the SKU
 assert.ok(page.includes('<svg') && page.includes(`<div class="u">${url}</div>`)); // QR, and the URL as text under it
 assert.ok(!page.includes('<script>x') && page.includes('&#60;script&#62;x'));
 console.log('receipt: capture id, incident id, refund id, what the records lack, a QR and the URL in text; titles escaped');

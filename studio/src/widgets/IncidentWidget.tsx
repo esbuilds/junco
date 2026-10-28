@@ -9,14 +9,18 @@ import { Panel } from './Panel';
 // Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
 const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
 const modeOf = (e: Incident['events'][number]) => LIVE.includes(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded';
+// Titles repeat ("Agent bought WKD-01 for ..." three times), so a choice also names its date, buyer txn and dispute.
+export const incidentLabel = (i: IncidentSummary) =>
+  `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function IncidentWidget() {
   const list = usePoll<IncidentSummary[]>('/api/incidents', 30000).data ?? [];
   const selectedCase = useSelectedCase();
-  const [id, setId] = useState<string | null>(null);
-  // Follows the Desk's open case when that case came from an AI purchase; otherwise the latest incident.
-  useEffect(() => { const m = list.find((i) => i.dispute_id === selectedCase); if (m) setId(m.id); else if (!id && list[0]) setId(list[0].id); }, [selectedCase, list.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ?id= picks the incident (a shared link); else the Desk's open case when it came from an AI purchase; else the latest.
+  const linked = new URLSearchParams(location.search).get('id');
+  const [id, setId] = useState<string | null>(linked);
+  useEffect(() => { if (linked) return; const m = list.find((i) => i.dispute_id === selectedCase); if (m) setId(m.id); else if (!id && list[0]) setId(list[0].id); }, [selectedCase, list.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data: inc, error } = usePoll<Incident>(id ? `/api/incident/${encodeURIComponent(id)}` : null, 15000);
   const [limit, setLimit] = useState('30');
   const [w, setW] = useState<WhatIf | null>(null);
@@ -35,10 +39,10 @@ export function IncidentWidget() {
     <Panel title="Incident" subtitle={inc?.title ?? 'Loading...'}>
       <div className="jd-row">
         <select aria-label="Incident" value={id ?? ''} onChange={(e) => setId(e.target.value)}>
-          {list.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+          {list.map((i) => <option key={i.id} value={i.id}>{incidentLabel(i)}</option>)}
         </select>
-        {inc && <a className="jd-linkish" href={`/incident/${encodeURIComponent(inc.id)}`} target="_blank" rel="noreferrer">Full page</a>}
-        {inc && <a className="jd-linkish" href={`/incident/${encodeURIComponent(inc.id)}/receipt`} target="_blank" rel="noreferrer">Receipt</a>}
+        {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">Full page</a>}
+        {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}/receipt`} target="_blank" rel="noreferrer">Receipt</a>}
       </div>
       {error && <div className="jd-result jd-err">{error}</div>}
       {inc && <>
@@ -47,7 +51,7 @@ export function IncidentWidget() {
             .map(([k, v]) => <div key={k}><span className="jd-muted">{k}</span><strong>{v}</strong></div>)}
         </div>
         <p><strong>Buyer allowed:</strong> {inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</p>
-        <p><strong>Bought:</strong> {inc.purchase ? `${inc.purchase.sku}, ${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</p>
+        <p><strong>Bought:</strong> {inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</p>
         <ol className="jd-rail">
           {inc.events.map((e) => { const mode = modeOf(e); return (
             <li key={e.id} className={`jd-rail-${mode}`}>
