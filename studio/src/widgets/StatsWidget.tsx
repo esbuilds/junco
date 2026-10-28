@@ -21,7 +21,8 @@ export function StatsWidget() {
     // Money moves only, the same count as the Gate record's "waiting"; other held actions are named in the sub-line.
     { label: 'Waiting for your OK', value: h ? String(h.money.length) : '-', sub: h ? `held money move${h.money.length === 1 ? '' : 's'}${h.pending.length > h.money.length ? ` · ${h.pending.length - h.money.length} other` : ''}` : '', attn: true },
     { label: 'Money moves proposed', value: g ? String(g.proposed) : '-', sub: 'by any agent' },
-    { label: 'Held for the owner', value: g ? String(g.held) : '-', sub: g ? `${g.past_limit} past the limit` : '' },
+    // All time, every source. past_limit: concessions an agent got past the owner's limit (Break the mandate's count).
+    { label: 'Held for you', value: g ? String(g.held) : '-', sub: g ? `all time · ${g.past_limit ? `${g.past_limit} past your limit` : 'none past your limit'}` : '' },
     { label: 'Open disputes', value: cases.data ? money(total, cur).replace(/[^\d.,]/g, '') : '-', unit: cases.data ? cur : undefined, sub: cases.data ? `${open.length} case${open.length === 1 ? '' : 's'}` : '' },
   ];
 

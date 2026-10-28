@@ -463,3 +463,19 @@ textarea { border-radius: 8px; }
 }
 @media (max-width: 600px) { .jd-topbar-row .jd-killswitch { display: none; } }
 @media (max-width: 600px) { .jd-holds td.jd-no-amount { display: none; } }
+
+/* UI walk P2 */
+.jd-status-degraded { color: var(--jd-muted); }
+.jd-status-degraded::before { background: var(--jd-attn); opacity: 1; }
+.jd-holds .jd-actions { flex-wrap: nowrap; } /* 7: Reject and Approve side by side on every row */
+.jd-counter-more summary { cursor: pointer; margin-top: 4px; }
+.jd-counter-more > div { margin-top: 2px; }
+/* 13: one frame, not two: Studio's canvas loses its ring and the page title lines up with the panels below. */
+.jd-host .ag-studio-layout-canvas { box-shadow: none !important; }
+.jd-pagehead { padding-left: 36px; padding-right: 36px; }
+@media (max-width: 900px) { .jd-pagehead { padding-left: 28px; padding-right: 28px; } }
+/* 12: Insights filters as compact chips instead of tall empty buttons. */
+.jd-host .ag-studio-filter-widget-content { display: flex !important; flex-wrap: wrap; gap: 6px; align-items: center; }
+.jd-host .ag-studio-button-filter-widget-item { flex: 0 0 auto !important; width: auto !important; height: 30px !important; min-height: 0 !important; padding: 0 12px !important; border-radius: 999px !important; font-size: 13px !important; border: 1px solid var(--jd-line) !important; background: var(--jd-surface) !important; color: var(--jd-ink) !important; }
+.jd-host .ag-studio-button-filter-widget-item:hover { border-color: var(--jd-faint) !important; }
+.jd-host .ag-studio-button-filter-widget-item.ag-studio-button-filter-widget-item-active { background: var(--jd-ink) !important; color: var(--jd-surface) !important; border-color: var(--jd-ink) !important; }

@@ -41,7 +41,7 @@ export function ActivityWidget() {
         {items.length === 0 && <li className="jd-muted">Nothing yet.</li>}
         {shown.map((x) => (
           <li key={actKey(x)} className={fresh.has(actKey(x)) ? 'jd-new' : undefined}>
-            <div className="jd-feed-meta"><span className="jd-id">{new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> · {TRIGGER[x.trigger] ?? x.trigger}{x.dispute_id && <> · <span className="jd-id">{x.dispute_id}</span></>}</div>
+            <div className="jd-feed-meta"><span className="jd-id">{new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> · {TRIGGER[x.trigger] ?? x.trigger}{/\d/.test(x.dispute_id ?? '') && <> · <span className="jd-id">{x.dispute_id}</span></>}</div>
             <div className="jd-feed-text" title={x.detail}><strong>{x.step.replace(/^./, (c) => c.toUpperCase())}</strong>: {x.detail}</div>
           </li>
         ))}

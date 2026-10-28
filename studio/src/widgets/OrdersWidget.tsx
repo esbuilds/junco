@@ -13,6 +13,8 @@ type Watched = {
   status: 'protected' | 'watching' | 'at_risk'; ship_by: string; reason: string | null;
 };
 const STATUS_LABEL = { protected: 'Protected', watching: 'Watching', at_risk: 'At risk' } as const;
+// At-risk orders lead: they are the ones the owner must act on.
+const STATUS_ORDER = { at_risk: 0, watching: 1, protected: 2 } as const;
 const STATUS_CLASS = { protected: 'jd-b-contest', watching: 'jd-b-wait', at_risk: 'jd-b-held' } as const; // at risk: the owner must add tracking
 
 function shipByText(o: Watched) {
@@ -30,6 +32,7 @@ export function OrdersWidget() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const items = data?.items ?? [];
+  const sorted = [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]); // stable: keeps the server's order inside each group
   const sel = items.find((o) => o.capture_id === pick) ?? null;
 
   const columns = useMemo<ColDef<Watched>[]>(() => [
@@ -61,7 +64,7 @@ export function OrdersWidget() {
       </p>
       <div className="jd-grid">
         <AgGridReact<Watched>
-          theme={gridTheme} rowData={items} loading={!data && !error} columnDefs={columns} getRowId={(p) => p.data.capture_id}
+          theme={gridTheme} rowData={sorted} loading={!data && !error} columnDefs={columns} getRowId={(p) => p.data.capture_id}
           rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
           onRowClicked={(e) => { if (e.data) { setPick(e.data.capture_id); setMsg(null); } }}
           domLayout="autoHeight" overlayNoRowsTemplate='<span class="jd-muted">No captured payments yet. New ones appear here within seconds.</span>'
