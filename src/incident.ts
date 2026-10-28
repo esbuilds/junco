@@ -34,11 +34,14 @@ function build(p: PoolEntry): Incident {
   const missing: string[] = [];
   if (!p.order_id) missing.push('order id: the pool entry has none');
   if (!capture_id) missing.push(`capture id: the pool entry records order ${p.order_id ?? '(none)'} but not its capture, so refunds on this payment (they name the capture) cannot be matched to this purchase`);
+  // The purchase happened when PayPal captured it; `added` is when the desk got the pool post, minutes later.
+  const paid = a.paid_at ?? p.added;
+  if (!a.paid_at) missing.push('purchase time: not recorded; shown at the time the desk received it');
   if (!dispute_id) missing.push(run?.error ? `dispute: filing failed (${run.error})` : 'dispute: none filed for this purchase yet');
   const mine = (args: any) => (!!dispute_id && args?.dispute_id === dispute_id) || (!!capture_id && args?.capture_id === capture_id);
 
   // pool amounts are USD: pool.ts only places USD orders
-  const events: IncidentEvent[] = [{ id: `purchase:${p.buyer_txn}`, at: p.added, kind: 'purchase', actor: 'shopping agent', source: 'pool',
+  const events: IncidentEvent[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: 'pool',
     summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store.`,
     ref: { buyer_txn: p.buyer_txn, ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
@@ -91,10 +94,11 @@ function build(p: PoolEntry): Incident {
       ref: { ...(m.args?.dispute_id && { dispute_id: m.args.dispute_id }), ...(m.args?.capture_id && { capture_id: m.args.capture_id }), rule: `${m.verdict}: ${m.reason}` } }); // the verdict leads the rule: the desk's LIVE label reads it
   }
   // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
-  for (const r of readRevocations().filter((r) => r.at > p.added))
+  for (const r of readRevocations().filter((r) => r.at > paid))
     events.push({ id: `revoke:${r.at}`, at: r.at, kind: 'gate', actor: 'owner', source: 'revocations',
       summary: `The owner disconnected every Claude connector (${r.sessions} signed in); each had to sign in again before its next tool call.` });
-  events.sort((x, y) => x.at.localeCompare(y.at));
+  // Nothing about an order comes before its purchase, even when a record's clock says so (an unrecorded paid time).
+  events.sort((x, y) => (y.kind === 'purchase' ? 1 : 0) - (x.kind === 'purchase' ? 1 : 0) || x.at.localeCompare(y.at));
   return {
     id: p.buyer_txn, title: `Agent bought ${a.sku} for "${a.instruction}"`,
     authority: { instruction: a.instruction, budget: `${a.budget} USD`, agent: a.agent },
@@ -104,7 +108,7 @@ function build(p: PoolEntry): Incident {
 }
 
 export function listIncidents(): IncidentSummary[] {
-  return entries().map(build).map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.at(-1)!.at }))
+  return entries().map(build).map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
 }
 export function buildIncident(id: string): Incident | null {

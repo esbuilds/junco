@@ -16,8 +16,9 @@ import type { Ctx } from './disputes.js';
 
 export type Kind = 'unshipped' | 'delivered' | 'agent';
 export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
-// capture_id: the payment's capture (refunds name it); recorded from Oct 28 on, older entries lack it.
-export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string };
+// capture_id: the payment's capture (refunds name it); paid_at: when PayPal captured it. Recorded from Oct 28 on (paid_at
+// from Oct 29); older entries lack them until backfilled.
+export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string; paid_at?: string };
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
@@ -87,21 +88,29 @@ export function recordedRun(): Run | null {
 }
 
 // Owner adds prepared orders. Entries already in the pool are skipped, except that an agent record missing its capture_id
-// takes it from the post (entries filled before Oct 28); nothing else on an existing entry changes.
+// or paid_at takes it from the post (entries filled before those were recorded); nothing else on an existing entry changes.
 const captureOf = (e: any): string | undefined => (typeof e?.agent?.capture_id === 'string' && /^\w{1,40}$/.test(e.agent.capture_id) ? e.agent.capture_id : undefined);
+// ISO UTC only (PayPal's create_time or toISOString), stored normalized so it sorts as text with the desk's other times.
+const paidOf = (e: any): string | undefined => {
+  const t = e?.agent?.paid_at;
+  return typeof t === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(t) && !Number.isNaN(Date.parse(t)) ? new Date(t).toISOString() : undefined;
+};
 export function addToPool(entries: any[]): { added: number; backfilled: number } {
   const pool = readPool(), have = new Set(pool.map((p) => p.buyer_txn));
   let backfilled = 0;
   for (const e of entries) {
-    const p = pool.find((x) => x.buyer_txn === e?.buyer_txn), c = captureOf(e);
-    if (p?.agent && !p.agent.capture_id && c) { p.agent.capture_id = c; backfilled++; }
+    const p = pool.find((x) => x.buyer_txn === e?.buyer_txn), c = captureOf(e), t = paidOf(e);
+    if (!p?.agent || !((!p.agent.capture_id && c) || (!p.agent.paid_at && t))) continue;
+    if (!p.agent.capture_id && c) p.agent.capture_id = c;
+    if (!p.agent.paid_at && t) p.agent.paid_at = t;
+    backfilled++; // entries, not fields
   }
   const fresh = entries
     .filter((e) => typeof e?.buyer_txn === 'string' && /^[A-Z0-9]{17}$/.test(e.buyer_txn) && !have.has(e.buyer_txn) && Number(e.amount) > 0)
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking,
       ...(typeof e.scan === 'string' && (e.tracking || e.agent) && { scan: e.scan.slice(0, 500) }),
       ...(e.agent && { agent: { ...Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])),
-        ...(captureOf(e) && { capture_id: captureOf(e) }) } as AgentRecord }),
+        ...(captureOf(e) && { capture_id: captureOf(e) }), ...(paidOf(e) && { paid_at: paidOf(e) }) } as AgentRecord }),
       added: new Date().toISOString() }));
   if (fresh.length || backfilled) write(POOL, [...pool, ...fresh]);
   return { added: fresh.length, backfilled };

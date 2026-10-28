@@ -75,7 +75,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
         items: [{ name: item.name, sku: item.sku, quantity: '1', unit_amount: { currency_code: 'USD', value: item.price } }] }],
       payment_source: { paypal: { vault_id: vaultId, stored_credential: { payment_initiator: 'MERCHANT', usage: 'SUBSEQUENT', usage_pattern: 'IMMEDIATE' } } },
     } });
-    const capture = o.body.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+    const capture = o.body.purchase_units?.[0]?.payments?.captures?.[0]?.id, paidAt = o.body.purchase_units?.[0]?.payments?.captures?.[0]?.create_time ?? new Date().toISOString();
     if (!capture) { console.error('Agent order failed', o.status, JSON.stringify(o.body)); break; }
     const number = `9400${String(Date.now()).padStart(18, '0')}`;
     let txn: string | undefined;
@@ -84,7 +84,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
     last = txn;
     entries.push({ buyer_txn: txn, amount: item.price, order_id: o.body.id, tracking: false,
       scan: `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
-      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture } });
+      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt } });
     console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${o.body.id}, capture ${capture}, buyer transaction ${txn}`);
     continue;
   }

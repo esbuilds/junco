@@ -29,7 +29,7 @@ const put = (f: string, v: unknown) => writeFileSync(`.junco/${f}`, JSON.stringi
 const A = 'AAAAAAAAAAAAAAAA1', B = 'BBBBBBBBBBBBBBBB2', D = 'PP-D-CHECK1', CAP = 'CAPCHECK1';
 const agent = (sku: string, extra = {}) => ({ instruction: `bag ${sku}`, budget: '70', sku, listing: `${sku} listing`, reason: `fits ${sku}`, agent: 'Check shopper', ...extra });
 put('pool.json', [
-  { buyer_txn: A, amount: '62.00', order_id: 'ORDCHECK1', tracking: false, agent: agent('WKD-01', { capture_id: CAP }), added: '2026-10-20T10:00:00.000Z' },
+  { buyer_txn: A, amount: '62.00', order_id: 'ORDCHECK1', tracking: false, agent: agent('WKD-01', { capture_id: CAP, paid_at: '2026-10-20T09:56:00.000Z' }), added: '2026-10-20T10:00:00.000Z' },
   { buyer_txn: B, amount: '38.00', order_id: 'ORDCHECK2', tracking: false, agent: agent('WKD-03'), added: '2026-10-21T10:00:00.000Z' },
   { buyer_txn: 'CCCCCCCCCCCCCCCC3', amount: '48.00', tracking: false, added: '2026-10-19T10:00:00.000Z' }, // not an agent order
 ]);
@@ -52,6 +52,7 @@ put('gate-log.json', [
   { at: '2026-10-23T12:00:00.000Z', method: 'make_dispute_offer', args: { dispute_id: 'PP-OTHER', offer_amount: amt('5.00') }, verdict: 'allow', reason: 'x', source: 'MCP client' },
 ]);
 put('activity.json', [{ at: '2026-10-23T10:02:00.000Z', dispute_id: D, trigger: 'webhook', step: 'done', detail: 'offer sent to PayPal.' },
+  { at: '2026-10-21T09:57:00.000Z', dispute_id: 'ORDCHECK2', trigger: 'webhook', step: 'watching', detail: 'watching order ORDCHECK2' }, // before B's pool post
   { at: '2026-10-23T10:03:00.000Z', dispute_id: 'PP-OTHER', trigger: 'webhook', step: 'done', detail: 'not ours' }]);
 
 const FILES = readdirSync('.junco').sort();
@@ -63,6 +64,7 @@ const a = buildIncident(A)!;
 assert.equal(a.dispute_id, D);
 assert.deepEqual(a.authority, { instruction: 'bag WKD-01', budget: '70 USD', agent: 'Check shopper' });
 assert.equal(a.purchase?.capture_id, CAP);
+assert.equal(a.events[0].at, '2026-10-20T09:56:00.000Z'); assert.ok(!a.missing.some((x) => /purchase time/.test(x))); // PayPal's capture time, not the pool post
 assert.deepEqual(a.events.map((e) => e.at), a.events.map((e) => e.at).sort()); // oldest first
 assert.deepEqual([...new Set(a.events.map((e) => e.kind))].sort(), ['agent', 'approval', 'dispute', 'gate', 'hold', 'paypal', 'purchase', 'webhook']);
 assert.ok(!JSON.stringify(a).includes('PP-OTHER') && !a.events.some((e) => e.ref?.hold_id === 'hother1')); // nothing from another case
@@ -77,6 +79,8 @@ assert.ok(!a.missing.some((x) => /capture id/.test(x)));
 const b = buildIncident(B)!;
 assert.equal(b.dispute_id, null); assert.equal(b.purchase?.capture_id, undefined);
 assert.ok(b.missing.some((x) => /^capture id: .*ORDCHECK2/.test(x)) && b.missing.some((x) => /^dispute: none filed/.test(x)));
+assert.equal(b.events[0].kind, 'purchase'); assert.equal(b.events[0].at, '2026-10-21T10:00:00.000Z'); // first, though the watch event's clock is earlier
+assert.ok(b.missing.includes('purchase time: not recorded; shown at the time the desk received it'));
 assert.equal(buildIncident('ZZZZZZZZZZZZZZZZZ'), null);
 console.log('join: pool, store runs, holds, gate log and activity in one story; missing facts listed, never filled');
 
@@ -119,12 +123,17 @@ console.log('tools: three read tools pass the gate; no hold made');
 // Backfill: a re-posted pool entry gives an old agent record its capture_id, and changes nothing else.
 const { addToPool, readPool } = await import('./store-dispute.js');
 const before = readPool();
-assert.deepEqual(addToPool([{ buyer_txn: B, amount: '99', order_id: 'X', agent: { capture_id: 'CAPCHECK2', sku: 'X' } },
-  { buyer_txn: A, amount: '62', agent: { capture_id: 'CAPOTHER' } }, { buyer_txn: 'CCCCCCCCCCCCCCCC3', amount: '48', agent: { capture_id: 'CAPX' } }]), { added: 0, backfilled: 1 });
-assert.deepEqual(readPool(), before.map((p) => (p.buyer_txn === B ? { ...p, agent: { ...p.agent!, capture_id: 'CAPCHECK2' } } : p)));
+assert.deepEqual(addToPool([{ buyer_txn: B, amount: '99', order_id: 'X', agent: { capture_id: 'CAPCHECK2', paid_at: '2026-10-21T09:55:00Z', sku: 'X' } },
+  { buyer_txn: A, amount: '62', agent: { capture_id: 'CAPOTHER', paid_at: '2026-10-01T00:00:00Z' } }, { buyer_txn: 'CCCCCCCCCCCCCCCC3', amount: '48', agent: { capture_id: 'CAPX' } }]), { added: 0, backfilled: 1 });
+assert.deepEqual(readPool(), before.map((p) => (p.buyer_txn === B ? { ...p, agent: { ...p.agent!, capture_id: 'CAPCHECK2', paid_at: '2026-10-21T09:55:00.000Z' } } : p)));
 assert.ok(!buildIncident(B)!.missing.some((x) => /capture id/.test(x)) && buildIncident(A)!.purchase?.capture_id === CAP);
+assert.equal(buildIncident(B)!.events[0].at, '2026-10-21T09:55:00.000Z'); assert.ok(!buildIncident(B)!.missing.some((x) => /purchase time/.test(x)));
 assert.equal(addToPool([{ buyer_txn: B, amount: '38', agent: { capture_id: 'bad id!' } }]).backfilled, 0);
-console.log('backfill: a missing capture_id is set from the post; existing ones and every other field stay');
+const bad = ['2026-10-21', '2026-10-21T09:55:00+02:00', 'yesterday', '2026-13-40T25:00:00Z'];
+assert.equal(addToPool(bad.map((t, i) => ({ buyer_txn: `BADTIME00000000${i}X`, amount: '1', agent: { ...agent('X'), paid_at: t } }))).added, 4);
+assert.ok(readPool().filter((p) => p.buyer_txn.startsWith('BADTIME')).every((p) => p.agent && !('paid_at' in p.agent))); // ISO UTC only
+console.log('backfill: a missing capture_id or paid_at is set from the post (ISO UTC only); existing ones and every other field stay');
+console.log('purchase: at PayPal capture time when recorded, else the pool post time and said so in missing; always first');
 
 assert.equal(fetches, 0);
 console.log('incident: ok (0 network calls)');
