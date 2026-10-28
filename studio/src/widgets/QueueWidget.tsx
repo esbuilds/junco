@@ -1,24 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry, themeQuartz, type ColDef, type GridApi } from 'ag-grid-community';
+import { AllCommunityModule, ModuleRegistry, type ColDef, type GridApi } from 'ag-grid-community';
+import { gridTheme } from '../theme';
 import { daysLeft, dueText, human, money, REASONS, STATUS, DECISION_LABEL, type CaseRow } from '../api';
 import { selectCase, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
-
-// Same palette as public/index.html (light and dark). AG Grid's theme takes literal colours, not CSS variables,
-// so the hex set is picked by colour scheme, as the reference desk does.
-const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
-const palette = dark
-  ? { backgroundColor: '#1d1d1b', foregroundColor: '#ecebe6', headerBackgroundColor: '#262623', borderColor: '#34332f', accentColor: '#5fb497' }
-  : { backgroundColor: '#ffffff', foregroundColor: '#1d1d1b', headerBackgroundColor: '#f0eee8', borderColor: '#e3e0d8', accentColor: '#1f5c4a' };
-export const gridTheme = themeQuartz.withParams({
-  ...palette,
-  fontFamily: 'Inter, system-ui, sans-serif',
-  rowHeight: 36,
-  cellHorizontalPaddingScale: 0.8,
-});
 
 // Short labels so the queue fits at 1280 wide; the full reason is in the tooltip and on the case.
 const SHORT_REASON: Record<string, string> = { MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described' };

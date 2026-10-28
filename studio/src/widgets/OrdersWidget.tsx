@@ -4,7 +4,7 @@ import type { ColDef } from 'ag-grid-community';
 import { api, money } from '../api';
 import { usePoll } from '../store';
 import { Panel } from './Panel';
-import { gridTheme } from './QueueWidget';
+import { gridTheme } from '../theme';
 
 // Shipment watch: every captured payment, watched until it has tracking on PayPal. Prevention, before any dispute.
 type Watched = {

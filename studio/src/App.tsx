@@ -10,6 +10,7 @@ import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
 import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
+import { T, isDark } from './theme';
 import './styles.css';
 
 // Pre-built desk layout (v3.14 first screen): Waiting for you and Agent activity, the Gate record, then queue and case;
@@ -88,23 +89,23 @@ function saveDesk(e: any) {
   try { localStorage.setItem(DESK_LAYOUT_KEY, JSON.stringify(desk.widgetLayout)); } catch { /* not saved; the layout still works */ }
 }
 
-// JUNCO theme for Studio's native widgets (Insights charts and filters): the desk palette and Inter, light or dark.
-const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
-const C = dark
-  ? { bg: '#141413', surface: '#1d1d1b', ink: '#ecebe6', muted: '#a09f98', line: '#34332f', accent: '#5fb497', fills: ['#5fb497', '#8fb2ee', '#e5a54a', '#ef8a80', '#7fcf9b', '#c9a7e8', '#a09f98', '#f2d27a'] }
-  : { bg: '#f6f5f1', surface: '#ffffff', ink: '#1d1d1b', muted: '#6b6a64', line: '#e3e0d8', accent: '#1f5c4a', fills: ['#1f5c4a', '#2b4f8a', '#a15c07', '#a8322a', '#5f9e7d', '#7a5aa6', '#6b6a64', '#c7922f'] };
+// JUNCO theme for Studio's native widgets (Insights charts and filters): the desk tokens (src/theme.ts) and Geist.
+// Chart fills: the zinc ramp plus copper and one slate, so charts don't bring the rainbow back.
+const C = { bg: T.bg, surface: T.surface, ink: T.ink, muted: T.muted, line: T.line, accent: T.accent,
+  fills: isDark ? ['#e4e4e7', '#ed916b', '#8fa3b8', '#a1a1aa', '#71717a', '#c69a85', '#d4d4d8', '#52525b']
+    : [T.ink, T.attn, '#5b7083', T.muted, T.faint, '#9a6b55', '#3f3f46', '#b8b8c0'] };
 const theme = studioTheme.withParams({
-  fontFamily: 'Inter, system-ui, sans-serif', chartFontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: 'Geist, system-ui, sans-serif', chartFontFamily: 'Geist, system-ui, sans-serif',
   backgroundColor: C.surface, textColor: C.ink, borderColor: C.line,
   studioCanvasBackgroundColor: C.bg, studioWidgetBackgroundColor: C.surface,
   studioWidgetTitleTextColor: C.ink, studioWidgetSubtitleTextColor: C.muted, studioWidgetCaptionTextColor: C.muted,
   studioToggleButtonActiveBackgroundColor: C.accent, studioToggleButtonActiveBorderColor: C.accent, studioToggleButtonActiveColor: C.accent,
   chartTextColor: C.ink, chartSubtleTextColor: C.muted, chartGridLineColor: C.line, chartAxisLineColor: C.muted,
   ...Object.fromEntries(C.fills.map((c, i) => [`chartPaletteFills${i + 1}Color`, c])),
-  // v3.14 item 5: Studio's own widgets (Insights charts, filters) match the desk's panels: 12px corners, a 1px line,
-  // 17px semibold titles, 13px subtitles and captions.
-  studioWidgetBorderRadius: 12, studioWidgetBorder: { width: 1, color: C.line }, studioWidgetPadding: 16,
-  studioWidgetTitleFontSize: 17, studioWidgetTitleFontWeight: 600, studioWidgetSubtitleFontSize: 13, studioWidgetCaptionFontSize: 13,
+  // Studio's own widgets (Insights charts, filters) match the desk's panels: 8px corners, a 1px line,
+  // 14px semibold titles, 13px subtitles and captions.
+  studioWidgetBorderRadius: 8, studioWidgetBorder: { width: 1, color: C.line }, studioWidgetPadding: 16,
+  studioWidgetTitleFontSize: 14, studioWidgetTitleFontWeight: 600, studioWidgetSubtitleFontSize: 13, studioWidgetCaptionFontSize: 13,
   accentColor: C.accent,
 } as any);
 

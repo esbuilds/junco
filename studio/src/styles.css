@@ -1,17 +1,6 @@
-/* Palette and tone copied from public/index.html so the Studio desk reads as the same product. */
-:root {
-  --jd-bg: #f6f5f1; --jd-surface: #ffffff; --jd-surface-2: #f0eee8; --jd-ink: #1d1d1b; --jd-muted: #6b6a64; --jd-line: #e3e0d8;
-  --jd-accent: #1f5c4a; --jd-accent-ink: #ffffff; --jd-warn: #a15c07; --jd-warn-bg: #fdf1dc; --jd-danger: #a8322a; --jd-danger-bg: #fbe7e5;
-  --jd-ok: #1f6b3a; --jd-ok-bg: #e2f2e7; --jd-info: #2b4f8a; --jd-info-bg: #e5ecf8; --jd-focus: #2b6fd6; --jd-whatif: #6b3fa0; --jd-whatif-bg: #f1eafa;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --jd-bg: #141413; --jd-surface: #1d1d1b; --jd-surface-2: #262623; --jd-ink: #ecebe6; --jd-muted: #a09f98; --jd-line: #34332f;
-    --jd-accent: #5fb497; --jd-accent-ink: #0d1f19; --jd-warn: #e5a54a; --jd-warn-bg: #3a2a12; --jd-danger: #ef8a80; --jd-danger-bg: #3d1d1a;
-    --jd-ok: #7fcf9b; --jd-ok-bg: #18301f; --jd-info: #8fb2ee; --jd-info-bg: #1b2740; --jd-focus: #7aa7f0; --jd-whatif: #c9a7e8; --jd-whatif-bg: #2c2140;
-  }
-}
-body { margin: 0; background: var(--jd-bg); color: var(--jd-ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+/* Colours come from src/theme.ts (applyTokens writes the --jd-* variables at load). */
+body { margin: 0; background: var(--jd-bg); color: var(--jd-ink); font: 14px/20px Geist, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.jd-id, code { font-family: 'Geist Mono', ui-monospace, monospace; }
 button, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
 
@@ -151,7 +140,7 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 
 /* Top bar with page tabs */
 body { margin: 0; background: var(--jd-bg); }
-.jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Inter, system-ui, sans-serif; }
+.jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Geist, system-ui, sans-serif; }
 .jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px; }
 .jd-mark { width: 20px; height: 20px; flex: none; }
 .jd-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-info-bg); color: var(--jd-info); font-weight: 600; }
@@ -217,7 +206,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-casefile { font-size: 13px; align-self: center; margin-left: auto; }
 
 /* Replay drawer */
-.jd-drawer { position: fixed; top: 48px; right: 24px; bottom: 16px; z-index: 49; width: 520px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; background: var(--jd-surface); color: var(--jd-ink); border: 1px solid var(--jd-line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 16px; font-family: Inter, system-ui, sans-serif; }
+.jd-drawer { position: fixed; top: 48px; right: 24px; bottom: 16px; z-index: 49; width: 520px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; background: var(--jd-surface); color: var(--jd-ink); border: 1px solid var(--jd-line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 16px; font-family: Geist, system-ui, sans-serif; }
 .jd-drawer .jd-replay-bar { margin: 0 0 10px; }
 .jd-drawer-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: grid; gap: 8px; }
 .jd-drawer-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--jd-surface-2); font-size: 14px; }
@@ -256,7 +245,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 /* v3.14 first screen: Start here is a strip under the header, not an overlay */
 .jd-app { height: 100vh; display: flex; flex-direction: column; }
 .jd-app > .jd-host { flex: 1; min-height: 0; height: auto; }
-.jd-strip { display: flex; align-items: center; gap: 12px; padding: 6px 24px 8px; background: var(--jd-bg); border-bottom: 1px solid var(--jd-line); font-family: Inter, system-ui, sans-serif; color: var(--jd-ink); }
+.jd-strip { display: flex; align-items: center; gap: 12px; padding: 6px 24px 8px; background: var(--jd-bg); border-bottom: 1px solid var(--jd-line); font-family: Geist, system-ui, sans-serif; color: var(--jd-ink); }
 .jd-strip ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; }
 .jd-strip li { flex: 1 1 0; min-width: 150px; }
 .jd-strip-step { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--jd-surface); border: 1px solid var(--jd-line); font-size: 12px; line-height: 1.35; }
