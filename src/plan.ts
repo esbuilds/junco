@@ -48,13 +48,15 @@ export function triggered(when: string, d: any, approvedAt: string, now = Date.n
   return false;
 }
 
-type Deps = { ctx: Ctx; callTool: (name: string, args: any) => Promise<any>; getDispute: (id: string) => Promise<any>; log: (id: string, trigger: string, step: string, detail: string) => void };
+// extra: the store's own records for a case (store-dispute.ts extraFor), as the agent and Get recommendation see them.
+type Deps = { ctx: Ctx; callTool: (name: string, args: any) => Promise<any>; getDispute: (id: string) => Promise<any>; log: (id: string, trigger: string, step: string, detail: string) => void;
+  extra?: (id: string) => { source: string; text: string }[] };
 
-export function makePlans({ ctx, callTool, getDispute, log }: Deps, client = claude()) {
+export function makePlans({ ctx, callTool, getDispute, log, extra }: Deps, client = claude()) {
   async function propose(id: string): Promise<Plan> {
     const d = await getDispute(id);
     if (d.status === 'RESOLVED') throw Object.assign(new Error('This dispute is already resolved'), { code: 400 });
-    const evidence = collectEvidence(d, await gatherFromPayPal(ctx, d));
+    const evidence = collectEvidence(d, [...(await gatherFromPayPal(ctx, d)), ...(extra?.(id) ?? [])]);
     const res = await client.beta.messages.parse({
       model: 'claude-opus-5-5', max_tokens: 8000,
       output_config: { effort: 'high', format: betaZodOutputFormat(Proposal) },

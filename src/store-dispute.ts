@@ -70,6 +70,11 @@ export const extraFor = (id: string) => {
     ...scan,
   ];
 };
+// What the store holds for a case, for every path that asks Claude about it (the agent, Get recommendation, plans): the
+// pool record above plus a delivery scan the owner typed in. Oct 28: Get recommendation sent only the typed scan, so on an
+// agent purchase JUNCO said "nothing on file shows the listing".
+export const merchantRecords = (id: string, typedScan?: unknown) =>
+  [...extraFor(id), ...(typedScan ? [{ source: 'carrier delivery scan (entered by merchant)', text: String(typedScan).slice(0, 500) }] : [])];
 // Filed cases still waiting (unlocking or aging) count too: they will be offered.
 export const liveLeft = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r)).length + unused(kind).length;
 

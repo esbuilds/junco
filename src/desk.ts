@@ -30,7 +30,7 @@ import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
-import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
@@ -113,7 +113,7 @@ const callTool = async (name: string, args: any) =>
 // Pre-filed pool cases wait untouched for a judge; their delivery record (if any) is on the case's evidence.
 // The agent also leaves Break the mandate's paired cases alone: the challenge acts on them, once per visitor message.
 const agent = makeAgent(ctx, callTool, { extra: extraFor, skip: (id) => isWaiting(id) || isChallenge(id) });
-const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log });
+const plans = makePlans({ ctx, callTool, getDispute: agent.getDispute, log: agent.log, extra: extraFor });
 const negotiations = makeNegotiations({ callTool, getDispute: agent.getDispute, log: agent.log }, () => boundsFrom(policy));
 const challenge = makeChallenge({ ctx, policy: () => policy, callTool, getDispute: agent.getDispute, act: agent.act, log: agent.log });
 const watch = makeWatch(ctx, () => policy.ship_within_days ?? 2, agent.log);
@@ -528,7 +528,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
-        const extra = delivery_scan ? [{ source: 'carrier delivery scan (entered by merchant)', text: String(delivery_scan).slice(0, 500) }] : [];
+        const extra = merchantRecords(id, delivery_scan);
         const before = readRecs()[id];
         const prev = before?.recommendation ? { decision: before.recommendation.decision, summary: before.recommendation.summary, at: before.at } : null;
         const out = await recommend(ctx, id, extra, undefined, prev);

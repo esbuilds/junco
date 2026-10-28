@@ -82,7 +82,18 @@ const r3 = readRuns(); r3.push({ at: iso(0), visitor: 'system', buyer_txn: 'AGEN
 writeFileSync('.junco/store-runs.json', JSON.stringify(r3));
 assert.deepEqual(extraFor('PP-AGENT').map((e) => e.source), ['agent checkout record (kept by merchant)', 'product listing at time of order (merchant)', "agent's stated reason for the purchase (kept by merchant)", 'carrier delivery scan (entered by merchant)']);
 assert.match(extraFor('PP-AGENT')[0].text, /"carry-on bag" Budget given: \$70\.00/);
-console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back, agent orders carry their checkout record');
+// Get recommendation and plans see the same records (Oct 28: Get recommendation saw only a typed scan).
+const { merchantRecords } = await import('./store-dispute.js');
+assert.deepEqual(merchantRecords('PP-AGENT', 'USPS typed').map((e) => e.source), [...extraFor('PP-AGENT').map((e) => e.source), 'carrier delivery scan (entered by merchant)']);
+assert.deepEqual(merchantRecords('PP-NONE'), []);
+const { makePlans } = await import('./plan.js');
+let asked = '';
+const stub = { beta: { messages: { parse: async (p: any) => { asked = JSON.stringify(p.messages); throw new Error('stub: stop after the prompt'); } } } } as any;
+const planner = makePlans({ ctx: { baseUrl: 'http://offline', token: async () => 'x' }, callTool: async () => ({}), log: () => {}, extra: extraFor,
+  getDispute: async () => ({ dispute_id: 'PP-AGENT', status: 'OPEN', dispute_amount: { value: '62.00', currency_code: 'USD' } }) }, stub);
+await planner.propose('PP-AGENT').catch(() => {});
+assert.match(asked, /agent checkout record \(kept by merchant\)/); assert.match(asked, /WKD-01 listing/);
+console.log('ready set: waiting skipped, unlock noticed, 3-day retirement, lease starts now, one per kind, delivery record attached and timed, young orders held back, agent orders carry their checkout record, and Get recommendation and plans see it too');
 
 // Recorded run (v3.12 update R3): a pin until an aged run exists, then the newest aged run.
 setPin({ dispute_id: 'PP-PAST', until_aged: true });
