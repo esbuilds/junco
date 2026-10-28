@@ -63,7 +63,10 @@
   .refs { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
   label { font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
-  select { max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  /* The recorded-request options are long event summaries: the select fills its card and ends in an ellipsis instead of
+     stretching the card (a grid label's min-content is its widest child, so the label needs min-width 0 too). */
+  .row > label { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+  select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background-color: var(--surface); }
   input[type=number] { width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
   .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .btn:disabled { opacity: .6; cursor: default; }

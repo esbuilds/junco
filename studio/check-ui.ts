@@ -2,7 +2,7 @@
 //   npm run check-ui
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
-import { approveLabel, DESK_LAYOUT_KEY, splitHolds, startProgress } from './src/ui';
+import { approveLabel, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, splitHolds, startProgress } from './src/ui';
 import { readFileSync } from 'node:fs';
 
 // Every text pair the desk uses passes WCAG AA (4.5:1) in both colour schemes.
@@ -16,10 +16,10 @@ assert.equal(TOKENS.light['attn-text'], '#b5471c');
 assert.equal(TOKENS.light.accent, '#18181b');
 
 // Waiting for your OK counts pending holds only; approved-but-unconfirmed ones are grouped apart, finished ones dropped.
-const s = splitHolds([{ status: 'pending' }, { status: 'executing' }, { status: 'failed' }, { status: 'completed' }, { status: 'unknown' }, { status: 'pending' }]);
+const s = splitHolds([{ status: 'pending', method: 'm' }, { status: 'executing', method: 'm' }, { status: 'failed', method: 'm' }, { status: 'completed', method: 'm' }, { status: 'unknown', method: 'm' }, { status: 'pending', method: 'm' }]);
 assert.equal(s.pending.length, 2);
 assert.equal(s.unconfirmed.length, 3);
-assert.deepEqual(splitHolds([]), { pending: [], unconfirmed: [] });
+assert.deepEqual(splitHolds([]), { pending: [], money: [], unconfirmed: [] });
 
 // The approve button names the move; an unknown method never reads "Approve undefined".
 assert.equal(approveLabel('create_refund'), 'Approve refund');
@@ -42,5 +42,15 @@ for (const f of ['src/App.tsx', 'src/widgets/PolicyWidget.tsx'])
 const css = readFileSync(new URL('src/styles.css', import.meta.url), 'utf8');
 assert.match(css, /\.jd-v-wrong\s*\{[^}]*--jd-danger/, 'a wrong verdict uses the danger colour');
 assert.match(css, /\.jd-v-pass\s*\{/, 'a passing verdict has its own style');
+
+// The KPI counts what the Gate record counts: pending money moves (the server's MONEY list in src/gate.ts).
+const serverMoney = JSON.parse(readFileSync(new URL('../src/gate.ts', import.meta.url), 'utf8').match(/export const MONEY = (\[[^\]]*\])/)![1].replace(/'/g, '"'));
+assert.deepEqual([...MONEY_METHODS].sort(), [...serverMoney].sort());
+const live = splitHolds([{ status: 'pending', method: 'create_refund' }, { status: 'pending', method: 'send_invoice' }, { status: 'pending', method: 'accept_dispute_claim' }, { status: 'executing', method: 'create_refund' }]);
+assert.equal(live.money.length, 2);
+assert.equal(live.pending.length, 3);
+assert.equal(holdsLine(live), '2 held money moves · 1 other held action');
+assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'create_refund' }])), '1 held money move');
+assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'send_invoice' }])), '0 held money moves · 1 other held action');
 
 console.log('check-ui: ok');

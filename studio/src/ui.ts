@@ -2,9 +2,18 @@
 import { human } from './api';
 
 // Waiting for your OK: pending holds only. Approved holds PayPal hasn't confirmed are shown apart; the rest are finished.
+// money: the pending holds the Gate record counts as money moves (same list as MONEY in src/gate.ts; check-ui pins it),
+// so the KPI and the Gate record's "waiting" always agree. Other held actions (an invoice) still wait in the table.
+export const MONEY_METHODS = ['make_dispute_offer', 'accept_dispute_claim', 'create_refund'];
 const UNCONFIRMED = new Set(['executing', 'unknown', 'failed']);
-export function splitHolds<H extends { status: string }>(holds: H[]) {
-  return { pending: holds.filter((h) => h.status === 'pending'), unconfirmed: holds.filter((h) => UNCONFIRMED.has(h.status)) };
+export function splitHolds<H extends { status: string; method: string }>(holds: H[]) {
+  const pending = holds.filter((h) => h.status === 'pending');
+  return { pending, money: pending.filter((h) => MONEY_METHODS.includes(h.method)), unconfirmed: holds.filter((h) => UNCONFIRMED.has(h.status)) };
+}
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+export function holdsLine({ pending, money }: { pending: unknown[]; money: unknown[] }) {
+  const other = pending.length - money.length;
+  return [plural(money.length, 'held money move'), other && plural(other, 'other held action')].filter(Boolean).join(' · ');
 }
 
 const APPROVE: Record<string, string> = { create_refund: 'Approve refund', make_dispute_offer: 'Approve offer', accept_dispute_claim: 'Approve claim acceptance', provide_dispute_evidence: 'Approve evidence' };
