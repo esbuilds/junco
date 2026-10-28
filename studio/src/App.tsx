@@ -92,10 +92,10 @@ function saveDesk(e: any) {
 }
 
 // JUNCO theme for Studio's native widgets (Insights charts and filters): the desk tokens (src/theme.ts) and Geist.
-// Chart fills: the zinc ramp plus copper and one slate, so charts don't bring the rainbow back.
+// Chart fills: the zinc ramp plus one slate, no copper (copper means the owner must act), so charts stay calm.
 const C = { bg: T.bg, surface: T.surface, ink: T.ink, muted: T.muted, line: T.line, accent: T.accent,
-  fills: isDark ? ['#e4e4e7', '#ed916b', '#8fa3b8', '#a1a1aa', '#71717a', '#c69a85', '#d4d4d8', '#52525b']
-    : [T.ink, T.attn, '#5b7083', T.muted, T.faint, '#9a6b55', '#3f3f46', '#b8b8c0'] };
+  fills: isDark ? ['#a1a1aa', '#52525b', '#8fa3b8', '#3f3f46', '#d4d4d8', '#5b7083', '#71717a', '#27272a']
+    : ['#52525b', '#a1a1aa', '#5b7083', '#d4d4d8', '#27272a', '#8fa3b8', '#71717a', '#e4e4e7'] };
 const theme = studioTheme.withParams({
   fontFamily: 'Geist, system-ui, sans-serif', chartFontFamily: 'Geist, system-ui, sans-serif',
   backgroundColor: C.surface, textColor: C.ink, borderColor: C.line,

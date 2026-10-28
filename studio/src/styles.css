@@ -137,7 +137,7 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 .jd-policy-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--jd-line); }
 .jd-policy-row:first-child { border-top: 0; }
 .jd-policy-row > span:first-child { display: grid; gap: 2px; }
-.jd-policy-row select, .jd-money-input input { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
+.jd-policy-row select, .jd-money-input input { font: inherit; color: inherit; background-color: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
 .jd-money-input { display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0; }
 .jd-money-input input { width: 90px; margin-left: 4px; text-align: right; }
 .jd-ok { background: var(--jd-surface-2); color: var(--jd-ink); }
@@ -165,7 +165,7 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 
 /* Shipment watch */
 .jd-track .jd-row { flex-wrap: nowrap; }
-.jd-track select, .jd-track input[type=text] { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
+.jd-track select, .jd-track input[type=text] { font: inherit; color: inherit; background-color: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
 .jd-track input[type=text] { width: 220px; }
 .jd-panel a { color: var(--jd-ink); text-decoration-color: var(--jd-line); text-underline-offset: 3px; }
 
@@ -186,7 +186,7 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 /* Try the brain */
 .jd-try-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .jd-try-field { display: grid; gap: 4px; font-size: 13px; color: var(--jd-muted); margin-top: 8px; }
-.jd-try-field select, .jd-try-field input, .jd-try-field textarea { font: inherit; font-size: 14px; color: var(--jd-ink); background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 7px 9px; }
+.jd-try-field select, .jd-try-field input, .jd-try-field textarea { font: inherit; font-size: 14px; color: var(--jd-ink); background-color: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 7px 9px; }
 .jd-try-field textarea { min-height: 72px; resize: vertical; }
 .jd-try-wide { grid-column: 1 / -1; }
 a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
@@ -406,3 +406,4 @@ textarea { border-radius: 8px; }
 .jd-mode-what-if { border: 1px dashed var(--jd-whatif); color: var(--jd-whatif); }
 .jd-rail .jd-rail-what-if { background: var(--jd-whatif-bg); border: 1px dashed var(--jd-whatif); }
 .jd-rail.jd-focus-live .jd-rail-live { outline: 1px solid var(--jd-ink); }
+.jd-policy-row select, .jd-track select, .jd-try-field select { padding-right: 30px; height: 36px; } /* room for the chevron */
