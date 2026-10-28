@@ -112,7 +112,7 @@ function render() {
     Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
   const a = inc.authority, p = inc.purchase;
   $('#authority').innerHTML = a ? dl([['Instruction', a.instruction], ['Budget', a.budget], ['Agent', a.agent]]) : '<p class="muted">Not in the records.</p>';
-  $('#purchase').innerHTML = p ? dl([['Item', `${p.sku}, ${p.listing}`], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
+  $('#purchase').innerHTML = p ? dl([['Item', p.listing], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
   $('#missing-card').hidden = !inc.missing.length;
   $('#missing').innerHTML = inc.missing.map((m) => `<li>${esc(m)}</li>`).join('');
   // The what-if re-runs the gate's decision on a recorded call: a hold or a gate-log event, latest first.

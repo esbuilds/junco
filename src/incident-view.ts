@@ -53,7 +53,7 @@ button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #1f5c4a;
 <h1>${esc(inc.title)}</h1>
 <table>
 ${row('Incident id', inc.id)}${row('Capture id', inc.purchase?.capture_id ?? 'not recorded')}${row('Order id', inc.purchase?.order_id)}
-${row('Item', inc.purchase && `${inc.purchase.sku}, ${inc.purchase.listing}`)}${row('Amount', inc.purchase?.amount)}
+${row('Item', inc.purchase?.listing)}${row('Amount', inc.purchase?.amount)}
 ${row('Buyer allowed', inc.authority && `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})`)}
 ${row('Dispute', inc.dispute_id)}${row('PayPal refund id', refund)}
 ${row('Money moves', `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}

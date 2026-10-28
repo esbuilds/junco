@@ -5,6 +5,7 @@ import { api as desk, money, TRIGGER, type Activity, type CaseDetail, type Hold 
 import { selectCase } from './store';
 import { GateCard, gateData } from './widgets/GateCard';
 import type { Incident, IncidentSummary, WhatIf } from '../../src/incident-types';
+import { incidentLabel } from './widgets/IncidentWidget';
 
 export const QUESTION = 'Which disputes am I about to lose this week?';
 const DID = 'What did JUNCO do without me this week?';
@@ -139,13 +140,13 @@ function juncoTools(api: any): AgAiTool[] {
       params: (s: any) => s.object({ incident_id: s.string({ description: 'Incident id (the buyer transaction id); empty to list incidents' }) }),
       async execute({ incident_id }: { incident_id: string }, ctx: any) {
         try {
-          if (!incident_id) return ctx.success((await desk<IncidentSummary[]>('/api/incidents')).map((i) => `${i.id}: ${i.title}${i.dispute_id ? `, dispute ${i.dispute_id}` : ''}`).join('\n') || 'No incidents.');
+          if (!incident_id) return ctx.success((await desk<IncidentSummary[]>('/api/incidents')).map((i) => `${i.id} (${incidentLabel(i)})`).join('\n') || 'No incidents.');
           const i = await desk<Incident>(`/api/incident/${encodeURIComponent(incident_id)}`);
           const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
           return ctx.success([
             `${i.id}: ${i.title}`,
             `Buyer allowed: ${i.authority ? `${i.authority.instruction} (budget ${i.authority.budget}, ${i.authority.agent})` : 'not in the records'}`,
-            `Bought: ${i.purchase ? `${i.purchase.sku} ${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
+            `Bought: ${i.purchase ? `${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
             `Money moves: ${i.counts.proposed} proposed, ${i.counts.approved} approved, ${i.counts.executed} executed, ${i.counts.outcome_unknown} outcome unknown`,
             ...i.events.map((e) => `${e.at.slice(0, 16).replace('T', ' ')} [${LIVE.includes(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'LIVE' : 'RECORDED'}] ${e.id} ${e.actor}: ${e.summary}`),
             ...(i.missing.length ? [`Not in the records: ${i.missing.join(' ')}`] : []),
