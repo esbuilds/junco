@@ -2,11 +2,11 @@
 // PayPal). Shared by the desk's server code and Studio; public/incident.html repeats these few lines in plain JS.
 import type { Incident, IncidentEvent, Mode } from './incident-types.js';
 
-// LIVE: something PayPal's sandbox did or recorded. RECORDED: a decision made only inside the desk (agent, gate, hold,
-// owner), except a gate call the gate allowed (its rule starts "allow:"), which went straight to PayPal. WHAT-IF events
-// are never in an Incident; they come back from whatIf() and are drawn apart.
+// The event's own mode (set by src/incident.ts). Events from before it existed fall back to the same rule: PayPal's
+// events and a gate call the gate allowed ("allow:") are LIVE; the desk's own decisions and a case lease are RECORDED.
+// WHAT-IF never appears on an event; whatIf() returns it and the page draws it apart.
 const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
-export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
+export const modeOf = (e: IncidentEvent): Mode => e.mode ?? ((LIVE.has(e.kind) && !e.id.endsWith(':leased')) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
 
 // "Which actions reached PayPal?": the LIVE events, to highlight.
 export function reachedPayPal(inc: Incident) {
