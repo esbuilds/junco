@@ -1,0 +1,43 @@
+// BLACK BOX (Oct 28): one AI purchase's whole story, joined from records the desk already keeps (pool, store runs, holds,
+// gate log, agent activity, webhook re-checks). Nothing in it comes from a model. Shared by src/incident.ts (the join and
+// the what-if), the connector tools, the desk's incident page and the Studio view: import these, never redefine them.
+
+// LIVE: happened against PayPal's sandbox. RECORDED: read back from the desk's records. WHAT-IF: the gate re-run on a
+// recorded request under a changed rule; it never reaches PayPal.
+export type Mode = 'live' | 'recorded' | 'what-if';
+
+export type EventKind = 'purchase' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook';
+
+export type IncidentEvent = {
+  id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
+  at: string;        // ISO time from the record
+  kind: EventKind;
+  actor: string;     // 'shopping agent', 'JUNCO agent', 'Claude (connector)', 'gate', 'owner', 'PayPal', 'buyer'
+  summary: string;   // one plain sentence a judge can read
+  source: string;    // the record it came from: 'pool', 'store-runs', 'holds', 'gate-log', 'activity', 'PayPal'
+  ref?: Partial<Record<'order_id' | 'capture_id' | 'buyer_txn' | 'dispute_id' | 'hold_id' | 'refund_id' | 'run_id' | 'rule', string>>;
+};
+
+export type Incident = {
+  id: string;        // the buyer transaction id, the pool's key
+  title: string;     // e.g. 'Agent bought WKD-01 for "waterproof bag for kayaking"'
+  authority: { instruction: string; budget: string; agent: string } | null;          // what the buyer allowed
+  purchase: { sku: string; listing: string; reason: string; amount: string; order_id?: string; capture_id?: string } | null;
+  dispute_id: string | null;
+  events: IncidentEvent[];                                                            // oldest first
+  counts: { proposed: number; approved: number; executed: number; outcome_unknown: number }; // money moves only
+  missing: string[]; // facts the records don't have, said plainly; never filled in by a model
+};
+
+export type IncidentSummary = Pick<Incident, 'id' | 'title' | 'dispute_id' | 'counts'> & { last_at: string };
+
+export type WhatIf = {
+  mode: 'what-if';
+  event_id: string;  // the recorded request it re-ran
+  method: string;
+  args: unknown;
+  change: string;    // the one rule change, in words: 'refund limit 50 -> 30 USD'
+  before: { verdict: string; reason: string };
+  after: { verdict: string; reason: string };
+  paypal_calls: 0;   // by construction: the what-if path has no PayPal client
+};
