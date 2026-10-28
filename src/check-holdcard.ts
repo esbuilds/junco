@@ -22,6 +22,11 @@ const meta = (n: string) => (tools.find((t) => t.name === n)?._meta as any)?.ui;
 assert.equal(meta('create_refund')?.resourceUri, HOLD_CARD); assert.equal(meta('accept_dispute_claim')?.resourceUri, HOLD_CARD);
 assert.equal(meta('get_dispute'), undefined); // reads get no card
 assert.deepEqual(meta('junco_hold_status')?.visibility, ['app']);
+const desc = (n: string) => tools.find((t) => t.name === n)?.description ?? '';
+for (const t of ['create_refund', 'accept_dispute_claim']) assert.match(desc(t), /^Through this server, this call does not run when you make it\. It creates a hold/, t);
+assert.match(desc('make_dispute_offer'), /at most 25 .* it creates a hold/); assert.doesNotMatch(desc('get_dispute'), /Through this server/);
+assert.match(client.getInstructions() ?? '', /owner approval gate/);
+console.log('tools/list on /mcp/paypal: held and limited tools say what the gate does; reads untouched; instructions too');
 const res = (await client.readResource({ uri: HOLD_CARD })).contents[0] as any;
 assert.equal(res.mimeType, 'text/html;profile=mcp-app'); assert.match(res.text, /ui\/initialize/); assert.doesNotMatch(res.text, /Approve/);
 console.log('tools/list: held tools carry the card, reads don\'t, the status tool is app-only; resource is text/html;profile=mcp-app with no approve button');

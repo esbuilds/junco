@@ -61,6 +61,21 @@ type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 const errorOf = (t?: string) => { try { return JSON.parse(t ?? '').error; } catch { return undefined; } };
 
+// What a client must know before it calls a tool the gate can hold (Oct 28: a Claude refused to call create_refund, believing
+// it would move money on its own). Only what the gate does: a held call runs only after the owner's approval, at most once.
+const HOLD_NOTE = 'Through this server, this call does not run when you make it. It creates a hold: the owner sees the exact call and '
+  + 'approves or rejects it, and only their approval runs it, at most once. Calling this tool is how you propose the action to the owner.';
+export function policyNote(policy: Policy, name: string, standing: boolean): string | null {
+  const rule = policy.tools[name] ?? policy.default;
+  const also = standing ? ' One exception: a standing approval the owner set for this exact case can let it run directly.' : '';
+  if (rule === 'hold') return HOLD_NOTE + also;
+  if (typeof rule !== 'object') return null;
+  const above = rule.over === 'hold' ? `creates a hold: the owner sees the exact call and approves or rejects it, and only their approval runs it, at most once`
+    : rule.over === 'deny' ? 'is refused' : 'runs directly';
+  return `Through this server, a call with an amount of at most ${rule.max_amount} (amount.value or offer_amount.value) runs directly; above that, `
+    + `or with no readable amount, it ${above}.${rule.over === 'hold' ? ' Calling this tool is how you propose a larger action to the owner.' : ''}${also}`;
+}
+
 // server: an McpServer from @modelcontextprotocol/sdk with its tools registered. Call last, so it wraps every tool.
 export function gate(server: any, policy: Policy, o: GateOptions = {}) {
   const store = o.store ?? jsonStore();
@@ -71,11 +86,15 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
     o.log?.({ at: new Date().toISOString(), method, args, verdict, reason, ...(hold_id && { hold_id }), ...(error && { error }) });
 
   // ponytail: _registeredTools is private SDK state (checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade
-  const tools: Record<string, { handler: Handler; update: (u: { callback: Handler }) => void; disable?: () => void }> = server._registeredTools;
+  const tools: Record<string, { handler: Handler; description?: string; update: (u: { callback?: Handler; description?: string }) => void; disable?: () => void }> = server._registeredTools;
   const originals: Record<string, Handler> = {};
   for (const [name, tool] of Object.entries(tools)) {
     originals[name] = tool.handler;
     if (policy.tools[name] === 'hidden') tool.disable?.(); // not listed; a direct call still gets the deny
+    // The client reads what the gate does with this tool before it decides to call it. ponytail: written at wrap time; the
+    // desk builds a gated server per MCP request, so a policy edit shows on the next connection.
+    const note = policyNote(policy, name, !!o.allow);
+    if (note) tool.update({ description: tool.description ? `${note}\n\n${tool.description}` : note });
     tool.update({
       callback: async (args, extra) => {
         const refused = policy.tools[name] !== 'read' && guarded(name, args, 'call');
@@ -113,6 +132,14 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
       },
     });
   }
+
+  // The same fact in the server's MCP instructions, which a client reads once at initialize. ponytail: _instructions is
+  // private SDK state (set from the constructor; checked on @modelcontextprotocol/sdk 1.32); re-check on upgrade.
+  const inner = server.server;
+  if (inner && Object.keys(tools).some((n) => policyNote(policy, n, false)))
+    inner._instructions = [inner._instructions, 'Tools that move money or commit the store go through an owner approval gate: their descriptions say which. '
+      + 'A held call does not run when you make it; it creates a hold the owner approves or rejects, and only an approval runs it, at most once. '
+      + 'Calling such a tool is the way to propose the action to the owner.'].filter(Boolean).join('\n\n');
 
   async function resolve(id: string, approve: boolean): Promise<Hold> {
     const holds = store.read();

@@ -109,3 +109,22 @@ test('duplicate: the same call asked twice joins the waiting hold; after it ran,
   assert.equal((await t.call(500)).error.type, 'duplicate_call');
   assert.deepEqual(t.ledger, [500]);
 });
+
+test('tools/list: a client reads what the gate does before calling; reads are untouched', async () => {
+  const server = new McpServer({ name: 'toy', version: '1.0.0' });
+  const reg = (n: string) => server.registerTool(n, { description: `Original ${n}`, inputSchema: { amount: z.number() } }, async () => ({ content: [{ type: 'text', text: '{}' }] }));
+  ['refund', 'transfer', 'cap', 'balance'].forEach(reg);
+  gate(server, { default: 'deny', tools: { refund: 'hold', transfer: { max_amount: 100, over: 'hold' }, cap: { max_amount: 5, over: 'deny' }, balance: 'read' } },
+    { store: jsonStore(join(mkdtempSync(join(tmpdir(), 'gate-')), 'holds.json')) });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a);
+  const client = new Client({ name: 'test', version: '1.0.0' });
+  await client.connect(b);
+  const d = Object.fromEntries((await client.listTools()).tools.map((t) => [t.name, t.description]));
+  assert.match(d.refund!, /^Through this server, this call does not run when you make it\. It creates a hold.*at most once\. Calling this tool is how you propose the action to the owner\.\n\nOriginal refund$/s);
+  assert.match(d.transfer!, /^Through this server, a call with an amount of at most 100 .* runs directly; above that, or with no readable amount, it creates a hold.*\n\nOriginal transfer$/s);
+  assert.match(d.cap!, /at most 5 .*it is refused\.\n\nOriginal cap$/s);
+  assert.equal(d.balance, 'Original balance');
+  assert.doesNotMatch(d.refund!, /standing approval/); // no allow hook, no exception claimed
+  assert.match(client.getInstructions() ?? '', /owner approval gate/);
+});

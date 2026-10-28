@@ -40,6 +40,14 @@ await server.connect(a);
 const client = new Client({ name: 'check-refund-mcp', version: '0' });
 await client.connect(b);
 const call = async (args: any) => JSON.parse(((await client.callTool({ name: 'create_refund', arguments: args })) as any).content[0].text);
+// tools/list: what a client reads before it decides to call (Oct 28: a Claude refused create_refund, thinking it would move money itself).
+const listed = Object.fromEntries((await client.listTools()).tools.map((t) => [t.name, t.description ?? '']));
+for (const t of ['create_refund', 'accept_dispute_claim']) assert.match(listed[t], /^Through this server, this call does not run when you make it\. It creates a hold/, t);
+assert.match(listed.create_refund, /standing approval/); // the desk's gate has one, so the exception is stated
+assert.match(listed.make_dispute_offer, /^Through this server, a call with an amount of at most 25 .* runs directly; above that, or with no readable amount, it creates a hold/);
+for (const t of ['get_dispute', 'get_order', 'get_refund', 'junco_get_incident']) assert.doesNotMatch(listed[t], /Through this server/, t);
+assert.match(client.getInstructions() ?? '', /owner approval gate/);
+console.log('tools/list: held and limited tools say what the gate does with them; reads say nothing extra; instructions too');
 const five = { capture_id: CAP, amount: { value: '5.00', currency_code: 'USD' } };
 
 const first = await call(five);
