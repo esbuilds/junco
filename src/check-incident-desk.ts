@@ -21,7 +21,8 @@ assert.equal(acceptedText({ method: 'create_refund', result: paypal }), 'PayPal 
 assert.equal(acceptedText({ method: 'send_dispute_message', result: '{"ok":true}' }), 'PayPal accepted it');
 console.log('refund id: read from PayPal JSON, the hosted wrapper, a settled hold and prose; errors and other actions give none');
 
-const ev = (id: string, kind: IncidentEvent['kind'], rule?: string): IncidentEvent => ({ id, at: '2026-10-23T09:41:31.000Z', kind, actor: 'x', summary: 'the gate allowed it', source: 'x', ...(rule && { ref: { rule } }) });
+// No mode here (cast): these test modeOf's own rule from kind and ref.rule. Once modeOf reads e.mode, give each its mode.
+const ev = (id: string, kind: IncidentEvent['kind'], rule?: string) => ({ id, at: '2026-10-23T09:41:31.000Z', kind, actor: 'x', summary: 'the gate allowed it', source: 'x', ...(rule && { ref: { rule } }) }) as IncidentEvent;
 const live = [ev('purchase:T1', 'purchase'), ev('payment:C1', 'payment'), ev('dispute:D1', 'dispute'), ev('dispute:D1:leased', 'dispute'), ev('webhook:h1', 'webhook'), ev('paypal:h1', 'paypal'),
   ev('gate:a', 'gate', 'allow: 5 is within the 25 limit for create_refund')];
 const recorded = [ev('agent:a', 'agent'), ev('hold:h1', 'hold'), ev('approval:h1', 'approval'), ev('gate:b', 'gate', 'deny: denied by policy'), ev('gate:c', 'gate')] // the label reads ref.rule, never the summary;

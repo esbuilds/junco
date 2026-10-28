@@ -6,6 +6,9 @@ import type { Decision } from '../packages/junco-gate/src/index.js';
 import { gate, loadActivePolicy, type Policy, type Hold } from './gate.js';
 import { hydrate } from './persist.js';
 import { trackingTool } from './watch.js';
+import { addHoldCard } from './holdcard.js';
+import { addIncidentTools } from './incident.js';
+import { readHolds } from './gate.js';
 
 // The PayPal token renews in-process: on a timer 10 minutes before it expires, on demand when it is that close, and
 // after a 401 (ctx.renew). Oct 21: this replaced exiting for a restart every ~9 h, which left a gap for sign-ins.
@@ -93,6 +96,8 @@ export async function createServer(ctx: Ctx & { readonly accessToken: string }, 
   server.tool(trackingTool.method, trackingTool.description, trackingTool.parameters.shape, async (arg: any) => ({
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
+  addHoldCard(server, policy, readHolds); // S3, as on the hosted server
+  addIncidentTools(server); // BLACK BOX on the toolkit path too: PayPal's hosted calls fail at times (Oct 29), this one doesn't
   return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx), undefined, log, captureReader(ctx)) }; // gate last, so it wraps every tool
 }
 

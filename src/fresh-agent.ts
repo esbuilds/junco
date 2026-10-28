@@ -4,7 +4,8 @@
 // amount it states must be in junco_get_incident's JSON (a fact seen only in another tool result is still a FAIL, named
 // as such). Money can't move: write tools are never offered, a call to one is refused here before it leaves, and the
 // desk's gate record must be unchanged after the run.
-//   npm run fresh-agent -- <buyer_txn>     (DESK_URL, default the hosted desk; DESK_PASSWORD: the judge's rights)
+//   npm run fresh-agent -- <buyer_txn> [--mcp]   (DESK_URL, default the hosted desk; DESK_PASSWORD: the judge's rights)
+// Default path /mcp/paypal (PayPal's hosted server behind the gate); --mcp uses /mcp (the Agent Toolkit over REST).
 // Writes research/fresh-agent/<buyer_txn>.md (gitignored). Two runs per incident at most (research/fresh-agent/runs.json).
 import Anthropic from '@anthropic-ai/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -15,7 +16,7 @@ import { loadPolicy } from './gate.js';
 
 try { process.loadEnvFile(); } catch {}
 const MODEL = 'claude-sonnet-5-5', MAX_TURNS = 16, RUNS_PER_INCIDENT = 2, NEVER = '22B5810267205224R';
-const txn = process.argv[2] ?? '';
+const txn = process.argv[2] ?? '', PATH = process.argv.includes('--mcp') ? '/mcp' : '/mcp/paypal';
 if (!/^[A-Z0-9]{17}$/.test(txn)) { console.error('usage: npm run fresh-agent -- <buyer_txn>'); process.exit(1); }
 const DESK = (process.env.DESK_URL ?? 'https://junco-desk.onrender.com').replace(/\/$/, '');
 if (!process.env.DESK_PASSWORD) { console.error('Set DESK_PASSWORD in .env'); process.exit(1); }
@@ -37,7 +38,7 @@ const gateCounts = async () => {
 const before = await gateCounts();
 
 const mcp = new Client({ name: 'junco-fresh-agent', version: '1.0.0' });
-await mcp.connect(new StreamableHTTPClientTransport(new URL(`${DESK}/mcp/paypal`), { requestInit: { headers: auth } }));
+await mcp.connect(new StreamableHTTPClientTransport(new URL(`${DESK}${PATH}`), { requestInit: { headers: auth } }));
 const policy = loadPolicy();
 const offered = (await mcp.listTools()).tools.filter((t) => t.name.startsWith('junco_') || policy.tools[t.name] === 'read');
 const allowed = new Set(offered.map((t) => t.name));
@@ -48,7 +49,7 @@ const incidentJson = text(await mcp.callTool({ name: 'junco_get_incident', argum
 const incident = JSON.parse(incidentJson);
 if (!incident?.id) { console.error(`No incident ${txn}: ${incidentJson.slice(0, 200)}`); process.exit(1); }
 
-const md: string[] = [`# Fresh-agent test: ${txn}`, '', `${new Date().toISOString()} · ${MODEL} · desk ${DESK}/mcp/paypal`, '',
+const md: string[] = [`# Fresh-agent test: ${txn}`, '', `${new Date().toISOString()} · ${MODEL} · desk ${DESK}${PATH}`, '',
   `Tools offered (${offered.length}): ${[...allowed].join(', ')}`, ''];
 const seen: { name: string; result: string }[] = []; // every tool result the model got, to name where a non-key fact came from
 const refused: string[] = [];
@@ -127,9 +128,9 @@ lines.push(refused.length ? `PASS gate: ${refused.length} call(s) to tools outsi
 lines.push(before === after ? `PASS gate: the desk's gate record is unchanged (${after})` : `FAIL gate: the desk's gate record changed: ${before} -> ${after} (another visitor may have acted; check the desk)`);
 
 const fails = lines.filter((l) => l.startsWith('FAIL')).length;
-const summary = `fresh-agent ${txn}: ${fails ? `FAIL (${fails} of ${lines.length})` : `pass (${lines.length} checks)`}; ${seen.length} tool calls; Claude about $${usd.toFixed(3)}`;
+const summary = `fresh-agent ${txn} via ${PATH}: ${fails ? `FAIL (${fails} of ${lines.length})` : `pass (${lines.length} checks)`}; ${seen.length} tool calls; Claude about $${usd.toFixed(3)}`;
 md.push('## Grade', '', ...lines.map((l) => `- ${l}`), '', `**${summary}**`, '', '## Grading key (junco_get_incident)', '', '```json', JSON.stringify(incident, null, 2), '```');
-const file = `${DIR}/${txn}${(runs[txn] ?? []).length ? `-${(runs[txn] ?? []).length + 1}` : ''}.md`; // a second run keeps the first
+const file = `${DIR}/${txn}${PATH === '/mcp' ? '-mcp' : ''}${(runs[txn] ?? []).length ? `-${(runs[txn] ?? []).length + 1}` : ''}.md`; // a second run keeps the first
 writeFileSync(file, md.join('\n'));
 console.log(lines.join('\n'));
 console.log(summary);

@@ -52,6 +52,19 @@ export function hosted(): Promise<Conn> {
   return p;
 }
 
+// A tool list says the server is up, not that its calls work (Oct 29: every hosted call returned PAYPAL_API_SETUP_ERROR
+// "Unsupported cache mode: default" while tools/list was fine). One cheap read, the smallest page of products, tells.
+export async function hostedHealth(c: Pick<Conn, 'client' | 'tools'>): Promise<string> {
+  const t = c.tools.find((x) => x.name === 'list_products');
+  if (!t) throw new Error(`${c.tools.length} tools, no list_products to try a call with`);
+  const props = (t.inputSchema as any)?.properties ?? {};
+  const args = Object.fromEntries([['page', 1], ['page_size', 1]].filter(([k]) => k in props));
+  const r: any = await c.client.callTool({ name: 'list_products', arguments: args });
+  let body: any = null; try { body = JSON.parse(r?.content?.[0]?.text ?? ''); } catch {}
+  if (r?.isError || body?.ok === false) throw new Error(`${c.tools.length} tools, calls failing: ${body?.message ?? body?.code ?? String(r?.content?.[0]?.text ?? 'error').slice(0, 120)}`);
+  return `${c.tools.length} tools, calls ok`;
+}
+
 // PayPal's tools are mirrored onto a local server (junco-gate's mirror: pass-through arguments, PayPal's own schemas in
 // tools/list, a mid-flight failure reported as upstream_unavailable and never retried), then JUNCO's tools, then the gate.
 export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: Hold) => void, log?: (d: Decision) => void) {

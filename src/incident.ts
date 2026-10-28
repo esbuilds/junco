@@ -28,6 +28,11 @@ const entries = () => readPool().filter((p) => p.agent);
 // A buyer_txn can have a failed filing before a good one; the run that opened a dispute wins.
 const runOf = (txn: string) => { const rs = readRuns().filter((r) => r.buyer_txn === txn); return rs.find((r) => r.dispute_id) ?? rs.at(-1); };
 
+// LIVE: something PayPal did. A gate allow went straight to PayPal; a deny, a hold and the case lease are the desk's own.
+const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
+const modeOf = (e: Omit<IncidentEvent, 'mode'>): IncidentEvent['mode'] =>
+  e.id.endsWith(':leased') ? 'recorded' : e.kind === 'gate' ? (e.ref?.rule?.startsWith('allow:') ? 'live' : 'recorded') : LIVE.has(e.kind) ? 'live' : 'recorded';
+
 function build(p: PoolEntry): Incident {
   const a = p.agent!, run = runOf(p.buyer_txn), dispute_id = run?.dispute_id ?? null;
   const capture_id = a.capture_id || undefined;
@@ -41,7 +46,7 @@ function build(p: PoolEntry): Incident {
   const mine = (args: any) => (!!dispute_id && args?.dispute_id === dispute_id) || (!!capture_id && args?.capture_id === capture_id);
 
   // pool amounts are USD: pool.ts only places USD orders
-  const events: IncidentEvent[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: 'pool',
+  const events: Omit<IncidentEvent, 'mode'>[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: 'pool',
     summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store.`,
     ref: { buyer_txn: p.buyer_txn, ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
@@ -103,7 +108,7 @@ function build(p: PoolEntry): Incident {
     id: p.buyer_txn, title: `Agent bought ${a.sku} for "${a.instruction}"`,
     authority: { instruction: a.instruction, budget: `${a.budget} USD`, agent: a.agent },
     purchase: { sku: a.sku, listing: a.listing, reason: a.reason, amount: `${p.amount} USD`, ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) },
-    dispute_id, events, counts, missing,
+    dispute_id, events: events.map((e) => ({ ...e, mode: modeOf(e) })), counts, missing,
   };
 }
 
