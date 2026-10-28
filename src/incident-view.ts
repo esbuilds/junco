@@ -36,16 +36,21 @@ export function receiptPage(inc: Incident, pageUrl: string) {
   const refund = inc.events.find((e) => e.ref?.refund_id)?.ref?.refund_id;
   const row = (k: string, v: unknown) => (v ? `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>` : '');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>JUNCO receipt ${esc(inc.id)}</title><style>
-body{margin:0 auto;padding:32px 24px;max-width:640px;background:#fff;color:#1d1d1b;font:14px/1.5 Inter,system-ui,sans-serif}
-h1{font-size:20px;margin:0 0 4px}.m{color:#6b6a64}table{border-collapse:collapse;width:100%;margin:16px 0}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e3e0d8;vertical-align:top}th{width:38%;font-weight:600}
-td{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.qr{display:flex;gap:16px;align-items:center;margin-top:16px}
-.qr svg{width:140px;height:140px;flex:none}.u{font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere}
-button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #1f5c4a;background:#1f5c4a;color:#fff}
-@media print{button,.np{display:none}body{padding:0}}
+<meta name="robots" content="noindex"><title>JUNCO receipt ${esc(inc.id)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"><style>
+/* Graphite, the desk's palette (studio/src/theme.ts); always light, and plain black on white when printed. */
+body{margin:0 auto;padding:40px 24px;max-width:640px;background:#fff;color:#18181b;font:14px/20px Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.brand{display:flex;align-items:center;gap:8px;margin:0 0 20px;font-size:13px;color:#52525b}.brand strong{color:#18181b;font-size:15px;font-weight:600;letter-spacing:-.02em}
+.brand svg{width:20px;height:20px}h1{font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.01em;margin:0}.m{color:#52525b}
+table{border-collapse:collapse;width:100%;margin:20px 0;border-top:1px solid #e4e4e7}
+th,td{text-align:left;padding:9px 0;border-bottom:1px solid #e4e4e7;vertical-align:top}th{width:36%;padding-right:16px;font-weight:500;color:#52525b}
+td{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.qr{display:flex;gap:20px;align-items:center;margin-top:20px;padding:16px;border:1px solid #e4e4e7;border-radius:8px}
+.qr svg{width:140px;height:140px;flex:none}.u{font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;line-height:18px;overflow-wrap:anywhere;margin-top:4px}
+button{font:500 13px/18px Geist,system-ui,sans-serif;padding:7px 14px;border-radius:6px;border:1px solid #18181b;background:#18181b;color:#fff;cursor:pointer}
+@media print{button,.np{display:none}body{padding:0;color:#000}.m,th,.brand{color:#000}th,td,table,.qr{border-color:#000}.qr{border-radius:0}.brand circle{fill:#000}}
 </style></head><body>
-<p class="m"><strong>JUNCO</strong> · incident receipt</p>
+<p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· incident receipt</span></p>
 <h1>${esc(inc.title)}</h1>
 <table>
 ${row('Incident id', inc.id)}${row('Capture id', inc.purchase?.capture_id ?? 'not recorded')}${row('Order id', inc.purchase?.order_id)}

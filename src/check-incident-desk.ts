@@ -45,6 +45,9 @@ assert.ok(receiptPage({ ...inc, purchase: null }, url).includes('not recorded'))
 assert.ok(page.includes('<td>WKD-01 Dry bag</td>') && !page.includes('WKD-01, WKD-01')); // the listing alone: it already starts with the SKU
 assert.ok(page.includes('<svg') && page.includes(`<div class="u">${url}</div>`)); // QR, and the URL as text under it
 assert.ok(!page.includes('<script>x') && page.includes('&#60;script&#62;x'));
+// Same product as the desk: Graphite and Geist on screen, plain black on white in print, the old cream lines gone.
+assert.ok(page.includes('family=Geist') && page.includes('#18181b') && !page.includes('#e3e0d8') && !/font:[^;}]*Inter/.test(page));
+assert.ok(/@media print\{.*color:#000/.test(page));
 console.log('receipt: capture id, incident id, refund id, what the records lack, a QR and the URL in text; titles escaped');
 // The judge's three questions, from the incident JSON alone.
 const asked = reachedPayPal(inc);
