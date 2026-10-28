@@ -41,7 +41,8 @@
     "check-killswitch": "tsx src/check-killswitch.ts",
     "check-hosted-health": "tsx src/check-hosted-health.ts",
     "check-refund-mcp": "tsx src/check-refund-mcp.ts",
-    "check-incident-desk": "tsx src/check-incident-desk.ts"
+    "check-incident-desk": "tsx src/check-incident-desk.ts",
+    "check-ui": "tsx studio/check-ui.ts"
   },
   "keywords": [],
   "author": "",

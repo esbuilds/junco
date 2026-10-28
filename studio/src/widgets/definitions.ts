@@ -14,6 +14,7 @@ import { TryWidget } from './TryWidget';
 import { ChallengeWidget } from './ChallengeWidget';
 import { QueueWidget } from './QueueWidget';
 import { StatsWidget } from './StatsWidget';
+import { StartRail } from './StartHere';
 import { StoreDisputeWidget } from './StoreDisputeWidget';
 
 // Widgets without a data mapping: the form is just the standard setup and title tabs.
@@ -34,6 +35,7 @@ const defs = [
   { id: 'junco-matching', label: 'Matching disputes', comp: MatchingWidget, defaultSize: { width: 8, height: 10 }, minSize: { width: 4, height: 5 } },
   { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },
   { id: 'junco-incident', label: 'Incident', comp: IncidentWidget, defaultSize: { width: 7, height: 30 }, minSize: { width: 4, height: 10 } },
+  { id: 'junco-start', label: 'Start here', comp: StartRail, defaultSize: { width: 3, height: 14 }, minSize: { width: 3, height: 8 } },
   { id: 'junco-activity', label: 'Agent activity', comp: ActivityWidget, defaultSize: { width: 8, height: 6 }, minSize: { width: 6, height: 4 } },
 ].map((d) => ({ ...d, form })) as unknown as AgWidgetDefinition[];
 

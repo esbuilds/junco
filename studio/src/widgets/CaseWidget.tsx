@@ -33,13 +33,13 @@ export function CaseWidget() {
 
   if (!id) {
     return (
-      <Panel title="Case" subtitle="Pick a case in the queue">
+      <Panel id="jd-case" title="Case" subtitle="Pick a case in the queue">
         <div className="jd-empty">Pick a case to see its evidence and what JUNCO recommends.</div>
       </Panel>
     );
   }
-  if (error && !c) return <Panel title="Case"><div className="jd-result jd-err">{error}</div></Panel>;
-  if (!c) return <Panel title="Case"><div className="jd-empty">Loading case...</div></Panel>;
+  if (error && !c) return <Panel id="jd-case" title="Case"><div className="jd-result jd-err">{error}</div></Panel>;
+  if (!c) return <Panel id="jd-case" title="Case"><div className="jd-empty">Loading case...</div></Panel>;
 
   const rec = c.saved?.recommendation ?? null;
   const problems = c.saved?.problems ?? [];
@@ -109,7 +109,7 @@ export function CaseWidget() {
   });
 
   return (
-    <Panel title={`${REASONS[c.reason] ?? human(c.reason)}, ${money(c.amount, c.currency)}`}
+    <Panel id="jd-case" title={`${REASONS[c.reason] ?? human(c.reason)}, ${money(c.amount, c.currency)}`}
       subtitle={`${c.id} · ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} · ${STATUS[c.status] ?? human(c.status)}${c.due ? ` · respond in ${dueText(c.due)}` : ''}`}>
       {SHOW_REPEAT_BUYER && (c.buyer_disputes ?? 0) >= 2 && (
         <div className="jd-repeat" role="note">Repeat buyer: this buyer has opened {c.buyer_disputes} disputes with you. Shown for you only; JUNCO's recommendation doesn't use it.</div>

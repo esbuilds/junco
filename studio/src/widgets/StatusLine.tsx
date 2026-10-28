@@ -8,8 +8,8 @@ export function StatusLine() {
   const { data } = usePoll<Status>('/api/status', 60000);
   if (!data) return null;
   const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const [cls, text] = data.ai_paused ? ['warn', `Read-only: the AI is paused (${data.ai_paused})`]
-    : data.check?.failed.length ? ['warn', `Self-check ${time(data.check.at)}: ${data.check.failed.join(', ')} failing`]
+  const [cls, text] = data.ai_paused ? ['paused', `Read-only: the AI is paused (${data.ai_paused})`]
+    : data.check?.failed.length ? ['failed', `Self-check ${time(data.check.at)}: ${data.check.failed.join(', ')} failing`]
     : data.check ? ['ok', `All systems live as of ${time(data.check.at)}`]
     : data.owner ? ['ok', 'Self-check runs a minute after start'] : [];
   if (!text) return null; // visitors see the chip only when the AI is paused; the self-check is the owner's

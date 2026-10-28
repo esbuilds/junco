@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
-import { StartHere, startSeen } from './widgets/StartHere';
+import { KillSwitch } from './widgets/KillSwitch';
 import { CaseBanner } from './widgets/CaseBanner';
 import { StatusLine } from './widgets/StatusLine';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
@@ -10,10 +10,12 @@ import { FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
 import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
+import { T, isDark } from './theme';
+import { DESK_LAYOUT_KEY } from './ui';
 import './styles.css';
 
-// Pre-built desk layout (v3.14 first screen): Waiting for you and Agent activity, the Gate record, then queue and case;
-// Dispute this store, summary stats and at-risk below (Start here's first step scrolls to Dispute this store).
+// Pre-built desk layout (UI polish): KPI strip and Waiting for your OK in the main column, Start here and Agent
+// activity in the right rail; then queue and case, the Gate record, Dispute this store and At risk.
 // Simulated lifecycle outcomes moved to Insights (v3.14).
 const layout = {
   pages: [{
@@ -21,23 +23,25 @@ const layout = {
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: {
       stats: { id: 'stats', type: 'junco-stats', dataMapping: {} },
-      store: { id: 'store', type: 'junco-store-dispute', dataMapping: {} },
       holds: { id: 'holds', type: 'junco-holds', dataMapping: {} },
+      start: { id: 'start', type: 'junco-start', dataMapping: {} },
       activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
-      risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
-      gate: { id: 'gate', type: 'junco-gate-record', dataMapping: {} },
       queue: { id: 'queue', type: 'junco-queue', dataMapping: {} },
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
+      gate: { id: 'gate', type: 'junco-gate-record', dataMapping: {} },
+      store: { id: 'store', type: 'junco-store-dispute', dataMapping: {} },
+      risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
     },
     widgetLayout: {
-      holds: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 9 },
-      activity: { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 9 },
-      gate: { xTrack: 0, yTrack: 9, xSpan: 12, ySpan: 10 },
-      queue: { xTrack: 0, yTrack: 19, xSpan: 7, ySpan: 22 },
-      case: { xTrack: 7, yTrack: 19, xSpan: 5, ySpan: 22 },
-      store: { xTrack: 0, yTrack: 41, xSpan: 12, ySpan: 14 },
-      stats: { xTrack: 0, yTrack: 55, xSpan: 12, ySpan: 4 },
-      risk: { xTrack: 0, yTrack: 59, xSpan: 7, ySpan: 7 },
+      stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
+      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: 18 },
+      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 17 },
+      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: 23 },
+      queue: { xTrack: 0, yTrack: 23, xSpan: 9, ySpan: 17 },
+      case: { xTrack: 0, yTrack: 40, xSpan: 12, ySpan: 22 },
+      gate: { xTrack: 0, yTrack: 62, xSpan: 12, ySpan: 12 },
+      store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 14 },
+      risk: { xTrack: 0, yTrack: 88, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
@@ -50,7 +54,7 @@ const layout = {
     id: 'incident',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { incident: { id: 'incident', type: 'junco-incident', dataMapping: {} } },
-    widgetLayout: { incident: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 34 } },
+    widgetLayout: { incident: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 34 } },
   }, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
     id: 'try',
@@ -75,7 +79,6 @@ const layout = {
 
 // v3.14 item 5: the owner can resize Desk panels from any edge (Studio's edit mode, on whenever the assistant is); this
 // browser remembers the sizes. Only positions of the desk's own panels are kept, so a stale save can't add or drop a panel.
-export const DESK_LAYOUT_KEY = 'jd-desk-layout';
 function withSavedDesk(l: typeof layout) {
   let saved: Record<string, unknown> = {};
   try { saved = JSON.parse(localStorage.getItem(DESK_LAYOUT_KEY) ?? '{}') ?? {}; } catch { /* private mode or a bad save: defaults */ }
@@ -88,23 +91,23 @@ function saveDesk(e: any) {
   try { localStorage.setItem(DESK_LAYOUT_KEY, JSON.stringify(desk.widgetLayout)); } catch { /* not saved; the layout still works */ }
 }
 
-// JUNCO theme for Studio's native widgets (Insights charts and filters): the desk palette and Inter, light or dark.
-const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
-const C = dark
-  ? { bg: '#141413', surface: '#1d1d1b', ink: '#ecebe6', muted: '#a09f98', line: '#34332f', accent: '#5fb497', fills: ['#5fb497', '#8fb2ee', '#e5a54a', '#ef8a80', '#7fcf9b', '#c9a7e8', '#a09f98', '#f2d27a'] }
-  : { bg: '#f6f5f1', surface: '#ffffff', ink: '#1d1d1b', muted: '#6b6a64', line: '#e3e0d8', accent: '#1f5c4a', fills: ['#1f5c4a', '#2b4f8a', '#a15c07', '#a8322a', '#5f9e7d', '#7a5aa6', '#6b6a64', '#c7922f'] };
+// JUNCO theme for Studio's native widgets (Insights charts and filters): the desk tokens (src/theme.ts) and Geist.
+// Chart fills: the zinc ramp plus one slate, no copper (copper means the owner must act), so charts stay calm.
+const C = { bg: T.bg, surface: T.surface, ink: T.ink, muted: T.muted, line: T.line, accent: T.accent,
+  fills: isDark ? ['#a1a1aa', '#52525b', '#8fa3b8', '#3f3f46', '#d4d4d8', '#5b7083', '#71717a', '#27272a']
+    : ['#52525b', '#a1a1aa', '#5b7083', '#d4d4d8', '#27272a', '#8fa3b8', '#71717a', '#e4e4e7'] };
 const theme = studioTheme.withParams({
-  fontFamily: 'Inter, system-ui, sans-serif', chartFontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: 'Geist, system-ui, sans-serif', chartFontFamily: 'Geist, system-ui, sans-serif',
   backgroundColor: C.surface, textColor: C.ink, borderColor: C.line,
   studioCanvasBackgroundColor: C.bg, studioWidgetBackgroundColor: C.surface,
   studioWidgetTitleTextColor: C.ink, studioWidgetSubtitleTextColor: C.muted, studioWidgetCaptionTextColor: C.muted,
   studioToggleButtonActiveBackgroundColor: C.accent, studioToggleButtonActiveBorderColor: C.accent, studioToggleButtonActiveColor: C.accent,
   chartTextColor: C.ink, chartSubtleTextColor: C.muted, chartGridLineColor: C.line, chartAxisLineColor: C.muted,
   ...Object.fromEntries(C.fills.map((c, i) => [`chartPaletteFills${i + 1}Color`, c])),
-  // v3.14 item 5: Studio's own widgets (Insights charts, filters) match the desk's panels: 12px corners, a 1px line,
-  // 17px semibold titles, 13px subtitles and captions.
-  studioWidgetBorderRadius: 12, studioWidgetBorder: { width: 1, color: C.line }, studioWidgetPadding: 16,
-  studioWidgetTitleFontSize: 17, studioWidgetTitleFontWeight: 600, studioWidgetSubtitleFontSize: 13, studioWidgetCaptionFontSize: 13,
+  // Studio's own widgets (Insights charts, filters) match the desk's panels: 8px corners, a 1px line,
+  // 14px semibold titles, 13px subtitles and captions.
+  studioWidgetBorderRadius: 8, studioWidgetBorder: { width: 1, color: C.line }, studioWidgetPadding: 16,
+  studioWidgetTitleFontSize: 14, studioWidgetTitleFontWeight: 600, studioWidgetSubtitleFontSize: 13, studioWidgetCaptionFontSize: 13,
   accentColor: C.accent,
 } as any);
 
@@ -112,7 +115,9 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incident'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
+// Demo pages sit after a divider so they don't read as everyday merchant work.
+const TEST_PAGES = [['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;
@@ -131,7 +136,8 @@ const fit = (l: typeof layout) => !narrow ? l : { ...l, pages: l.pages.map((p: a
 export function App() {
   // The owner (cookie) keeps Studio's widget toolbar; visitors don't get its close icon (coldjudge F10).
   const owner = usePoll<{ owner?: boolean }>('/api/status', 60000).data?.owner;
-  const [start, setStart] = useState(() => !startSeen());
+  // Ask JUNCO opens AG Studio's assistant (Studio's edit mode, with its AI panel); closed, the Desk is view mode.
+  const [assistant, setAssistant] = useState(false);
   useEffect(() => { const on = (e: Event) => setPage((e as CustomEvent).detail); window.addEventListener('jd-go', on); return () => window.removeEventListener('jd-go', on); }, []);
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
@@ -144,15 +150,31 @@ export function App() {
     <AgStudioProvider licenseKey={studioKey}>
       <div className={owner ? 'jd-app' : 'jd-app jd-visitor'}>
       <header className="jd-topbar">
-        <strong><svg className="jd-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" strokeWidth="6.4" strokeLinecap="round" /><circle cx="50.19" cy="21.5" r="4.6" fill="var(--jd-accent)" /></svg>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
-        <nav aria-label="Pages">
-          <button type="button" className="jd-tab" aria-expanded={start} onClick={() => setStart(!start)}>Start here</button>
+        <div className="jd-topbar-row">
+          <strong className="jd-brand"><svg className="jd-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" strokeWidth="6.4" strokeLinecap="round" /><circle cx="50.19" cy="21.5" r="4.6" fill={isDark ? '#5fb497' : '#1f5c4a'} /></svg>JUNCO</strong>
+          <span className="jd-slash" aria-hidden="true">/</span>
+          <CaseBanner page={page} />
+          <span className="jd-grow" />
+          <StatusLine />
+          {ai && !narrow && <button type="button" className="jd-btn jd-btn-sm" aria-pressed={assistant} onClick={() => { setAssistant(!assistant); setPage('desk'); }}>{assistant ? 'Close assistant' : 'Ask JUNCO'}</button>}
+          <KillSwitch compact />
+        </div>
+        <nav aria-label="Pages" className="jd-tabs">
           {PAGES.map(([id, label]) => (
+            <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
+          ))}
+          <span className="jd-tabs-sep" aria-hidden="true" /><span className="jd-tabs-group">Test it</span>
+          {TEST_PAGES.map(([id, label]) => (
             <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
           ))}
         </nav>
       </header>
-      {start && <StartHere go={setPage} close={() => setStart(false)} />}
+      {page === 'desk' && (
+        <div className="jd-pagehead">
+          <h1>Desk</h1>
+          <p>Every money move an agent proposes goes through your policy. Anything it holds waits here for you.</p>
+        </div>
+      )}
       <ReplayDrawer />
       <div className="jd-host">
         {/* Studio mounts once the first cases arrive: native widgets (filters, grid) build their first query on mount. */}
@@ -163,7 +185,7 @@ export function App() {
           widgets={widgets}
           initialState={{ ...fit(withSavedDesk(layout)), selectedPageId: page } as any}
           onStateUpdated={saveDesk}
-          mode={ai && page === 'desk' && !narrow ? 'edit' : 'view'}
+          mode={ai && page === 'desk' && !narrow && assistant ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}

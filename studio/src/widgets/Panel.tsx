@@ -1,17 +1,19 @@
 import type { ReactNode } from 'react';
 
 // Shared card chrome for the desk widgets, so every widget reads as one system.
-export function Panel({ title, subtitle, live, children }: {
-  title: string; subtitle?: string; live?: boolean; children: ReactNode;
+// live: a quiet "Live" label (no pill, no pulse). action: a link or button on the right of the header (View all).
+export function Panel({ id, title, subtitle, live, action, children }: {
+  id?: string; title: string; subtitle?: string; live?: boolean; action?: ReactNode; children: ReactNode;
 }) {
   return (
-    <section className="jd-panel">
+    <section className="jd-panel" id={id}>
       <header className="jd-panel-head">
         <div>
           <h2>{title}</h2>
           {subtitle && <div className="jd-muted">{subtitle}</div>}
         </div>
-        {live && <span className="jd-live" title="Updates every 5 seconds">live</span>}
+        {action}
+        {live && <span className="jd-live" title="Updates every 5 seconds">Live</span>}
       </header>
       <div className="jd-panel-body">{children}</div>
     </section>

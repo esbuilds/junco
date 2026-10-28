@@ -1,21 +1,22 @@
+import { useState } from 'react';
 import { usePoll } from '../store';
 import { selectCase } from '../store';
+import { markOpened, readOpened, startProgress } from '../ui';
 
-// Judges' "Start here" (v3.14 first screen): a dismissible strip under the header, so the holds and the assistant stay
-// visible on load. Steps follow the judge's 90 seconds and are worked out live by the desk (/api/start), so it never
-// names a stale case.
+// Judges' "Start here", in the Desk's right rail (UI polish): the current step open with its description, the rest one
+// line each. Steps follow the judge's 90 seconds and are worked out live by the desk (/api/start), so it never names a
+// stale case. Progress is per browser and keyed by position, since step 2's title follows the judge's own case.
 type Start = { own: string | null; own_ready: boolean; hold: { id: string; dispute_id: string; method: string } | null; incident: string | null };
-const KEY = 'jd-start-dismissed';
 const WANTS: Record<string, string> = { accept_dispute_claim: 'accept the claim', make_dispute_offer: 'make an offer', create_refund: 'issue a refund', provide_dispute_evidence: 'submit evidence' };
-export const startSeen = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
 const scrollTo = (id: string) => setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+const go = (page: string) => window.dispatchEvent(new CustomEvent('jd-go', { detail: page }));
 
-export function StartHere({ go, close }: { go: (page: string) => void; close: () => void }) {
+export function StartRail() {
   const { data } = usePoll<Start>('/api/start', 15000);
-  const done = () => { try { localStorage.setItem(KEY, '1'); } catch { /* private mode: just close */ } close(); };
-  const desk = (anchor?: string, id?: string) => () => { go('desk'); if (id) selectCase(id); if (anchor) scrollTo(anchor); };
+  const [opened, setOpened] = useState(readOpened);
+  const desk = (anchor?: string, id?: string) => () => { go('desk'); if (id) selectCase(id); const to = anchor ?? (id ? 'jd-case' : undefined); if (to) scrollTo(to); };
 
-  // Step 1 is on the judge's own case (v3.12): visitors approve or reject only there.
+  // Step 2 is on the judge's own case (v3.12): visitors approve or reject only there.
   const first: [string, string, () => void] = data?.hold && data.hold.dispute_id === data.own
     ? ['Approve or reject', `JUNCO wants to ${WANTS[data.hold.method] ?? data.hold.method.replace(/_/g, ' ')} on your case ${data.hold.dispute_id}. Money moves only with your OK.`, desk(undefined, data.hold.dispute_id)]
     : data?.own ? ['Your case', `${data.own} is yours for 30 minutes. If JUNCO holds an action, you decide.`, desk(undefined, data.own)]
@@ -30,15 +31,23 @@ export function StartHere({ go, close }: { go: (page: string) => void; close: ()
     ['Try to break it', 'Break the mandate: talk JUNCO into giving more than the owner allowed.', () => go('mandate')],
     ['Test the brain', 'Try it: 43 test cases or your own message. Nothing reaches PayPal.', () => go('try')],
   ];
+  const keys = steps.map((_, i) => `step-${i + 1}`);
+  const { current, done } = startProgress(opened, keys);
+  const run = (i: number) => { markOpened(keys[i]); setOpened(readOpened()); steps[i][2](); };
+
   return (
-    <div className="jd-strip" role="region" aria-label="Start here">
-      <strong>Start here</strong>
+    <section className="jd-panel jd-start" aria-label="Start here">
+      <header className="jd-panel-head"><h2>Start here</h2><span className="jd-muted">{done} of {steps.length}</span></header>
       <ol>
-        {steps.map(([title, text, run], i) => (
-          <li key={title}><button type="button" className="jd-strip-step" title={text} onClick={run}><span className="jd-start-n">{i + 1}</span><span><strong>{title}</strong><span className="jd-muted">{text}</span></span></button></li>
+        {steps.map(([title, text], i) => (
+          <li key={keys[i]} className={i === current ? 'jd-start-now' : opened.includes(keys[i]) ? 'jd-start-done' : undefined}>
+            <span className="jd-start-n" aria-hidden="true">{opened.includes(keys[i]) ? '✓' : i + 1}</span>
+            {i === current
+              ? <span><strong>{title}</strong><span className="jd-muted">{text}</span><button type="button" className="jd-btn jd-btn-sm" onClick={() => run(i)}>Open</button></span>
+              : <button type="button" className="jd-linkish jd-start-step" title={text} onClick={() => run(i)}>{title}</button>}
+          </li>
         ))}
       </ol>
-      <button type="button" className="jd-btn" onClick={done} aria-label="Close Start here">Close</button>
-    </div>
+    </section>
   );
 }

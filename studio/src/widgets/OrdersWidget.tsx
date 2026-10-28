@@ -4,7 +4,7 @@ import type { ColDef } from 'ag-grid-community';
 import { api, money } from '../api';
 import { usePoll } from '../store';
 import { Panel } from './Panel';
-import { gridTheme } from './QueueWidget';
+import { gridTheme } from '../theme';
 
 // Shipment watch: every captured payment, watched until it has tracking on PayPal. Prevention, before any dispute.
 type Watched = {
@@ -13,7 +13,7 @@ type Watched = {
   status: 'protected' | 'watching' | 'at_risk'; ship_by: string; reason: string | null;
 };
 const STATUS_LABEL = { protected: 'Protected', watching: 'Watching', at_risk: 'At risk' } as const;
-const STATUS_CLASS = { protected: 'jd-b-contest', watching: 'jd-b-wait', at_risk: 'jd-b-accept' } as const;
+const STATUS_CLASS = { protected: 'jd-b-contest', watching: 'jd-b-wait', at_risk: 'jd-b-held' } as const; // at risk: the owner must add tracking
 
 function shipByText(o: Watched) {
   if (o.status === 'protected') return 'Shipped';
@@ -33,9 +33,9 @@ export function OrdersWidget() {
   const sel = items.find((o) => o.capture_id === pick) ?? null;
 
   const columns = useMemo<ColDef<Watched>[]>(() => [
-    { headerName: 'Order', field: 'order_id', flex: 1.1, minWidth: 150 },
-    { headerName: 'Item', field: 'item', flex: 1, minWidth: 110, valueFormatter: (p) => p.value ?? '' },
-    { headerName: 'Amount', field: 'amount', width: 100, type: 'rightAligned', valueFormatter: (p) => money(p.value, p.data?.currency) },
+    { headerName: 'Order', field: 'order_id', flex: 1.1, minWidth: 170, cellClass: 'jd-mono-cell' },
+    { headerName: 'Item', field: 'item', flex: 1.4, minWidth: 170, tooltipField: 'item', valueFormatter: (p) => p.value ?? '' },
+    { headerName: 'Amount', field: 'amount', width: 108, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: (p) => `${money(p.value, p.data?.currency).replace(/[^\d.,]/g, '')} ${p.data?.currency ?? ''}` },
     { headerName: 'Paid', field: 'captured_at', width: 120, valueFormatter: (p) => new Date(p.value).toLocaleDateString([], { month: 'short', day: 'numeric' }) },
     { headerName: 'Ship by', field: 'ship_by', width: 120, valueGetter: (p) => p.data && shipByText(p.data) },
     { headerName: 'Status', field: 'status', width: 120, cellRenderer: (p: any) => <span className={`jd-badge ${STATUS_CLASS[p.value as Watched['status']]}`}>{STATUS_LABEL[p.value as Watched['status']]}</span> },
