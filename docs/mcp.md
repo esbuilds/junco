@@ -24,7 +24,7 @@ In claude.ai, Settings, Connectors, Add custom connector, enter `https://junco-d
 
 ### Connect to a running desk
 
-The desk also serves the same gated tools over HTTP at `/mcp`, behind the desk password. An agent connected this way shares the desk's policy and holds, so anything it tries that needs approval shows up on the desk right away, marked "MCP client" in the activity log.
+The desk also serves the same gated tools over HTTP at `/mcp`, behind the desk password: 15 tools listed (8 dispute and tracking tools, `create_refund`, `get_refund` and `get_order` through the Agent Toolkit, the 3 incident tools below and `junco_hold_status`). `create_refund` comes back held for the owner. An agent connected this way shares the desk's policy and holds, so anything it tries that needs approval shows up on the desk right away, marked "MCP client" in the activity log.
 
 Claude Code:
 
