@@ -49,7 +49,7 @@ Claude Desktop (through `mcp-remote`):
 
 Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the agent. The owner approves or rejects them in the desk or with `npm run holds [approve|reject <id>]`.
 
-`/mcp/paypal` serves PayPal's own hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools, over SSE) behind the same gate, with JUNCO's dispute tools added: 24 tools listed (20 of PayPal's, 4 of JUNCO's). Every hosted tool has a class in `policy.json`; the Policy page lists them.
+`/mcp/paypal` serves PayPal's own hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools, over SSE) behind the same gate, with JUNCO's tools added: 20 of PayPal's, JUNCO's 4 dispute tools and the 3 incident tools below. Every hosted tool has a class in `policy.json`; the Policy page lists them.
 
 ## Tools added
 
@@ -61,6 +61,18 @@ Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the age
 | `provide_dispute_supporting_info` | `POST /v1/customer/disputes/{id}/provide-supporting-info` | `provide_supporting_info` | 1 to 2000 characters; used for cases already under PayPal review |
 
 They use the toolkit's own tool shape (`method`, `name`, `description`, zod `parameters`, `actions`) and register on the toolkit's `PayPalAgentToolkit` MCP server, so nothing in PayPal's package is forked.
+
+## Incident tools (BLACK BOX)
+
+On both `/mcp` and `/mcp/paypal`, classed `read` in `policy.json`, so the gate passes them straight through. They read the desk's records and never call PayPal.
+
+| Tool | Takes | Returns |
+|---|---|---|
+| `junco_list_incidents` | nothing | every AI purchase on record: buyer txn, title, dispute id, money-move counts |
+| `junco_get_incident` | `id` (the buyer txn) | the incident: what the buyer allowed, the purchase, every event with its mode (live or recorded) and refs, the counts, and what the records don't have |
+| `junco_what_if` | `event_id` (a `hold:` or `gate:` event) and exactly one of `max_amount` or `budget` | the recorded verdict, the verdict under today's policy with that one change, and `paypal_calls: 0` |
+
+The same incident is on the desk at `/incident/<buyer txn>` (page), `/incident/<buyer txn>/receipt` (printable, with a QR code to the page) and `/api/incident/<buyer txn>` (JSON), with `/api/incidents` for the list and `POST /api/incident/<buyer txn>/what-if` (`event_id`, `max_amount`) for the page's what-if. All of them sit behind the desk password.
 
 ## Policy file
 
