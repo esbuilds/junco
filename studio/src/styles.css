@@ -479,3 +479,5 @@ textarea { border-radius: 8px; }
 .jd-host .ag-studio-button-filter-widget-item { flex: 0 0 auto !important; width: auto !important; height: 30px !important; min-height: 0 !important; padding: 0 12px !important; border-radius: 999px !important; font-size: 13px !important; border: 1px solid var(--jd-line) !important; background: var(--jd-surface) !important; color: var(--jd-ink) !important; }
 .jd-host .ag-studio-button-filter-widget-item:hover { border-color: var(--jd-faint) !important; }
 .jd-host .ag-studio-button-filter-widget-item.ag-studio-button-filter-widget-item-active { background: var(--jd-ink) !important; color: var(--jd-surface) !important; border-color: var(--jd-ink) !important; }
+/* Information, not an owner action: neutral, with no attention colour. */
+.jd-note-info { background: var(--jd-surface-2); color: var(--jd-ink); }

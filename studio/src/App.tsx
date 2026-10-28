@@ -17,6 +17,9 @@ import './styles.css';
 // Pre-built desk layout (UI polish): KPI strip and Waiting for your OK in the main column, Start here and Agent
 // activity in the right rail; then queue and case, the Gate record, Dispute this store and At risk.
 // Simulated lifecycle outcomes moved to Insights (v3.14).
+// Waiting for your OK hugs its three rows (Panel hug); its slot is sized to them so no gap opens under the card.
+// Rows wrap more below 1400 px, so the slot is a track taller there. The rail and the queue follow it.
+const HOLDS = typeof innerWidth === 'number' && innerWidth >= 1400 ? 16 : 17;
 const layout = {
   pages: [{
     id: 'desk',
@@ -34,10 +37,10 @@ const layout = {
     },
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
-      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: 18 },
+      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: HOLDS },
       start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 17 },
-      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: 23 },
-      queue: { xTrack: 0, yTrack: 23, xSpan: 9, ySpan: 17 },
+      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: HOLDS + 5 },
+      queue: { xTrack: 0, yTrack: 5 + HOLDS, xSpan: 9, ySpan: 17 },
       case: { xTrack: 0, yTrack: 40, xSpan: 12, ySpan: 22 },
       gate: { xTrack: 0, yTrack: 62, xSpan: 12, ySpan: 12 },
       store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 14 },

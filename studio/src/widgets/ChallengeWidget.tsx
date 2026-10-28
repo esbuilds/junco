@@ -105,7 +105,7 @@ export function ChallengeWidget() {
       <h3>Use this gate in your own agent</h3>
       <p className="jd-muted">The gate wraps any MCP server's tools: a policy file (read, allowed write, hold, not exposed), holds bound to the exact action,
         a re-check of the case before an approved hold runs, and an action log. This desk's own tools are at /mcp and PayPal's hosted ones at /mcp/paypal, behind the same gate.</p>
-      {hostedFailing && <p className="jd-result jd-held" role="status">PayPal's hosted MCP server is failing its API calls right now (their bug). Use /mcp meanwhile.</p>}
+      {hostedFailing && <p className="jd-result jd-note-info" role="status">PayPal's hosted MCP server is failing its API calls right now (their bug). Use /mcp meanwhile.</p>}
       <KillSwitch />
       <h3>Bring your own agent</h3>
       <p className="jd-muted">Point any MCP client at /mcp/challenge (tools: send_buyer_message, get_run) and let your agent try to talk JUNCO into a refund.

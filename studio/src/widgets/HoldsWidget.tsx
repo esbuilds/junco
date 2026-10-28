@@ -39,6 +39,7 @@ export function HoldsWidget() {
 
   return (
     <Panel
+      hug
       title="Waiting for your OK"
       subtitle={data ? holdsLine(split) : 'Loading'}
       action={pending.length > SHOW ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `View all ${pending.length}`}</button> : undefined}
