@@ -33,7 +33,8 @@ export function TryWidget() {
   const tags = [...new Set((list ?? []).map((s) => s.tag))];
 
   return (
-    <Panel title="Try the brain" subtitle="Scenario mode: a made-up case through JUNCO's real recommender and checks. Nothing is sent to PayPal.">
+    <Panel hug title="Try the brain" subtitle="Scenario mode: a made-up case through JUNCO's real recommender and checks. Nothing is sent to PayPal.">
+      <div className="jd-split"><div>
       <div className="jd-row" style={{ marginTop: 0 }}>
         <button type="button" className="jd-tab" aria-current={mode === 'pick' ? 'page' : undefined} onClick={() => setMode('pick')}>Pick a test case</button>
         <button type="button" className="jd-tab" aria-current={mode === 'own' ? 'page' : undefined} onClick={() => setMode('own')}>Write your own</button>
@@ -55,8 +56,10 @@ export function TryWidget() {
       )}
       <div className="jd-row"><button type="button" className="jd-btn jd-primary" onClick={run} disabled={busy}>{busy ? 'Thinking...' : 'Run JUNCO'}</button></div>
       {err && <div className="jd-result jd-err">{err}</div>}
+      </div><div>
+      {!res && <p className="jd-try-empty jd-muted">{busy ? 'JUNCO is reading the case...' : 'Pick a case or write your own, then Run JUNCO. Its recommendation, the evidence it cited and the eval\'s verdict show here.'}</p>}
       {res && (
-        <div className="jd-rec" style={{ marginTop: 12 }}>
+        <div className="jd-rec">
           {rec ? (
             <>
               <span className={`jd-badge jd-b-${rec.decision}`}>{DECISION_LABEL[rec.decision]}</span>
@@ -74,6 +77,7 @@ export function TryWidget() {
           </details>
         </div>
       )}
+      </div></div>
     </Panel>
   );
 }

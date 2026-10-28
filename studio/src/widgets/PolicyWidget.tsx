@@ -65,7 +65,8 @@ export function PolicyWidget() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(data);
 
   return (
-    <Panel title="Policy" subtitle="What JUNCO does on its own, and what waits for you">
+    <Panel hug title="Policy" subtitle="What JUNCO does on its own, and what waits for you">
+      <div className="jd-split"><div>
       <label className="jd-policy-row">
         <span><strong>Auto-offer limit</strong><span className="jd-muted">Partial refund offers up to this amount go out without asking. Larger offers wait for you.</span></span>
         <span className="jd-money-input">$<input type="number" min={0} max={500} step={1} value={draft.offer_limit}
@@ -86,6 +87,12 @@ export function PolicyWidget() {
           </select>
         </label>
       ))}
+      <div className="jd-row">
+        <button type="button" className="jd-btn jd-primary" disabled={!dirty} onClick={() => send('PUT')}>Save policy</button>
+        <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>
+      </div>
+      {msg && <div className={`jd-result ${msg.ok ? 'jd-ok' : 'jd-err'}`}>{msg.text}</div>}
+      </div><div>
       {what && what.total > 0 && (
         <div className="jd-whatif" aria-live="polite">
           <strong>JUNCO would have handled {what.handled} of {what.total} recommended action{what.total === 1 ? '' : 's'} without you</strong>
@@ -93,13 +100,9 @@ export function PolicyWidget() {
           <span className="jd-whatif-cases">{what.cases.map((c) => <span key={c.id} className={`jd-badge ${c.handled ? 'jd-b-contest' : 'jd-b-held'}`} title={c.id}>{c.decision} {c.handled ? 'runs' : 'waits'}</span>)}</span>
         </div>
       )}
-      <div className="jd-row">
-        <button type="button" className="jd-btn jd-primary" disabled={!dirty} onClick={() => send('PUT')}>Save policy</button>
-        <button type="button" className="jd-btn" onClick={() => send('DELETE')}>Reset to default</button>
-      </div>
-      {msg && <div className={`jd-result ${msg.ok ? 'jd-ok' : 'jd-err'}`}>{msg.text}</div>}
       <p className="jd-muted">The desk is yours to arrange: on the Desk, drag any edge of a panel to resize it, and this browser remembers it. <button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem(DESK_LAYOUT_KEY); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
       <ToolMatrix />
+      </div></div>
     </Panel>
   );
 }

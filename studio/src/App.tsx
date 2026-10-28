@@ -48,7 +48,7 @@ const layout = {
     id: 'mandate',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { mandate: { id: 'mandate', type: 'junco-challenge', dataMapping: {} } },
-    widgetLayout: { mandate: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 40 } },
+    widgetLayout: { mandate: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 44 } },
   }, {
     // BLACK BOX: one AI purchase start to finish, from the records, with the gate's what-if.
     id: 'incident',
@@ -60,7 +60,7 @@ const layout = {
     id: 'try',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { try: { id: 'try', type: 'junco-try', dataMapping: {} } },
-    widgetLayout: { try: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 34 } },
+    widgetLayout: { try: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 60 } },
   }, {
     // Prevention: paid orders watched until they have tracking, before any dispute exists.
     id: 'orders',
@@ -72,7 +72,7 @@ const layout = {
     id: 'policy',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { policy: { id: 'policy', type: 'junco-policy', dataMapping: {} } },
-    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 38 } },
+    widgetLayout: { policy: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 40 } },
   }],
   selectedPageId: 'desk',
 };
@@ -122,14 +122,16 @@ const TEST_PAGES = [['mandate', 'Break the mandate'], ['try', 'Try it']] as cons
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;
 
-// Phones (coldjudge F1): below 900 px the Desk is view mode, so the assistant panel never covers the queue and holds,
-// and the one-panel pages span the full width. Read once at load.
+// Phones (coldjudge F1): below 900 px the Desk opens in view mode, so the assistant panel never covers the queue and
+// holds unless asked (Ask JUNCO), and the one-panel pages span the full width. Read once at load.
 const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
-// Every panel full width, stacked in reading order (top to bottom, then left to right).
+// Every panel full width, stacked in reading order (top to bottom, then left to right). PHONE_SPAN: panels that change
+// shape on a phone (the KPI strip goes 2x2; the holds table stacks its rows).
+const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 30 };
 const stack = (wl: Record<string, { xTrack: number; yTrack: number; xSpan: number; ySpan: number }>) => {
   let y = 0;
   return Object.fromEntries(Object.entries(wl).sort(([, a], [, b]) => a.yTrack - b.yTrack || a.xTrack - b.xTrack)
-    .map(([k, v]) => { const at = y; y += v.ySpan + 2; return [k, { ...v, xTrack: 0, xSpan: 12, yTrack: at, ySpan: v.ySpan + 2 }]; })); // +2: text wraps more
+    .map(([k, v]) => { const h = PHONE_SPAN[k] ?? v.ySpan + 2; const at = y; y += h; return [k, { ...v, xTrack: 0, xSpan: 12, yTrack: at, ySpan: h }]; })); // +2: text wraps more
 };
 const fit = (l: typeof layout) => !narrow ? l : { ...l, pages: l.pages.map((p: any) => ({ ...p, widgetLayout: stack(p.widgetLayout) })) };
 
@@ -156,7 +158,7 @@ export function App() {
           <CaseBanner page={page} />
           <span className="jd-grow" />
           <StatusLine />
-          {ai && !narrow && <button type="button" className="jd-btn jd-btn-sm" aria-pressed={assistant} onClick={() => { setAssistant(!assistant); setPage('desk'); }}>{assistant ? 'Close assistant' : 'Ask JUNCO'}</button>}
+          {ai && <button type="button" className="jd-btn jd-btn-sm" aria-pressed={assistant} onClick={() => { setAssistant(!assistant); setPage('desk'); }}>{assistant ? 'Close assistant' : 'Ask JUNCO'}</button>}
           <KillSwitch compact />
         </div>
         <nav aria-label="Pages" className="jd-tabs">
@@ -185,7 +187,8 @@ export function App() {
           widgets={widgets}
           initialState={{ ...fit(withSavedDesk(layout)), selectedPageId: page } as any}
           onStateUpdated={saveDesk}
-          mode={ai && page === 'desk' && !narrow && assistant ? 'edit' : 'view'}
+          // Phones too, but only on request: Ask JUNCO opens the assistant over the stacked desk; closing it returns to view.
+          mode={ai && page === 'desk' && assistant ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}

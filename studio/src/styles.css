@@ -422,3 +422,44 @@ textarea { border-radius: 8px; }
 .jd-holds .jd-actions { flex-wrap: wrap; row-gap: 6px; }
 .jd-holds td:last-child { white-space: normal; }
 .jd-holds .jd-actions .jd-btn { white-space: nowrap; }
+
+/* Phones (UI walk, Oct 28). KPI strip 2x2; the tab row scrolls with a fade on its right edge; hold rows stack. */
+@media (max-width: 600px) {
+  .jd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jd-kpi:nth-child(odd) { border-left: 0; }
+  .jd-kpi:nth-child(n+3) { border-top: 1px solid var(--jd-line); }
+  .jd-kpi-l, .jd-kpi-sub { white-space: normal; }
+  .jd-kpi-v { font-size: 24px; line-height: 28px; }
+  .jd-holds thead { display: none; }
+  .jd-holds, .jd-holds tbody, .jd-holds tr, .jd-holds td { display: block; width: auto; }
+  .jd-holds tr { padding: 10px 16px; border-bottom: 1px solid var(--jd-line-2); }
+  .jd-holds tr.jd-has-note { border-bottom: 0; padding-bottom: 0; }
+  .jd-holds td, .jd-holds td:first-child, .jd-holds td:last-child { padding: 2px 0; border: 0; text-align: left; white-space: normal; }
+  .jd-holds .jd-actions { justify-content: flex-start; margin-top: 6px; }
+  .jd-holds tr.jd-note-row { padding-top: 4px; }
+}
+@media (max-width: 900px) {
+  .jd-tabs { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); padding-right: 40px; scroll-padding-left: 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .jd-tabs::-webkit-scrollbar { display: none; }
+  .jd-tab { scroll-snap-align: start; }
+  .jd-tabs-group { display: none; }
+  .jd-topbar-row .jd-env-text { max-width: 38vw; }
+}
+.jd-owner-decides { font-size: 13px; white-space: nowrap; }
+/* One-panel pages (Policy, Break the mandate, Try it): two columns where the content splits, and the card hugs it. */
+.jd-panel.jd-panel-hug { height: auto; max-height: 100%; }
+.jd-split { display: grid; gap: 24px; }
+@container (min-width: 900px) { .jd-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; } }
+.jd-split > div { min-width: 0; }
+.jd-split > div > h3:first-child, .jd-split > div > .jd-counter:first-child, .jd-split > div > .jd-whatif:first-child { margin-top: 0; }
+.jd-try-empty { margin: 0; padding: 24px; border: 1px dashed var(--jd-line); border-radius: 8px; text-align: center; }
+.jd-try-field, .jd-field { min-width: 0; } .jd-try-field select, .jd-field select { width: 100%; min-width: 0; text-overflow: ellipsis; } /* long option text stays inside its column */
+/* Phones: the mode label always shows its word (D2); the status line and the header's Disconnect agents give way
+   (the full kill switch stays on Break the mandate). */
+@media (max-width: 900px) {
+  .jd-topbar .jd-status { display: none; }
+  .jd-env { min-width: 56px; }
+  .jd-env strong { flex: none; }
+}
+@media (max-width: 600px) { .jd-topbar-row .jd-killswitch { display: none; } }
+@media (max-width: 600px) { .jd-holds td.jd-no-amount { display: none; } }

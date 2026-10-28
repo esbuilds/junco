@@ -14,7 +14,7 @@ export function KillSwitch({ compact }: { compact?: boolean }) {
     try { const r = await api<{ at: string; sessions: number }>('/api/connectors/revoke', { method: 'POST' }); setDone(`Disconnected ${r.sessions} signed-in connector${r.sessions === 1 ? '' : 's'} at ${r.at.slice(11, 16)} UTC.`); }
     catch (e: any) { setDone(`Not disconnected: ${e.message}`); }
   };
-  if (compact) return <button type="button" className="jd-btn jd-btn-sm" title={done ?? `${data.connectors ?? 0} connector${data.connectors === 1 ? '' : 's'} signed in`} onClick={revoke}>{done ? 'Disconnected' : 'Disconnect agents'}</button>;
+  if (compact) return <button type="button" className="jd-btn jd-btn-sm jd-killswitch" title={done ?? `${data.connectors ?? 0} connector${data.connectors === 1 ? '' : 's'} signed in`} onClick={revoke}>{done ? 'Disconnected' : 'Disconnect agents'}</button>;
   return (
     <p className="jd-muted">
       {done ?? `${data.connectors ?? 0} connector${data.connectors === 1 ? '' : 's'} signed in.`}{' '}

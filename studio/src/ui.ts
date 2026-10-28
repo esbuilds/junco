@@ -16,6 +16,20 @@ export function holdsLine({ pending, money }: { pending: unknown[]; money: unkno
   return [plural(money.length, 'held money move'), other && plural(other, 'other held action')].filter(Boolean).join(' · ');
 }
 
+// Who may decide a hold, as the server rules (v3.12): the owner any hold, a visitor only one on the case they lease
+// (own, from /api/start). Unknown yet (still loading) means no buttons.
+export const canDecide = (h: { args?: any }, who: { owner?: boolean; own?: string | null }) =>
+  !!who.owner || (!!who.own && h.args?.dispute_id === who.own);
+
+// "policy: send_invoice = hold" in words. Any other reason (a limit, a re-check) is shown as written.
+const POLICY_NOUN: Record<string, [string, boolean]> = { send_invoice: ['invoices', true], accept_dispute_claim: ['accepting a claim', false], create_refund: ['refunds', true], make_dispute_offer: ['offers', true], provide_dispute_evidence: ['evidence', false] };
+export function policyWords(reason: string) {
+  const m = /^policy: (\w+) = hold$/.exec(reason);
+  if (!m) return reason;
+  const [noun, many] = POLICY_NOUN[m[1]] ?? [human(m[1]), false];
+  return `Your policy: ${noun} ${many ? 'wait' : 'waits'} for you`;
+}
+
 const APPROVE: Record<string, string> = { create_refund: 'Approve refund', make_dispute_offer: 'Approve offer', accept_dispute_claim: 'Approve claim acceptance', provide_dispute_evidence: 'Approve evidence' };
 export const approveLabel = (method: string) => APPROVE[method] ?? `Approve ${human(method)}`;
 

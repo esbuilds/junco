@@ -2,7 +2,7 @@
 //   npm run check-ui
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
-import { approveLabel, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, splitHolds, startProgress } from './src/ui';
+import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, policyWords, splitHolds, startProgress } from './src/ui';
 import { readFileSync } from 'node:fs';
 
 // Every text pair the desk uses passes WCAG AA (4.5:1) in both colour schemes.
@@ -52,5 +52,23 @@ assert.equal(live.pending.length, 3);
 assert.equal(holdsLine(live), '2 held money moves · 1 other held action');
 assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'create_refund' }])), '1 held money move');
 assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'send_invoice' }])), '0 held money moves · 1 other held action');
+
+// Who may decide a hold (the server's v3.12 rule): the owner any hold, a visitor only one on the case they lease.
+const onCase = { args: { dispute_id: 'PP-R-A' } }, onPayment = { args: { capture_id: 'C1' } };
+assert.equal(canDecide(onCase, { owner: true, own: null }), true);
+assert.equal(canDecide(onPayment, { owner: true, own: null }), true);
+assert.equal(canDecide(onCase, { owner: false, own: 'PP-R-A' }), true);
+assert.equal(canDecide(onCase, { owner: false, own: 'PP-R-B' }), false);
+assert.equal(canDecide(onPayment, { owner: false, own: 'PP-R-A' }), false);
+assert.equal(canDecide(onCase, { owner: false, own: null }), false);
+assert.equal(canDecide(onCase, { owner: undefined, own: undefined }), false); // still loading: no buttons yet
+
+// Why it's held, in words: the policy rule, not its code.
+assert.equal(policyWords('policy: send_invoice = hold'), 'Your policy: invoices wait for you');
+assert.equal(policyWords('policy: accept_dispute_claim = hold'), 'Your policy: accepting a claim waits for you');
+assert.equal(policyWords('policy: create_refund = hold'), 'Your policy: refunds wait for you');
+assert.equal(policyWords('policy: make_dispute_offer = hold'), 'Your policy: offers wait for you');
+assert.equal(policyWords('policy: add_order_tracking = hold'), 'Your policy: add order tracking waits for you');
+assert.equal(policyWords('offer above the $25.00 auto-offer limit'), 'offer above the $25.00 auto-offer limit'); // anything else as written
 
 console.log('check-ui: ok');
