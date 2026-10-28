@@ -1,33 +1,35 @@
-import { daysLeft, money, type CaseRow, type Hold } from '../api';
+import { money, type CaseRow, type Hold } from '../api';
 import { usePoll } from '../store';
+import { splitHolds } from '../ui';
 
-// Header stats, same four numbers as the reference desk (public/index.html).
+type GateCounts = { counts: { proposed: number; held: number; past_limit: number } };
+
+// The Desk's KPI strip: one bordered strip, four cells. Only "Waiting for your OK" carries the attention colour.
+// Numbers come from the same endpoints as the widgets below (holds, the Gate record, the cases).
 export function StatsWidget() {
   const cases = usePoll<CaseRow[]>('/api/cases', 10000);
   const holds = usePoll<Hold[]>('/api/holds', 5000);
+  const gate = usePoll<GateCounts>('/api/gate-record', 15000);
 
-  const rows = (cases.data ?? []).filter((r) => r.status !== 'RESOLVED'); // resolved cases live in the Outcomes widget
-  const total = rows.reduce((s, r) => s + r.amount, 0);
-  const cur = rows[0]?.currency ?? 'USD';
-  const dues = rows.map((r) => daysLeft(r.due)).filter((d): d is number => d !== null).sort((a, b) => a - b);
-  const next = !cases.data ? '-'
-    : !dues.length ? 'None'
-    : dues[0] <= 0 ? 'Today'
-    : `${dues[0]} day${dues[0] === 1 ? '' : 's'}`;
+  const open = (cases.data ?? []).filter((r) => r.status !== 'RESOLVED'); // resolved cases live in the Outcomes widget
+  const total = open.reduce((s, r) => s + r.amount, 0);
+  const cur = open[0]?.currency ?? 'USD';
+  const g = gate.data?.counts;
 
-  const tiles: [string, string][] = [
-    ['Open cases', cases.data ? String(rows.length) : '-'],
-    ['Money in dispute', cases.data ? money(total, cur) : '-'],
-    ['Next deadline', next],
-    ['Waiting for you', holds.data ? String(holds.data.length) : '-'],
+  const cells: { label: string; value: string; unit?: string; sub: string; attn?: boolean }[] = [
+    { label: 'Waiting for your OK', value: holds.data ? String(splitHolds(holds.data).pending.length) : '-', sub: 'held money moves', attn: true },
+    { label: 'Money moves proposed', value: g ? String(g.proposed) : '-', sub: 'by any agent' },
+    { label: 'Held for the owner', value: g ? String(g.held) : '-', sub: g ? `${g.past_limit} past the limit` : '' },
+    { label: 'Open disputes', value: cases.data ? money(total, cur).replace(/[^\d.,]/g, '') : '-', unit: cases.data ? cur : undefined, sub: cases.data ? `${open.length} case${open.length === 1 ? '' : 's'}` : '' },
   ];
 
   return (
-    <div className="jd-stats" aria-label="Summary">
-      {tiles.map(([label, value]) => (
-        <div key={label} className="jd-stat">
-          <div className="jd-muted">{label}</div>
-          <div className="jd-stat-v">{value}</div>
+    <div className="jd-kpis" aria-label="Summary">
+      {cells.map((c) => (
+        <div key={c.label} className="jd-kpi">
+          <div className={c.attn ? 'jd-kpi-l jd-attn' : 'jd-kpi-l'}>{c.attn && <i className="jd-dot jd-dot-attn" aria-hidden="true" />}{c.label}</div>
+          <div className="jd-kpi-v">{c.value}{c.unit && <small> {c.unit}</small>}</div>
+          <div className="jd-kpi-sub">{c.sub}</div>
         </div>
       ))}
     </div>

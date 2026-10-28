@@ -13,8 +13,8 @@ import type { CaseRow } from './api';
 import { T, isDark } from './theme';
 import './styles.css';
 
-// Pre-built desk layout (v3.14 first screen): Waiting for you and Agent activity, the Gate record, then queue and case;
-// Dispute this store, summary stats and at-risk below (Start here's first step scrolls to Dispute this store).
+// Pre-built desk layout (UI polish): KPI strip and Waiting for your OK in the main column, Start here and Agent
+// activity in the right rail; then queue and case, the Gate record, Dispute this store and At risk.
 // Simulated lifecycle outcomes moved to Insights (v3.14).
 const layout = {
   pages: [{
@@ -22,23 +22,25 @@ const layout = {
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: {
       stats: { id: 'stats', type: 'junco-stats', dataMapping: {} },
-      store: { id: 'store', type: 'junco-store-dispute', dataMapping: {} },
       holds: { id: 'holds', type: 'junco-holds', dataMapping: {} },
+      start: { id: 'start', type: 'junco-start', dataMapping: {} },
       activity: { id: 'activity', type: 'junco-activity', dataMapping: {} },
-      risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
-      gate: { id: 'gate', type: 'junco-gate-record', dataMapping: {} },
       queue: { id: 'queue', type: 'junco-queue', dataMapping: {} },
       case: { id: 'case', type: 'junco-case', dataMapping: {} },
+      gate: { id: 'gate', type: 'junco-gate-record', dataMapping: {} },
+      store: { id: 'store', type: 'junco-store-dispute', dataMapping: {} },
+      risk: { id: 'risk', type: 'junco-at-risk', dataMapping: {} },
     },
     widgetLayout: {
-      holds: { xTrack: 0, yTrack: 0, xSpan: 6, ySpan: 9 },
-      activity: { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 9 },
-      gate: { xTrack: 0, yTrack: 9, xSpan: 12, ySpan: 10 },
-      queue: { xTrack: 0, yTrack: 19, xSpan: 7, ySpan: 22 },
-      case: { xTrack: 7, yTrack: 19, xSpan: 5, ySpan: 22 },
-      store: { xTrack: 0, yTrack: 41, xSpan: 12, ySpan: 14 },
-      stats: { xTrack: 0, yTrack: 55, xSpan: 12, ySpan: 4 },
-      risk: { xTrack: 0, yTrack: 59, xSpan: 7, ySpan: 7 },
+      stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
+      holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: 15 },
+      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 17 },
+      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: 20 },
+      queue: { xTrack: 0, yTrack: 20, xSpan: 9, ySpan: 17 },
+      case: { xTrack: 0, yTrack: 37, xSpan: 12, ySpan: 22 },
+      gate: { xTrack: 0, yTrack: 59, xSpan: 12, ySpan: 12 },
+      store: { xTrack: 0, yTrack: 71, xSpan: 12, ySpan: 14 },
+      risk: { xTrack: 0, yTrack: 85, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.

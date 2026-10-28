@@ -62,7 +62,8 @@ export function QueueWidget() {
           rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
           rowClassRules={{ 'jd-row-selected': (p) => p.data?.id === selected }}
           onGridReady={(e) => { gridApi.current = e.api; }}
-          onRowClicked={(e) => { if (e.data) selectCase(e.data.id); }}
+          // The case opens under the queue, so a click brings it into view.
+          onRowClicked={(e) => { if (e.data) { selectCase(e.data.id); setTimeout(() => document.getElementById('jd-case')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); } }}
           domLayout="autoHeight"
           overlayNoRowsTemplate='<span class="jd-muted">No disputes in this sandbox account.</span>'
         />

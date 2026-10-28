@@ -26,22 +26,23 @@ export function ActivityWidget() {
     seen.current = new Set(keys);
   }, [data]);
 
+  const [all, setAll] = useState(false);
   const items = data?.items ?? [];
+  const shown = all ? items : items.slice(0, 4); // the rail never scrolls inside; View all expands it
   return (
     <Panel
-      title={data?.agent_mode ? 'Agent activity (agent mode on)' : 'Agent activity'}
-      subtitle="Live from PayPal webhooks and scheduled checks"
+      title="Agent activity"
+      subtitle={data?.agent_mode ? 'Agent mode on · PayPal webhooks and scheduled checks' : 'PayPal webhooks and scheduled checks'}
       live
+      action={items.length > 4 ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'View all'}</button> : undefined}
     >
       {error && <div className="jd-result jd-err">{error}</div>}
-      <ol className="jd-activity" aria-live="polite">
+      <ol className={all ? 'jd-feed' : 'jd-feed jd-feed-short'} aria-live="polite">
         {items.length === 0 && <li className="jd-muted">Nothing yet.</li>}
-        {items.map((x) => (
+        {shown.map((x) => (
           <li key={actKey(x)} className={fresh.has(actKey(x)) ? 'jd-new' : undefined}>
-            <span className="jd-time">{new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-            <span className="jd-mono">{x.dispute_id}</span>
-            <span className="jd-muted">{TRIGGER[x.trigger] ?? x.trigger}</span>
-            <span><strong>{x.step}</strong>: {x.detail}</span>
+            <div className="jd-feed-meta"><span className="jd-id">{new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> · {TRIGGER[x.trigger] ?? x.trigger}{x.dispute_id && <> · <span className="jd-id">{x.dispute_id}</span></>}</div>
+            <div className="jd-feed-text" title={x.detail}><strong>{x.step.replace(/^./, (c) => c.toUpperCase())}</strong>: {x.detail}</div>
           </li>
         ))}
       </ol>

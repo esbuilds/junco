@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { api, human, money, HOLD_STATUS, type Hold } from '../api';
 import { selectCase, usePoll } from '../store';
+import { approveLabel, splitHolds } from '../ui';
 import { Panel } from './Panel';
+
+const SHOW = 3; // pending rows before "View all"; the widget never scrolls inside
 
 export function HoldsWidget() {
   const { data, error, reload } = usePoll<Hold[]>('/api/holds', 5000);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
 
   const decide = async (h: Hold, verb: 'approve' | 'reject' | 'settle') => {
     setBusy(h.id); setErr(null); setDone(null);
@@ -20,48 +24,59 @@ export function HoldsWidget() {
     finally { setBusy(null); reload(); }
   };
 
-  const holds = data ?? [];
-  // With nothing held the card collapses to one line, with no card chrome, so the space goes to the rest of the desk.
-  if (holds.length === 0 && !error && !err && !done) {
-    return (
-      <div className="jd-holds-empty" aria-live="polite">
-        <h2>Waiting for you</h2>
-        <span className="jd-muted">Nothing waiting for you</span>
-      </div>
-    );
-  }
+  const { pending, unconfirmed } = splitHolds(data ?? []);
+  const shown = all ? pending : pending.slice(0, SHOW);
+  const target = (h: Hold) => h.args?.dispute_id
+    ? <button type="button" className="jd-linkish jd-id" onClick={() => selectCase(h.args.dispute_id)}>{h.args.dispute_id}</button>
+    : h.args?.capture_id ? <span className="jd-id">{h.args.capture_id}</span>
+    : h.args?.invoice_id ? <span className="jd-id">{h.args.invoice_id}</span> : <span className="jd-muted">the store</span>;
+  const amount = (h: Hold) => { const a = h.args?.offer_amount ?? h.args?.amount; return a?.value ? `${money(Number(a.value), a.currency_code).replace(/[^\d.,]/g, '')} ${a.currency_code}` : '-'; };
+
   return (
-    <Panel title="Waiting for you" subtitle={holdsLine(holds)} live>
+    <Panel
+      title="Waiting for your OK"
+      subtitle={data ? `${pending.length} held money move${pending.length === 1 ? '' : 's'}` : 'Loading'}
+      action={pending.length > SHOW ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `View all ${pending.length}`}</button> : undefined}
+    >
       {error && <div className="jd-result jd-err">{error}</div>}
       {err && <div className="jd-result jd-err">{err}</div>}
       {done && <div className="jd-result jd-ok" role="status">{done}</div>}
-      {holds.map((h) => (
-        <div key={h.id} className="jd-hold">
-          <div>
-            <strong>{human(h.method)}</strong> on{' '}
-            {h.args?.dispute_id ? <button type="button" className="jd-linkish" onClick={() => selectCase(h.args.dispute_id)}>{h.args.dispute_id}</button> : h.args?.capture_id ? `payment ${h.args.capture_id}` : 'the store'}
-            {h.args?.offer_amount ? ` for ${money(h.args.offer_amount.value, h.args.offer_amount.currency_code)}` : ''}
-            <div className="jd-held-why">Held: {h.reason}</div>
-            {h.asked_by && <div className="jd-held-why">Asked by the {h.asked_by}</div>}
-            {h.status !== 'pending' && <div className="jd-held-why">Status: {HOLD_STATUS[h.status] ?? h.status}. It won't be sent again.</div>}
-          </div>
-          <div className="jd-row">
-            {h.status === 'pending' ? <>
-              <button type="button" className="jd-btn jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>Approve</button>
-              <button type="button" className="jd-btn jd-danger" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
-            </> : <button type="button" className="jd-btn" disabled={busy === h.id} onClick={() => decide(h, 'settle')}>Re-check PayPal</button>}
-          </div>
-          {/* Under the buttons, full width, so Approve and Reject stay in view on a phone and in a short panel. */}
-          {h.status === 'pending' && h.recheck && <div className="jd-held-why jd-recheck" style={{ flexBasis: '100%' }}>Re-check: PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</div>}
+      {data && !pending.length && <p className="jd-muted jd-holds-none">No moves waiting. JUNCO holds proposed money moves here.</p>}
+      {shown.length > 0 && (
+        <table className="jd-table jd-holds">
+          <thead><tr><th>Move</th><th>Payment or case</th><th className="jd-r">Amount</th><th>Why it's held</th><th /></tr></thead>
+          <tbody>
+            {shown.map((h) => (
+              <Fragment key={h.id}>
+                <tr className={h.recheck ? 'jd-has-note' : undefined}>
+                  <td>{human(h.method).replace(/^./, (c) => c.toUpperCase())}{h.asked_by && <div className="jd-sub">Asked by the {h.asked_by}</div>}</td>
+                  <td>{target(h)}</td>
+                  <td className="jd-r jd-num">{amount(h)}</td>
+                  <td>{h.recheck ? <span className="jd-flag">Re-check</span> : <span className="jd-id jd-muted">{h.reason.replace(/^policy: /, '')}</span>}</td>
+                  <td className="jd-r"><div className="jd-actions">
+                    <button type="button" className="jd-btn jd-btn-sm" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
+                    <button type="button" className="jd-btn jd-btn-sm jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>{approveLabel(h.method)}</button>
+                  </div></td>
+                </tr>
+                {/* The re-check reason in full, on its own line under the row, so the buttons keep their place. */}
+                {h.recheck && <tr className="jd-note-row"><td colSpan={5}><span className="jd-attn">Re-check:</span> PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</td></tr>}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {unconfirmed.length > 0 && (
+        <div className="jd-unconfirmed">
+          <h3>Approved, not confirmed by PayPal</h3>
+          {unconfirmed.map((h) => (
+            <div key={h.id} className="jd-unconfirmed-row">
+              <span>{human(h.method).replace(/^./, (c) => c.toUpperCase())} on {target(h)}</span>
+              <span className={h.status === 'failed' ? 'jd-danger' : 'jd-muted'}>{(HOLD_STATUS[h.status] ?? h.status).replace(/^./, (c) => c.toUpperCase())}. It won't be sent again.</span>
+              <button type="button" className="jd-btn jd-btn-sm" disabled={busy === h.id} onClick={() => decide(h, 'settle')}>Re-check PayPal</button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </Panel>
   );
-}
-
-// Same count as the Gate record's "waiting": approved holds still settling with PayPal are named apart.
-function holdsLine(holds: { status: string }[]) {
-  const waiting = holds.filter((h) => h.status === 'pending').length, settling = holds.length - waiting;
-  if (!holds.length) return 'Nothing held';
-  return [waiting && `${waiting} waiting for you`, settling && `${settling} approved, outcome being checked with PayPal`].filter(Boolean).join(' · ');
 }
