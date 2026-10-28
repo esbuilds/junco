@@ -138,7 +138,7 @@ export function App() {
     <AgStudioProvider licenseKey={studioKey}>
       <div className={owner ? 'jd-app' : 'jd-app jd-visitor'}>
       <header className="jd-topbar">
-        <strong>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
+        <strong><svg className="jd-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" strokeWidth="6.4" strokeLinecap="round" /><circle cx="50.19" cy="21.5" r="4.6" fill="var(--jd-accent)" /></svg>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
         <nav aria-label="Pages">
           <button type="button" className="jd-tab" aria-expanded={start} onClick={() => setStart(!start)}>Start here</button>
           {PAGES.map(([id, label]) => (

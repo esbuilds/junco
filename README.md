@@ -1,4 +1,4 @@
-# JUNCO
+# <img src="brand/junco-mark.svg" width="28" height="28" alt=""> JUNCO
 
 [![checks](https://github.com/esbuilds/junco/actions/workflows/checks.yml/badge.svg)](https://github.com/esbuilds/junco/actions/workflows/checks.yml)
 

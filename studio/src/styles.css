@@ -152,7 +152,8 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 /* Top bar with page tabs */
 body { margin: 0; background: var(--jd-bg); }
 .jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Inter, system-ui, sans-serif; }
-.jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; }
+.jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px; }
+.jd-mark { width: 20px; height: 20px; flex: none; }
 .jd-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-info-bg); color: var(--jd-info); font-weight: 600; }
 .jd-tag-live { background: #e3f1ea; color: #1f5c4a; }
 .jd-tag-recorded { background: #fbefd9; color: #8a4b05; }
