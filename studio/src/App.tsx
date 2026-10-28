@@ -46,6 +46,12 @@ const layout = {
     widgets: { mandate: { id: 'mandate', type: 'junco-challenge', dataMapping: {} } },
     widgetLayout: { mandate: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 40 } },
   }, {
+    // BLACK BOX: one AI purchase start to finish, from the records, with the gate's what-if.
+    id: 'incident',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { incident: { id: 'incident', type: 'junco-incident', dataMapping: {} } },
+    widgetLayout: { incident: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 34 } },
+  }, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
     id: 'try',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -106,7 +112,7 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incident'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;

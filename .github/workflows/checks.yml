@@ -12,6 +12,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: |
-          for c in check-gate-pkg check-lease check-onetap check-plan check-watch check-negotiate check-spend check-challenge check-carrier check-persist check-recheck check-incident check-killswitch; do
+          for c in check-gate-pkg check-lease check-onetap check-plan check-watch check-negotiate check-spend check-challenge check-carrier check-persist check-recheck check-incident check-killswitch check-incident-desk; do
             echo "== $c"; npm run -s $c
           done

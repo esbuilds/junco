@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>JUNCO Incident</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d1d1b'/%3E%3Cg transform='translate(32 32) scale(.74) translate(-32 -32)'%3E%3Cpath d='M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5' fill='none' stroke='%23ecebe6' stroke-width='6.4' stroke-linecap='round'/%3E%3Ccircle cx='50.19' cy='21.5' r='4.6' fill='%235fb497'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #ffffff; --surface-2: #f0eee8; --ink: #1d1d1b; --muted: #6b6a64; --line: #e3e0d8;
+    --accent: #1f5c4a; --accent-ink: #ffffff; --warn: #a15c07; --warn-bg: #fdf1dc; --danger: #a8322a; --danger-bg: #fbe7e5;
+    --ok: #1f6b3a; --ok-bg: #e2f2e7; --info: #2b4f8a; --info-bg: #e5ecf8; --focus: #2b6fd6; --whatif: #6b3fa0; --whatif-bg: #f1eafa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1d1d1b; --surface-2: #262623; --ink: #ecebe6; --muted: #a09f98; --line: #34332f;
+      --accent: #5fb497; --accent-ink: #0d1f19; --warn: #e5a54a; --warn-bg: #3a2a12; --danger: #ef8a80; --danger-bg: #3d1d1a;
+      --ok: #7fcf9b; --ok-bg: #18301f; --info: #8fb2ee; --info-bg: #1b2740; --focus: #7aa7f0; --whatif: #c9a7e8; --whatif-bg: #2c2140;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  a { color: var(--accent); }
+  header { padding: 20px 24px 8px; }
+  header .top { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  header .top strong svg { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 6px; }
+  h1 { margin: 6px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+  .muted { color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 8px 24px 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat .k { color: var(--muted); font-size: 13px; }
+  .stat .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 0 24px 32px; align-items: start; }
+  .card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .card + .card { margin-top: 16px; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+  ol.rail { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+  ol.rail li { position: relative; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid transparent; overflow-wrap: anywhere; }
+  ol.rail li::before { content: ''; position: absolute; left: -26px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); }
+  ol.rail li.live::before { border-color: var(--ok); background: var(--ok); }
+  ol.rail li.what-if { background: var(--whatif-bg); border: 2px dashed var(--whatif); }
+  ol.rail li.what-if::before { border-color: var(--whatif); border-style: dashed; }
+  .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .mode { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 8px; border-radius: 999px; }
+  .mode.live { background: var(--ok-bg); color: var(--ok); }
+  .mode.recorded { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+  .mode.what-if { background: var(--whatif); color: var(--surface); }
+  .refs { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
+  label { font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
+  select { max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  input[type=number] { width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .err { color: var(--danger); font-weight: 600; }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px 24px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px 16px; } header { padding: 16px 16px 8px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><strong><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</strong>
+    <span class="muted">Incident: one AI purchase, start to finish, from the records</span>
+    <a href="/">Desk</a> <a id="receipt" href="#">Printable receipt</a></div>
+  <h1 id="title">Loading the incident...</h1>
+</header>
+<div class="stats" id="counts" aria-label="Money moves"></div>
+<main>
+  <section class="card" aria-labelledby="rail-h"><h2 id="rail-h">What happened</h2>
+    <p class="muted" style="margin-top:0">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
+    <ol class="rail" id="rail"></ol></section>
+  <div>
+    <section class="card"><h2>What the buyer allowed</h2><div id="authority"></div></section>
+    <section class="card"><h2>The purchase</h2><div id="purchase"></div></section>
+    <section class="card"><h2>What if</h2>
+      <p class="muted" style="margin:0">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers). Nothing is sent to PayPal.</p>
+      <div class="row"><label style="flex:1 1 100%">Recorded request<select id="target"></select></label>
+        <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
+        <button class="btn" id="rerun">Re-run</button></div>
+      <div id="wi-out" aria-live="polite"></div></section>
+    <section class="card" id="missing-card" hidden><h2>Not in the records</h2><ul id="missing" style="margin:0;padding-left:18px"></ul></section>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const id = decodeURIComponent(location.pathname.split('/')[2] ?? '');
+// Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
+const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
+const modeOf = (e) => LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'live' : 'recorded';
+const LABEL = { live: 'LIVE', recorded: 'RECORDED', 'what-if': 'WHAT-IF' };
+const when = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const dl = (pairs) => `<dl>${pairs.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+const item = (mode, at, actor, summary, refs) => `<li class="${mode}"><div class="meta"><span class="mode ${mode}">${LABEL[mode]}</span><span>${esc(at)}</span><span>${esc(actor)}</span></div>
+  <div>${summary}</div>${refs ? `<div class="refs">${esc(refs)}</div>` : ''}</li>`;
+let inc;
+
+function render() {
+  document.title = `JUNCO Incident ${inc.id}`;
+  $('#title').textContent = inc.title;
+  $('#receipt').href = `/incident/${encodeURIComponent(inc.id)}/receipt`;
+  const c = inc.counts;
+  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
+    .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
+    Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
+  const a = inc.authority, p = inc.purchase;
+  $('#authority').innerHTML = a ? dl([['Instruction', a.instruction], ['Budget', a.budget], ['Agent', a.agent]]) : '<p class="muted">Not in the records.</p>';
+  $('#purchase').innerHTML = p ? dl([['Item', `${p.sku}, ${p.listing}`], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
+  $('#missing-card').hidden = !inc.missing.length;
+  $('#missing').innerHTML = inc.missing.map((m) => `<li>${esc(m)}</li>`).join('');
+  // The what-if re-runs the gate's decision on a recorded call: a hold or a gate-log event, latest first.
+  const calls = inc.events.filter((e) => e.kind === 'gate' || e.kind === 'hold').reverse();
+  $('#target').innerHTML = calls.map((e) => `<option value="${esc(e.id)}">${esc(when(e.at))}: ${esc(e.summary.slice(0, 90))}</option>`).join('') || '<option value="">No recorded money moves</option>';
+  $('#rerun').disabled = !calls.length;
+}
+
+$('#rerun').addEventListener('click', async (ev) => {
+  ev.target.disabled = true;
+  try {
+    const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: $('#target').value, max_amount: Number($('#limit').value) }) });
+    const w = await r.json();
+    if (!r.ok) throw new Error(w.error?.message ?? r.status);
+    const same = w.before.verdict === w.after.verdict;
+    $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.`)}</ol>`;
+  } catch (e) { $('#wi-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  ev.target.disabled = false;
+});
+
+fetch(`/api/incident/${encodeURIComponent(id)}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error?.message ?? r.status); inc = b; render(); })
+  .catch((e) => { $('#title').textContent = `Could not load the incident: ${e.message}`; });
+</script>
+</body>
+</html>

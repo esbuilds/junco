@@ -7,12 +7,14 @@ export function HoldsWidget() {
   const { data, error, reload } = usePoll<Hold[]>('/api/holds', 5000);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
 
   const decide = async (h: Hold, verb: 'approve' | 'reject' | 'settle') => {
-    setBusy(h.id); setErr(null);
+    setBusy(h.id); setErr(null); setDone(null);
     try {
       const r = await api<Hold>(`/api/holds/${encodeURIComponent(h.id)}/${verb}`, { method: 'POST' });
       if (['failed', 'unknown', 'executing'].includes(r.status)) setErr(`${human(r.method)}: ${HOLD_STATUS[r.status]}.`);
+      else if (r.paypal) setDone(`Approved. PayPal made refund ${r.paypal.id}${r.paypal.status ? `, status ${r.paypal.status}` : ''}.`);
     }
     catch (e: any) { setErr(e.message); }
     finally { setBusy(null); reload(); }
@@ -20,7 +22,7 @@ export function HoldsWidget() {
 
   const holds = data ?? [];
   // With nothing held the card collapses to one line, with no card chrome, so the space goes to the rest of the desk.
-  if (holds.length === 0 && !error && !err) {
+  if (holds.length === 0 && !error && !err && !done) {
     return (
       <div className="jd-holds-empty" aria-live="polite">
         <h2>Waiting for you</h2>
@@ -32,6 +34,7 @@ export function HoldsWidget() {
     <Panel title="Waiting for you" subtitle={holdsLine(holds)} live>
       {error && <div className="jd-result jd-err">{error}</div>}
       {err && <div className="jd-result jd-err">{err}</div>}
+      {done && <div className="jd-result jd-ok" role="status">{done}</div>}
       {holds.map((h) => (
         <div key={h.id} className="jd-hold">
           <div>

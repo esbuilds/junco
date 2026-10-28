@@ -37,7 +37,8 @@
     "check-token": "tsx src/check-token.ts",
     "check-holdcard": "tsx src/check-holdcard.ts",
     "check-incident": "tsx src/check-incident.ts",
-    "check-killswitch": "tsx src/check-killswitch.ts"
+    "check-killswitch": "tsx src/check-killswitch.ts",
+    "check-incident-desk": "tsx src/check-incident-desk.ts"
   },
   "keywords": [],
   "author": "",
@@ -49,6 +50,7 @@
     "@paypal/agent-toolkit": "^1.11.0",
     "ag-grid-community": "^36.2.0",
     "pg": "^8.23.1",
+    "qrcode-generator": "2.0.4",
     "tsx": "^4.23.15",
     "zod": "^3.25.76"
   },

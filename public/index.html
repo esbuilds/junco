@@ -191,6 +191,7 @@ $('#holds').addEventListener('click', async (e) => {
   try {
     const h = await api(`/api/holds/${encodeURIComponent(id)}/${approve ? 'approve' : reject ? 'reject' : 'settle'}`, { method: 'POST' });
     if (['failed', 'unknown', 'executing'].includes(h.status)) alert(`${h.method.replace(/_/g, ' ')}: ${HOLD_STATUS[h.status]}.`);
+    else if (h.paypal) alert(`Approved. PayPal made refund ${h.paypal.id}${h.paypal.status ? `, status ${h.paypal.status}` : ''}.`);
   }
   catch (err) { alert(err.message); }
   await refresh();
@@ -209,7 +210,7 @@ function render(c, flash) {
   const problems = c.saved?.problems ?? [];
   $('#panel').innerHTML = `
     <h2>${esc(REASONS[c.reason] ?? human(c.reason))}, ${esc(money(c.amount, c.currency))}</h2>
-    <div class="muted">${esc(c.id)} &middot; ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} &middot; ${esc(STATUS[c.status] ?? human(c.status))}${c.due ? ` &middot; respond in ${esc(dueText(c))}` : ''}</div>
+    <div class="muted">${esc(c.id)} &middot; ${c.stage === 'CHARGEBACK' && c.channel === 'INTERNAL' ? 'PayPal claim' : human(c.stage)} &middot; ${esc(STATUS[c.status] ?? human(c.status))}${c.due ? ` &middot; respond in ${esc(dueText(c))}` : ''}${c.incident ? ` &middot; <a href="/incident/${encodeURIComponent(c.incident)}">Incident: what the AI bought</a>` : ''}</div>
     <h3>PayPal allows now</h3>
     <div class="chips">${c.allowed.length ? c.allowed.map((a) => `<span class="chip">${human(a)}</span>`).join('') : '<span class="muted">No merchant actions right now</span>'}</div>
 

@@ -48,7 +48,7 @@ export interface Recommendation {
 export interface SavedRec { recommendation: Recommendation | null; problems: string[]; at: string; previous?: { decision: string; summary: string; at: string } | null }
 
 export interface Hold {
-  id: string; status: string; method: string; reason: string; args?: any; asked_by?: string; recheck?: { at: string; event: string; refund?: { id: string; at: string } };
+  id: string; status: string; method: string; reason: string; args?: any; asked_by?: string; paypal?: { id: string; status: string | null } | null; recheck?: { at: string; event: string; refund?: { id: string; at: string } };
 }
 // T2: an approved hold isn't done until PayPal says so. Same wording as the case file.
 export const HOLD_STATUS: Record<string, string> = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
@@ -68,6 +68,7 @@ export interface CaseDetail extends CaseRow {
   negotiation: { status: 'active' | 'settled' | 'needs_you' | 'stopped'; bounds: { open_pct: number; ceiling_pct: number; max_rounds: number }; rounds: { at: string; offered: number; message: string }[]; note?: string } | null;
   holds: Hold[];
   activity: Activity[];
+  incident: string | null; // BLACK BOX: the AI purchase this dispute came from, if any
 }
 
 export async function api<T = any>(path: string, opts: RequestInit & { json?: unknown } = {}): Promise<T> {

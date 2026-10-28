@@ -4,6 +4,7 @@ import { AgStudioAiModule, AgStudioModuleRegistry, createAiHarness, directLlmRun
 import { api as desk, money, TRIGGER, type Activity, type CaseDetail, type Hold } from './api';
 import { selectCase } from './store';
 import { GateCard, gateData } from './widgets/GateCard';
+import type { Incident, IncidentSummary, WhatIf } from '../../src/incident-types';
 
 export const QUESTION = 'Which disputes am I about to lose this week?';
 const DID = 'What did JUNCO do without me this week?';
@@ -133,6 +134,37 @@ function juncoTools(api: any): AgAiTool[] {
       },
     }),
     api.defineAiTool({
+      name: 'junco_get_incident',
+      description: "BLACK BOX: one AI purchase start to finish from JUNCO's records: what the buyer allowed, what the shopping agent bought, every event oldest first (LIVE = PayPal's sandbox did it, RECORDED = the desk's own record), the money-move counts and what the records lack. Without an id, lists the incidents.",
+      params: (s: any) => s.object({ incident_id: s.string({ description: 'Incident id (the buyer transaction id); empty to list incidents' }) }),
+      async execute({ incident_id }: { incident_id: string }, ctx: any) {
+        try {
+          if (!incident_id) return ctx.success((await desk<IncidentSummary[]>('/api/incidents')).map((i) => `${i.id}: ${i.title}${i.dispute_id ? `, dispute ${i.dispute_id}` : ''}`).join('\n') || 'No incidents.');
+          const i = await desk<Incident>(`/api/incident/${encodeURIComponent(incident_id)}`);
+          const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
+          return ctx.success([
+            `${i.id}: ${i.title}`,
+            `Buyer allowed: ${i.authority ? `${i.authority.instruction} (budget ${i.authority.budget}, ${i.authority.agent})` : 'not in the records'}`,
+            `Bought: ${i.purchase ? `${i.purchase.sku} ${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
+            `Money moves: ${i.counts.proposed} proposed, ${i.counts.approved} approved, ${i.counts.executed} executed, ${i.counts.outcome_unknown} outcome unknown`,
+            ...i.events.map((e) => `${e.at.slice(0, 16).replace('T', ' ')} [${LIVE.includes(e.kind) || (e.kind === 'gate' && /the gate allowed it/.test(e.summary)) ? 'LIVE' : 'RECORDED'}] ${e.id} ${e.actor}: ${e.summary}`),
+            ...(i.missing.length ? [`Not in the records: ${i.missing.join(' ')}`] : []),
+          ].join('\n'));
+        } catch (e: any) { return ctx.error(`No incident ${incident_id}: ${e.message}`); }
+      },
+    }),
+    api.defineAiTool({
+      name: 'junco_incident_what_if',
+      description: "BLACK BOX what-if: re-runs the owner's gate on one recorded money move from an incident (its gate or hold event id) with a different amount limit on its tool (refunds and dispute offers only), and says what the verdict would have been. Never reaches PayPal; changes nothing.",
+      params: (s: any) => s.object({ incident_id: s.string({ description: 'Incident id' }), event_id: s.string({ description: "A gate or hold event id from junco_get_incident, like 'gate:2026-10-23T09:41:31.000Z'" }), max_amount: s.number({ description: 'Amount limit in USD, 0 to 10000' }) }),
+      async execute({ incident_id, event_id, max_amount }: { incident_id: string; event_id: string; max_amount: number }, ctx: any) {
+        try {
+          const w = await desk<WhatIf>(`/api/incident/${encodeURIComponent(incident_id)}/what-if`, { method: 'POST', json: { event_id, max_amount } });
+          return ctx.success(`WHAT-IF (${w.change}) on ${w.method}: was ${w.before.verdict} (${w.before.reason}), would be ${w.after.verdict} (${w.after.reason}). PayPal calls: ${w.paypal_calls}.`);
+        } catch (e: any) { return ctx.error(e.message); }
+      },
+    }),
+    api.defineAiTool({
       name: 'junco_open_case',
       description: "Opens one dispute in the Desk's Case panel so the owner can read the evidence and act on it.",
       params: caseId,
@@ -164,6 +196,8 @@ export const aiToolDisplay = {
   junco_open_case: { label: ({ args }: any) => ({ text: `Open ${args.dispute_id ?? 'a case'}` }) },
   junco_activity: { label: ({ args }: any) => ({ text: "Read JUNCO's activity log", pill: args.days ? `${args.days} days` : undefined }) },
   junco_orders: { label: () => ({ text: 'Read the shipment watch' }) },
+  junco_get_incident: { label: ({ args }: any) => ({ text: args.incident_id ? `Read incident ${args.incident_id}` : 'List AI purchase incidents' }) },
+  junco_incident_what_if: { label: ({ args }: any) => ({ text: 'Re-run the gate on a recorded request', pill: args.max_amount === undefined ? 'WHAT-IF' : `WHAT-IF $${args.max_amount}` }) },
   // Studio's own tools without built-in wording (v3.14 item 5: the trace should read as work, never as a tool name).
   view_report: { label: ({ status, result }: any) => ({ text: status !== 'done' ? 'Reading the dashboard' : result?.success === false ? 'Could not read the dashboard' : 'Read the dashboard' }) },
   rename_thread: { hidden: true },
@@ -183,7 +217,7 @@ export const aiToolDisplayAll: Record<string, any> = {
   ...aiToolDisplay,
 };
 
-const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. For what JUNCO did, call junco_activity. For watched orders and tracking, call junco_orders. To show a case, call junco_open_case. You may act on a dispute only when the owner asks you to, and only with the PayPal tools listed. Every one of them passes through the owner's policy gate: an action the policy holds waits on the Desk for the owner's approval, and you must then say plainly that it is waiting for them and has not happened yet. Never claim money moved unless the tool result says it did.";
+const LEAD_NOTE = "\n\nThis dashboard is JUNCO, a PayPal dispute desk. For why JUNCO recommends something on a case, call junco_explain_case and quote its evidence; never guess. For what a policy change would do, call junco_policy_what_if. For what JUNCO did, call junco_activity. For watched orders and tracking, call junco_orders. To show a case, call junco_open_case. For an AI shopping agent's purchase (what it was allowed, what it bought, what happened after), call junco_get_incident and quote its events; for what a different amount limit would have done to a recorded request, call junco_incident_what_if and say it is a what-if that never reached PayPal. Ask the widget agent for a chart only from numbers those tools returned. You may act on a dispute only when the owner asks you to, and only with the PayPal tools listed. Every one of them passes through the owner's policy gate: an action the policy holds waits on the Desk for the owner's approval, and you must then say plainly that it is waiting for them and has not happened yet. Never claim money moved unless the tool result says it did.";
 
 let registered = false;
 export function aiSetup() {

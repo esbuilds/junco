@@ -22,6 +22,8 @@ import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.j
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
+import { acceptedText, paypalRefund, receiptPage } from './incident-view.js';
+import { buildIncident, listIncidents, whatIf as incidentWhatIf } from './incident.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
@@ -140,7 +142,7 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
     throw e;
   });
   if (verb === 'settle') return h;
-  const done = verb === 'reject' ? `rejected by ${who}, nothing sent` : h.status === 'completed' ? `approved by ${who}, and PayPal accepted it`
+  const done = verb === 'reject' ? `rejected by ${who}, nothing sent` : h.status === 'completed' ? `approved by ${who}, and ${acceptedText(h)}`
     : `approved by ${who}, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}`;
   notifyDecision(h, `${done}.`);
   agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
@@ -426,7 +428,7 @@ httpServer(async (req, res) => {
     if (req.method !== 'POST' || (verb !== 'approve' && verb !== 'reject')) return page();
     try {
       const h = await actor.run({ owner: true, session: 'one-tap' }, () => decideHold(id, verb, 'the owner (one-tap link)'));
-      page({ ok: h.status === 'completed' || h.status === 'rejected', text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? 'Approved. PayPal accepted it.' : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
+      page({ ok: h.status === 'completed' || h.status === 'rejected', text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? `Approved. ${acceptedText(h)}.` : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
     } catch (e: any) { page({ ok: false, text: e.message }); }
   })().catch((e) => json(res, 400, { error: { message: e.message } }));
   // S1: OAuth for Claude connectors (DCR, PKCE, a password page). An MCP path takes a bearer token or, as before, the
@@ -521,7 +523,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
         const d = await agent.getDispute(id);
         const savedRec = readRecs()[id];
         const evidence = savedRec?.evidence ?? collectEvidence(d, [...(await gatherFromPayPal(ctx, d)), ...extraFor(id)]); // the set the saved recommendation cites
-        return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, negotiation: readNegotiations()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse() });
+        return json(res, 200, { ...row(d), evidence, saved: savedRec ?? null, budget: readBudgets()[id] ?? null, plan: readPlans()[id] ?? null, negotiation: readNegotiations()[id] ?? null, holds: holdsFor(id), activity: readActivity().filter((x) => x.dispute_id === id).reverse(), incident: (await listIncidents()).find((i) => i.dispute_id === id)?.id ?? null });
       }
       if (req.method === 'POST' && p[3] === 'recommend') {
         const { delivery_scan } = await readBody(req);
@@ -667,6 +669,23 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       await actor.exit(selfCheck); return json(res, 200, lastCheck);
     }
     if (req.method === 'GET' && url.pathname === '/api/gate-record') return json(res, 200, gateRecordView()); // v3.14
+    // BLACK BOX: one AI purchase's incident page, its JSON, a printable receipt and the what-if (never reaches PayPal).
+    if (req.method === 'GET' && url.pathname === '/api/incidents') return json(res, 200, await listIncidents());
+    if (p[0] === 'incident' || (p[0] === 'api' && p[1] === 'incident')) {
+      const id = p[0] === 'incident' ? p[1] : p[2], tail = p[0] === 'incident' ? p[2] : p[3];
+      const inc = id ? await buildIncident(id) : null;
+      if (!inc) return json(res, 404, { error: { message: 'No such incident' } });
+      if (req.method === 'GET' && p[0] === 'incident' && !tail) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync('public/incident.html')); }
+      if (req.method === 'GET' && p[0] === 'incident' && tail === 'receipt') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(receiptPage(inc, `${DESK_URL}/incident/${encodeURIComponent(inc.id)}`)); }
+      if (req.method === 'GET' && p[0] === 'api' && !tail) return json(res, 200, inc);
+      if (req.method === 'POST' && p[0] === 'api' && tail === 'what-if') {
+        const b = await readBody(req), limit = Number(b?.max_amount);
+        if (!Number.isFinite(limit) || limit < 0 || limit > 10_000) return json(res, 400, { error: { message: 'max_amount must be a number from 0 to 10000' } });
+        if (!inc.events.some((e) => e.id === b?.event_id)) return json(res, 400, { error: { message: 'event_id must be an event of this incident' } });
+        try { return json(res, 200, incidentWhatIf(b.event_id, { max_amount: Math.round(limit * 100) / 100 })); }
+        catch (e: any) { return json(res, 400, { error: { message: e.message } }); } // e.g. a recorded call with no amount limit
+      }
+    }
     if (req.method === 'GET' && p[0] === 'run' && p[1] && !p[2]) { // a run's shareable page (permalink)
       const r = readChallengeRuns().find((x) => x.id === p[1]);
       if (!r) return json(res, 404, { error: { message: 'No such run' } });
@@ -702,7 +721,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
-      return json(res, 200, await decideHold(p[2], p[3], 'the owner'));
+      { const h = await decideHold(p[2], p[3], 'the owner'); return json(res, 200, { ...h, paypal: paypalRefund(h) }); }
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
     if (isClaudeDown(e)) return json(res, 503, { error: { message: pausedText() }, paused: true }); // read-only mode (v3.14)
