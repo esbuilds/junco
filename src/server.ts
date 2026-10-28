@@ -77,7 +77,9 @@ export async function createServer(ctx: Ctx & { readonly accessToken: string }, 
   const policy = given ?? loadActivePolicy(); // the gate reads this object on every call, so desk edits apply live
   const server = new PayPalAgentToolkit({
     accessToken: ctx.accessToken,
-    configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true } } },
+    // ponytail: action keys as in @paypal/agent-toolkit 1.11.0 (payments.createRefund, payments.getRefunds, orders.get); the
+    // tool names match PayPal's hosted server, so policy.json classes them once (create_refund = hold). Re-check on upgrade.
+    configuration: { context: { sandbox: true }, actions: { disputes: { list: true, get: true, create: true }, payments: { createRefund: true, getRefunds: true }, orders: { get: true } } },
   });
   // ponytail: _paypal.paypalClient._accessToken is the toolkit's private state (checked on @paypal/agent-toolkit 1.11);
   // it reads it on every request, so this hands it the live token. Re-check on upgrade.

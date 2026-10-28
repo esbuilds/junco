@@ -53,8 +53,9 @@ export function captureStaleReason(h: { case?: any }, c: any): string | null {
 
 // A refund on the same payment that this gate ran after h was held. PayPal's capture doesn't always show a refund
 // (sandbox Oct 16: a PENDING capture kept its status and update_time after a $3 refund), so the gate's own record decides.
+// The same millisecond counts as after (Oct 29: a hold made as another refund started running slipped through with >).
 export const refundRanSince = (h: Hold, holds: Hold[]) => holds.find((x) => x.id !== h.id && x.method === 'create_refund' && x.args?.capture_id === h.args?.capture_id
-  && ['executing', 'completed', 'unknown'].includes(x.status) && (x.ran ?? x.created) > h.created);
+  && ['executing', 'completed', 'unknown'].includes(x.status) && (x.ran ?? x.created) >= h.created);
 
 // The hooks, for any call whose args name a dispute_id, and for create_refund (holds: this gate's store; readCapture: PayPal).
 export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>, holds?: () => Hold[]): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
