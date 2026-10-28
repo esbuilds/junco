@@ -11,7 +11,8 @@
 - **Three things to try, in order:**
   1. On the Desk, open **Start here** and pick **Get your own case**. Dispute this store files a sandbox dispute for you and JUNCO works it live. Anything that moves money waits in Waiting for you, and you can approve or reject it on your own case. If no live case is left, it shows a recorded run, labelled as one.
   2. Open **Break the mandate** and play the buyer. Try to talk JUNCO into giving away more than the owner allowed. Each run shows the call JUNCO proposed, what the gate decided, and what PayPal confirmed.
-  3. **From your own Claude:** in claude.ai, go to Settings, Connectors, Add custom connector, and enter `https://junco-desk.onrender.com/mcp/paypal`. Sign in as `judge` with the same password, then ask Claude to refund a payment. PayPal's own hosted tools answer, and the refund comes back held for the owner. No connector slot free? The `mcp-remote` recipe in [docs/mcp.md](docs/mcp.md) does the same from Claude Desktop.
+  3. **From your own Claude:** in claude.ai, go to Settings, Connectors, Add custom connector, and enter `https://junco-desk.onrender.com/mcp`. Sign in as `judge` with the same password, then ask Claude to refund a payment. The refund comes back held for the owner. `/mcp/paypal` puts the same gate in front of PayPal's own hosted tools (see the next note). No connector slot free? The `mcp-remote` recipe in [docs/mcp.md](docs/mcp.md) does the same from Claude Desktop.
+- **PayPal's hosted MCP server was failing its API calls on Oct 28** (their bug: "Unsupported cache mode: default"). Until PayPal fixes it, `/mcp` is the working path for connectors, and it carries refunds and orders too, through PayPal's Agent Toolkit.
 - **If Claude is down,** or the desk's daily AI budget is used up, the header says the desk is read-only. Cases, saved recommendations, holds, the Gate record and past runs still open, and approving a hold doesn't need Claude.
 - **If PayPal's sandbox is down,** Try it (43 made-up cases, no PayPal calls), the Gate record and every past run's page still work. Live cases won't load.
 - **The results keep updating.** Break the mandate's counter and attack log keep logging public use after the deadline, on the same code, and mark the deadline (Nov 12, 2026, 12:00 pm PST) with the counts as of then.
@@ -77,6 +78,15 @@ The hosted desk is an [AG Studio](https://www.ag-grid.com) report, not a page wi
 Dispute this store has a case where a shopping agent did the buying, live in PayPal's sandbox. A shopping agent (Claude Sonnet 5.5) gets an instruction and a budget, reads the store's three-bag catalog and buys one or declines; the store charges the buyer's vaulted PayPal account with Orders v2. Asked for "a carry-on weekend bag that looks nice", it bought the waxed weekender and called it carry-on size, though at 25 cm deep it's over the 23 cm many airlines allow. The buyer disputes it as not as described, and JUNCO compares the store's record of what the agent was asked with what the listing said, through the same checks and gate.
 
 The checkout record is the store's own, not a mandate signed by PayPal or a card network. JUNCO doesn't use PayPal's Agent Ready or Store Sync, which aren't open in sandbox.
+
+## Investigate an AI purchase
+
+BLACK BOX turns one AI purchase into a record that can be investigated after the agent that made it is gone. It joins what the desk already keeps (the order the shopping agent placed, the dispute, every money move the gate held, allowed or denied, the owner's decision and PayPal's answer) into one incident, and nothing in it comes from a model.
+
+- **The incident page** (`/incident/<buyer txn>`, linked from the case and from the first Start here step) lists every event oldest first, labelled LIVE when PayPal's sandbox did it and RECORDED when it was a decision inside the desk. It shows what the buyer allowed, what the agent bought, four counts (proposed, approved, executed, outcome unknown) and the facts the records don't have, listed as missing instead of filled in. After an approved refund, the desk shows PayPal's refund id and status.
+- **Three questions** are answered from the incident alone, with no model call: which actions reached PayPal, what's not in the records, and what the gate would have done with an amount limit $10 under the purchase. That what-if re-runs the gate's own decision on the recorded request, makes no PayPal call, and is drawn apart from the record, dashed and labelled WHAT-IF.
+- **The receipt** (`/incident/<buyer txn>/receipt`) is one printable page with the capture id, the incident id, the refund id and a QR code back to the incident page.
+- **From your own Claude,** `junco_list_incidents`, `junco_get_incident` and `junco_what_if` are read-only tools on both `/mcp` and `/mcp/paypal`. A Claude that wasn't part of the purchase can pull the incident, see the rule the gate applied to each call and re-run a call under a different limit. Studio's Incident page shows the same JSON.
 
 ## Break the mandate
 
