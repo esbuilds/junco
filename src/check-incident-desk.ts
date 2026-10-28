@@ -21,14 +21,16 @@ assert.equal(acceptedText({ method: 'create_refund', result: paypal }), 'PayPal 
 assert.equal(acceptedText({ method: 'send_dispute_message', result: '{"ok":true}' }), 'PayPal accepted it');
 console.log('refund id: read from PayPal JSON, the hosted wrapper, a settled hold and prose; errors and other actions give none');
 
-// No mode here (cast): these test modeOf's own rule from kind and ref.rule. Once modeOf reads e.mode, give each its mode.
-const ev = (id: string, kind: IncidentEvent['kind'], rule?: string) => ({ id, at: '2026-10-23T09:41:31.000Z', kind, actor: 'x', summary: 'the gate allowed it', source: 'x', ...(rule && { ref: { rule } }) }) as IncidentEvent;
-const live = [ev('purchase:T1', 'purchase'), ev('payment:C1', 'payment'), ev('dispute:D1', 'dispute'), ev('dispute:D1:leased', 'dispute'), ev('webhook:h1', 'webhook'), ev('paypal:h1', 'paypal'),
-  ev('gate:a', 'gate', 'allow: 5 is within the 25 limit for create_refund')];
-const recorded = [ev('agent:a', 'agent'), ev('hold:h1', 'hold'), ev('approval:h1', 'approval'), ev('gate:b', 'gate', 'deny: denied by policy'), ev('gate:c', 'gate')] // the label reads ref.rule, never the summary;
+const ev = (id: string, kind: IncidentEvent['kind'], mode: IncidentEvent['mode'], rule?: string): IncidentEvent => ({ id, at: '2026-10-23T09:41:31.000Z', kind, mode, actor: 'x', summary: 'the gate allowed it', source: 'x', ...(rule && { ref: { rule } }) });
+const live = [ev('purchase:T1', 'purchase', 'live'), ev('payment:C1', 'payment', 'live'), ev('dispute:D1', 'dispute', 'live'), ev('webhook:h1', 'webhook', 'live'), ev('paypal:h1', 'paypal', 'live'),
+  ev('gate:a', 'gate', 'live', 'allow: 5 is within the 25 limit for create_refund')];
+const recorded = [ev('agent:a', 'agent', 'recorded'), ev('hold:h1', 'hold', 'recorded'), ev('approval:h1', 'approval', 'recorded'), ev('gate:b', 'gate', 'recorded', 'deny: denied by policy'), ev('gate:c', 'gate', 'recorded'), ev('dispute:D1:leased', 'dispute', 'recorded')];
 assert.deepEqual(live.map(modeOf), live.map(() => 'live'));
 assert.deepEqual(recorded.map(modeOf), recorded.map(() => 'recorded'));
-console.log('labels: PayPal events and allowed gate calls LIVE; agent, hold, approval and denied gate calls RECORDED; never WHAT-IF');
+assert.equal(modeOf({ ...live[0], mode: 'recorded' }), 'recorded'); // the event's own mode wins over the rule
+const bare = (e: IncidentEvent) => { const { mode: _, ...rest } = e; return rest as IncidentEvent; }; // events from before mode existed
+assert.deepEqual([...live, ...recorded].map(bare).map(modeOf), [...live, ...recorded].map((e) => e.mode)); // the fallback rule agrees, lease included
+console.log('labels: the event\'s own mode wins; without one, PayPal events and allowed gate calls LIVE, desk decisions and leases RECORDED');
 
 const inc: Incident = {
   id: 'T1', title: '<script>x</script>', authority: { instruction: 'a dry bag under 40', budget: '40.00 USD', agent: 'shopping agent' },
@@ -47,7 +49,7 @@ console.log('receipt: capture id, incident id, refund id, what the records lack,
 // The judge's three questions, from the incident JSON alone.
 const asked = reachedPayPal(inc);
 assert.deepEqual(asked.ids, live.map((e) => e.id)); // exactly the LIVE events, to highlight
-assert.match(asked.text, /^7 of 12 events reached PayPal/);
+assert.match(asked.text, /^6 of 12 events reached PayPal/);
 assert.match(notInRecords(inc).text, /^1 thing is not in the records/);
 assert.equal(notInRecords({ ...inc, missing: [] }).text, `Nothing missing. ${12 + 3 + 6 + 1} facts on record checked.`); // events, authority, purchase, dispute
 const preset = whatIfPreset(inc);
@@ -57,6 +59,6 @@ assert.equal(preset.none, null);
 const quiet = whatIfPreset({ ...inc, purchase: { ...inc.purchase!, amount: '6.00' }, events: inc.events.filter((e) => e.kind !== 'gate' && e.kind !== 'hold') });
 assert.deepEqual([quiet.limit, quiet.targets, quiet.none], [0, [], NOTHING_PROPOSED]); // never below 0; says how a move gets proposed
 const pageJs = readFileSync('public/incident.html', 'utf8');
-assert.ok(pageJs.includes(NOTHING_PROPOSED) && pageJs.includes('(amount - 10)') && pageJs.includes("/^allow:/")); // the page's plain-JS copy keeps step
+assert.ok(pageJs.includes(NOTHING_PROPOSED) && pageJs.includes('(amount - 10)') && pageJs.includes('const modeOf = (e) => e.mode ?? (') && pageJs.includes("/^allow:/") && pageJs.includes("!e.id.endsWith(':leased')")); // the page's plain-JS copy keeps step
 console.log('questions: LIVE events highlighted, missing listed or counted, what-if preset at the amount less $10, nothing proposed said plainly');
 console.log('incident-desk: ok');
