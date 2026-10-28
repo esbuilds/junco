@@ -2,13 +2,13 @@
 :root {
   --jd-bg: #f6f5f1; --jd-surface: #ffffff; --jd-surface-2: #f0eee8; --jd-ink: #1d1d1b; --jd-muted: #6b6a64; --jd-line: #e3e0d8;
   --jd-accent: #1f5c4a; --jd-accent-ink: #ffffff; --jd-warn: #a15c07; --jd-warn-bg: #fdf1dc; --jd-danger: #a8322a; --jd-danger-bg: #fbe7e5;
-  --jd-ok: #1f6b3a; --jd-ok-bg: #e2f2e7; --jd-info: #2b4f8a; --jd-info-bg: #e5ecf8; --jd-focus: #2b6fd6;
+  --jd-ok: #1f6b3a; --jd-ok-bg: #e2f2e7; --jd-info: #2b4f8a; --jd-info-bg: #e5ecf8; --jd-focus: #2b6fd6; --jd-whatif: #6b3fa0; --jd-whatif-bg: #f1eafa;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --jd-bg: #141413; --jd-surface: #1d1d1b; --jd-surface-2: #262623; --jd-ink: #ecebe6; --jd-muted: #a09f98; --jd-line: #34332f;
     --jd-accent: #5fb497; --jd-accent-ink: #0d1f19; --jd-warn: #e5a54a; --jd-warn-bg: #3a2a12; --jd-danger: #ef8a80; --jd-danger-bg: #3d1d1a;
-    --jd-ok: #7fcf9b; --jd-ok-bg: #18301f; --jd-info: #8fb2ee; --jd-info-bg: #1b2740; --jd-focus: #7aa7f0;
+    --jd-ok: #7fcf9b; --jd-ok-bg: #18301f; --jd-info: #8fb2ee; --jd-info-bg: #1b2740; --jd-focus: #7aa7f0; --jd-whatif: #c9a7e8; --jd-whatif-bg: #2c2140;
   }
 }
 body { margin: 0; background: var(--jd-bg); color: var(--jd-ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
@@ -295,3 +295,15 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
   .jd-host .ag-studio-layout-canvas { min-width: 0 !important; } /* Studio's 720 px minimum; panels are stacked full width instead */
 }
 .jd-deadline { margin: 6px 0; padding-top: 6px; border-top: 1px dashed var(--jd-line); font-weight: 600; color: var(--jd-ink); }
+
+/* BLACK BOX incident view: LIVE, RECORDED and WHAT-IF must never look alike; what-if is dashed and violet. */
+.jd-incident-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.jd-incident-counts > div { display: grid; padding: 8px 10px; border: 1px solid var(--jd-line); border-radius: 8px; font-size: 13px; }
+.jd-incident-counts strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.jd-rail { list-style: none; margin: 10px 0; padding: 0 0 0 14px; border-left: 2px solid var(--jd-line); display: grid; gap: 8px; }
+.jd-rail li { padding: 8px 10px; border-radius: 8px; background: var(--jd-surface-2); overflow-wrap: anywhere; }
+.jd-rail .jd-rail-what-if { background: var(--jd-whatif-bg); border: 2px dashed var(--jd-whatif); }
+.jd-mode { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 7px; border-radius: 999px; }
+.jd-mode-live { background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-mode-recorded { border: 1px solid var(--jd-line); }
+.jd-mode-what-if { background: var(--jd-whatif); color: var(--jd-surface); }

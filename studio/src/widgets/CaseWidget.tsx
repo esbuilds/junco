@@ -202,6 +202,7 @@ export function CaseWidget() {
         {canAct && <button type="button" className="jd-btn jd-primary" onClick={act} disabled={!!busy}>{busy === 'act' ? 'Working...' : ACTION_LABEL[rec!.decision as Decision]}</button>}
         <button type="button" className="jd-btn" onClick={recheck} disabled={!!busy}>{busy === 'recheck' ? 'Reading the case...' : rec ? 'Re-check' : 'Get recommendation'}</button>
         <a className="jd-linkish jd-casefile" href={`/api/cases/${encodeURIComponent(c.id)}/file.html`} target="_blank" rel="noreferrer">Case file</a>
+        {c.incident && <a className="jd-linkish jd-casefile" href={`/incident/${encodeURIComponent(c.incident)}`} target="_blank" rel="noreferrer">Incident</a>}
         {c.activity.length >= 2 && <button type="button" className="jd-btn" onClick={() => startReplay(c.id, c.activity)} title="Watch what JUNCO did on this case, step by step">Replay what JUNCO did</button>}
       </div>
       {c.status !== 'RESOLVED' && (c.budget ? (
