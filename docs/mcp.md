@@ -49,7 +49,7 @@ Claude Desktop (through `mcp-remote`):
 
 Held calls return `{"held": true, "hold_id": "...", "reason": "..."}` to the agent. The owner approves or rejects them in the desk or with `npm run holds [approve|reject <id>]`.
 
-`/mcp/paypal` serves PayPal's own hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools, over SSE) behind the same gate, with JUNCO's tools added: 20 of PayPal's, JUNCO's 4 dispute tools and the 3 incident tools below. Every hosted tool has a class in `policy.json`; the Policy page lists them.
+`/mcp/paypal` serves PayPal's own hosted MCP server (`mcp.sandbox.paypal.com`, 46 tools, over SSE) behind the same gate, with JUNCO's tools added: 28 tools listed (20 of PayPal's, JUNCO's 4 dispute write tools, the 3 incident tools below and `junco_hold_status`, which tells the hold card in Claude how a held call ended). Every hosted tool has a class in `policy.json`; the Policy page lists them.
 
 ## Tools added
 
