@@ -7,6 +7,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { Ctx } from './disputes.js';
 import { gate, readHolds, type Policy, type Hold } from './gate.js';
 import { addHoldCard } from './holdcard.js';
+import { addIncidentTools } from './incident.js';
 import type { Decision } from '../packages/junco-gate/src/index.js';
 import { mirror } from '../packages/junco-gate/src/mirror.js';
 import { addDisputeTools, captureReader, caseReader } from './server.js';
@@ -57,6 +58,7 @@ export async function createHostedServer(ctx: Ctx, policy: Policy, onHold?: (h: 
   const { server } = await mirror(async () => (await hosted()).client, 'junco-gate-paypal-hosted', () => { conn = null; });
   addDisputeTools(server, ctx);
   addHoldCard(server, policy, readHolds); // S3: the hold card for hosts that render MCP Apps
+  addIncidentTools(server); // BLACK BOX: investigate a recorded AI purchase and re-run the gate on it, read only
   const holds = gate(server, policy, onHold, caseReader(ctx), 'paypal-hosted', log, captureReader(ctx));
   return { server, holds };
 }

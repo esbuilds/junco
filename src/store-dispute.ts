@@ -16,7 +16,8 @@ import type { Ctx } from './disputes.js';
 
 export type Kind = 'unshipped' | 'delivered' | 'agent';
 export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
-export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string };
+// capture_id: the payment's capture (refunds name it); recorded from Oct 28 on, older entries lack it.
+export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string };
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
@@ -92,7 +93,8 @@ export function addToPool(entries: any[]): number {
     .filter((e) => typeof e?.buyer_txn === 'string' && /^[A-Z0-9]{17}$/.test(e.buyer_txn) && !have.has(e.buyer_txn) && Number(e.amount) > 0)
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking,
       ...(typeof e.scan === 'string' && (e.tracking || e.agent) && { scan: e.scan.slice(0, 500) }),
-      ...(e.agent && { agent: Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])) as AgentRecord }),
+      ...(e.agent && { agent: { ...Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])),
+        ...(typeof e.agent.capture_id === 'string' && /^\w{1,40}$/.test(e.agent.capture_id) && { capture_id: e.agent.capture_id }) } as AgentRecord }),
       added: new Date().toISOString() }));
   if (fresh.length) write(POOL, [...pool, ...fresh]);
   return fresh.length;

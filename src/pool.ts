@@ -84,7 +84,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
     last = txn;
     entries.push({ buyer_txn: txn, amount: item.price, order_id: o.body.id, tracking: false,
       scan: `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
-      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME } });
+      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture } });
     console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${o.body.id}, capture ${capture}, buyer transaction ${txn}`);
     continue;
   }

@@ -35,7 +35,8 @@
     "check-connector": "tsx src/check-connector.ts",
     "check-recheck": "tsx src/check-recheck.ts",
     "check-token": "tsx src/check-token.ts",
-    "check-holdcard": "tsx src/check-holdcard.ts"
+    "check-holdcard": "tsx src/check-holdcard.ts",
+    "check-incident": "tsx src/check-incident.ts"
   },
   "keywords": [],
   "author": "",
