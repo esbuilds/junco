@@ -53,7 +53,7 @@ const layout = {
     id: 'incident',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { incident: { id: 'incident', type: 'junco-incident', dataMapping: {} } },
-    widgetLayout: { incident: { xTrack: 0, yTrack: 0, xSpan: 8, ySpan: 34 } },
+    widgetLayout: { incident: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 34 } },
   }, {
     // Scenario mode: synthetic cases through the real recommender, no PayPal calls.
     id: 'try',

@@ -62,43 +62,56 @@ export function IncidentWidget() {
         {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}/receipt`} target="_blank" rel="noreferrer">Receipt</a>}
       </div>
       {error && <div className="jd-result jd-err">{error}</div>}
-      {inc && <>
-        <div className="jd-incident-counts">
-          {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
-            .map(([k, v]) => <div key={k}><span className="jd-muted">{k}</span><strong>{v}</strong></div>)}
+      {inc && <div className="jd-incident-grid">
+        <div className="jd-incident-main">
+          <div className="jd-counts">
+            {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
+              .map(([k, v]) => <div key={k}><span>{k}</span><strong>{v}</strong></div>)}
+          </div>
+          <dl className="jd-facts">
+            <dt>Buyer allowed</dt><dd>{inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</dd>
+            <dt>Bought</dt><dd>{inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</dd>
+          </dl>
+          <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
+            {inc.events.map((e) => { const mode = modeOf(e); return (
+              <li key={e.id} className={`jd-rail-${mode}`}>
+                <div className="jd-rail-meta"><span className={`jd-mode jd-mode-${mode}`}>{mode.toUpperCase()}</span> {when(e.at)} · {e.actor}</div>
+                <div>{e.summary}</div>
+              </li>); })}
+            {w && (
+              <li className="jd-rail-what-if">
+                <div className="jd-rail-meta"><span className="jd-mode jd-mode-what-if">WHAT-IF</span> {w.change}</div>
+                <div>{w.method.replace(/_/g, ' ')}: was <strong>{w.before.verdict}</strong> ({w.before.reason}), would be <strong>{w.after.verdict}</strong> ({w.after.reason}).</div>
+                <div className="jd-muted">PayPal calls: {w.paypal_calls}. Nothing was sent.</div>
+              </li>
+            )}
+          </ol>
+          {inc.missing.length > 0 && <p ref={missingRef} className="jd-muted">Not in the records: {inc.missing.join(' ')}</p>}
         </div>
-        <div className="jd-row">
-          <button type="button" className="jd-btn" onClick={askLive}>Which actions reached PayPal?</button>
-          <button type="button" className="jd-btn" onClick={askMissing}>What's not in the records?</button>
-          <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>
-        </div>
-        {answer && <p className="jd-muted" role="status">{answer}</p>}
-        <p><strong>Buyer allowed:</strong> {inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</p>
-        <p><strong>Bought:</strong> {inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</p>
-        <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
-          {inc.events.map((e) => { const mode = modeOf(e); return (
-            <li key={e.id} className={`jd-rail-${mode}`}>
-              <div className="jd-muted"><span className={`jd-mode jd-mode-${mode}`}>{mode.toUpperCase()}</span> {when(e.at)} · {e.actor}</div>
-              <div>{e.summary}</div>
-            </li>); })}
-          {w && (
-            <li className="jd-rail-what-if">
-              <div className="jd-muted"><span className="jd-mode jd-mode-what-if">WHAT-IF</span> {w.change}</div>
-              <div>{w.method.replace(/_/g, ' ')}: was <strong>{w.before.verdict}</strong> ({w.before.reason}), would be <strong>{w.after.verdict}</strong> ({w.after.reason}).</div>
-              <div className="jd-muted">PayPal calls: {w.paypal_calls}. Nothing was sent.</div>
-            </li>
-          )}
-        </ol>
-        {inc.missing.length > 0 && <p ref={missingRef} className="jd-muted">Not in the records: {inc.missing.join(' ')}</p>}
-        {calls.length > 0 && <div className="jd-row">
-          <select className="jd-ellipsis" aria-label="Recorded request" value={target || calls[0].id} onChange={(e) => setTarget(e.target.value)}>
-            {calls.map((e) => <option key={e.id} value={e.id}>{when(e.at)}: {e.summary.slice(0, 80)}</option>)}
-          </select>
-          <label className="jd-muted">Amount limit (USD) <input type="number" min={0} max={10000} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 90 }} /></label>
-          <button type="button" className="jd-btn" onClick={rerun}>Re-run the gate</button>
-        </div>}
-        {err && <div className="jd-result jd-err">{err}</div>}
-      </>}
+        <aside className="jd-incident-side">
+          <h3>Ask the records</h3>
+          <div className="jd-stack">
+            <button type="button" className="jd-btn" onClick={askLive}>Which actions reached PayPal?</button>
+            <button type="button" className="jd-btn" onClick={askMissing}>What's not in the records?</button>
+            <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>
+          </div>
+          {answer && <p className="jd-answer" role="status">{answer}</p>}
+          {calls.length > 0 && <>
+            <h3>Re-run the gate</h3>
+            <div className="jd-stack">
+              <label className="jd-field">Recorded request
+                <select aria-label="Recorded request" value={target || calls[0].id} onChange={(e) => setTarget(e.target.value)}>
+                  {calls.map((e) => <option key={e.id} value={e.id}>{when(e.at)}: {e.summary.slice(0, 80)}</option>)}
+                </select>
+              </label>
+              <label className="jd-field">Amount limit (USD) <input type="number" min={0} max={10000} value={limit} onChange={(e) => setLimit(e.target.value)} /></label>
+              <button type="button" className="jd-btn jd-primary" onClick={rerun}>Re-run the gate</button>
+              <p className="jd-sub">A what-if on the recorded request. Nothing reaches PayPal.</p>
+            </div>
+          </>}
+          {err && <div className="jd-result jd-err">{err}</div>}
+        </aside>
+      </div>}
     </Panel>
   );
 }
