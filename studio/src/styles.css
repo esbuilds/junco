@@ -16,18 +16,15 @@ button, input, textarea { font: inherit; color: inherit; }
 .jd-live { font-size: 13px; color: var(--jd-muted); white-space: nowrap; }
 
 
-.jd-badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
-.jd-b-message { background: var(--jd-info-bg); color: var(--jd-info); }
-.jd-b-offer, .jd-b-held { background: var(--jd-warn-bg); color: var(--jd-warn); }
-.jd-b-contest { background: var(--jd-ok-bg); color: var(--jd-ok); }
-.jd-b-accept { background: var(--jd-danger-bg); color: var(--jd-danger); }
-.jd-b-wait { background: var(--jd-surface-2); color: var(--jd-muted); border: 1px solid var(--jd-line); }
-.jd-due-soon { color: var(--jd-danger); font-weight: 600; }
+/* Recommendations are plain neutral labels; only "needs the owner" (held) uses the attention colour. */
+.jd-badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 1px 7px; border-radius: 4px; background: var(--jd-surface-2); color: var(--jd-muted); }
+.jd-b-held { background: var(--jd-attn-bg); color: var(--jd-attn-text); }
+.jd-due-soon { font-weight: 500; }
 .jd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.jd-chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-surface-2); border: 1px solid var(--jd-line); }
+.jd-chip { font-size: 12px; padding: 1px 7px; border-radius: 4px; background: var(--jd-surface-2); color: var(--jd-muted); }
 
 .jd-result { margin-top: 10px; padding: 10px 12px; border-radius: 8px; }
-.jd-ok { background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-ok { background: var(--jd-surface-2); color: var(--jd-ink); }
 .jd-held { background: var(--jd-warn-bg); color: var(--jd-warn); }
 .jd-err { background: var(--jd-danger-bg); color: var(--jd-danger); }
 
@@ -82,13 +79,18 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 /* AG Grid's root sets its inherited colours from Studio's light theme; pin them to the desk palette so dark mode holds. */
 .jd-grid .ag-styled-root {
   --ag-inherited-background-color: var(--jd-surface) !important; --ag-inherited-foreground-color: var(--jd-ink) !important;
-  --ag-inherited-header-background-color: var(--jd-surface-2) !important; --ag-inherited-border-color: var(--jd-line) !important;
-  --ag-inherited-accent-color: var(--jd-accent) !important;
-  --ag-foreground-color: var(--jd-ink) !important; --ag-header-foreground-color: var(--jd-ink) !important;
+  --ag-inherited-header-background-color: var(--jd-surface) !important; --ag-inherited-border-color: var(--jd-line) !important;
+  --ag-inherited-accent-color: var(--jd-muted) !important;
+  --ag-foreground-color: var(--jd-ink) !important; --ag-header-foreground-color: var(--jd-muted) !important;
+  --ag-header-column-border: none !important; --ag-header-column-resize-handle-color: transparent !important;
 }
-.jd-grid .ag-cell, .jd-grid .ag-header-cell-text { color: var(--jd-ink) !important; }
+.jd-grid .ag-cell { color: var(--jd-ink) !important; }
+.jd-grid .ag-header-cell-text { color: var(--jd-muted) !important; font-size: 12px; font-weight: 500; }
+.jd-grid .ag-header-cell-resize::after { display: none; }
+.jd-grid .ag-root-wrapper { border: 0; border-radius: 0; }
 .jd-grid .ag-cell { display: flex; align-items: center; line-height: 1.3; }
 .jd-grid .ag-cell-focus { border: 0 !important; }
+.jd-grid .ag-cell:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: -2px; } /* keyboard focus stays visible */
 .jd-row-selected { background: var(--jd-surface-2) !important; }
 .jd-badge.jd-b-held { white-space: nowrap; }
 
@@ -120,7 +122,7 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 .jd-risk li + li { border-top: 1px solid var(--jd-line); }
 .jd-risk-row { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 7px 4px; }
 .jd-risk-row:hover { background: var(--jd-surface-2); }
-.jd-risk-row:focus-visible { outline: 2px solid var(--jd-focus, #2b6fd6); outline-offset: -2px; }
+.jd-risk-row:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: -2px; }
 .jd-risk-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jd-risk-amt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 .jd-risk-why { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -138,7 +140,7 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 .jd-policy-row select, .jd-money-input input { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
 .jd-money-input { display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0; }
 .jd-money-input input { width: 90px; margin-left: 4px; text-align: right; }
-.jd-ok { background: var(--jd-ok-bg); color: var(--jd-ok); }
+.jd-ok { background: var(--jd-surface-2); color: var(--jd-ink); }
 
 /* Top bar with page tabs */
 body { margin: 0; background: var(--jd-bg); }
@@ -165,7 +167,7 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-track .jd-row { flex-wrap: nowrap; }
 .jd-track select, .jd-track input[type=text] { font: inherit; color: inherit; background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; padding: 6px 8px; }
 .jd-track input[type=text] { width: 220px; }
-.jd-panel a { color: var(--jd-accent, #1f5c4a); }
+.jd-panel a { color: var(--jd-ink); text-decoration-color: var(--jd-line); text-underline-offset: 3px; }
 
 /* Start here */
 
@@ -202,7 +204,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-drawer-list li.jd-new { animation: jd-flash 2.5s ease-out; }
 .jd-drawer-list .jd-time { font-size: 12px; color: var(--jd-muted); }
 .jd-grid .jd-mono-cell { font-variant-numeric: tabular-nums; color: var(--jd-muted) !important; font-size: 12px; }
-.jd-grid .jd-mono-cell { font-size: 11.5px; letter-spacing: -0.01em; }
+.jd-grid .jd-mono-cell { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0; }
 /* Half-width activity panels: time, case and source on one line, the step underneath at full width. */
 .jd-panel { container-type: inline-size; }
 @container (max-width: 640px) {
@@ -232,7 +234,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-gatecard { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--jd-line); background: var(--jd-surface-2); font-size: 13px; }
 .jd-gatecard.jd-gate-held { border-left: 3px solid var(--jd-warn); }
 .jd-gatecard.jd-gate-refused, .jd-gatecard.jd-gate-failed { border-left: 3px solid var(--jd-danger); }
-.jd-gatecard.jd-gate-allowed { border-left: 3px solid var(--jd-accent); }
+.jd-gatecard.jd-gate-allowed { border-left: 3px solid var(--jd-line); }
 .jd-recheck { font-weight: 600; }
 /* Visitors: no Studio widget toolbar (its close icon would drop a panel from their saved layout). */
 .jd-visitor [class*="ag-studio-widget-toolbar"] { display: none !important; }
@@ -364,3 +366,11 @@ ol.jd-feed li.jd-new { animation: jd-fade 2s ease-out; }
 .jd-holds td:nth-child(4) { white-space: normal; }
 .jd-holds td:nth-child(4) .jd-id { font-size: 12px; }
 .jd-holds td:nth-child(2) .jd-id { font-size: 12px; }
+.jd-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); border: 1px solid var(--jd-line); border-radius: 8px; margin-bottom: 12px; }
+.jd-counts > div { display: grid; gap: 2px; padding: 10px 12px; border-left: 1px solid var(--jd-line-2); }
+.jd-counts > div:first-child { border-left: 0; }
+.jd-counts span { font-size: 12px; color: var(--jd-muted); white-space: nowrap; }
+.jd-counts strong { font-size: 20px; line-height: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.jd-nowrap { white-space: nowrap; }
+.jd-faint { color: var(--jd-faint); }
+.jd-table .jd-id { font-size: 13px; }

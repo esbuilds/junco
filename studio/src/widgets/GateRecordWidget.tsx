@@ -17,17 +17,23 @@ export function GateRecordWidget() {
     <Panel title="Gate record" subtitle={c ? `${c.proposed} money moves proposed · ${c.held} held for the owner · ${c.past_limit} past the limit` : 'Loading'}>
       <div id="gate-record" />
       {error && <div className="jd-result jd-err">{error}</div>}
-      {c && <p className="jd-muted">Of the holds: {c.approved} approved by the owner, {c.rejected} rejected, {c.stale} stale, {c.pending} waiting. Also {c.allowed} allowed inside the owner's limits, {c.denied} denied, and {c.gate_only} gate-only tests that made no hold and sent nothing.</p>}
+      {c && (
+        <div className="jd-counts" aria-label="Gate counts">
+          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
+            <div key={k}><span>{k}</span><strong>{v}</strong></div>
+          ))}
+        </div>
+      )}
       <div className="jd-table-wrap">
         <table className="jd-table">
           <thead><tr><th>When (UTC)</th><th>Asked by</th><th>Move</th><th>Case</th><th>Gate</th><th>What happened</th></tr></thead>
           <tbody>
             {(data?.rows ?? []).map((r, i) => (
               <tr key={r.hold_id ?? r.run_id ?? `${r.at}-${i}`} title={r.reason}>
-                <td>{r.at.slice(0, 16).replace('T', ' ')}</td>
+                <td className="jd-id jd-nowrap">{r.at.slice(0, 16).replace('T', ' ')}</td>
                 <td>{r.source}</td>
-                <td>{human(r.method)}{r.amount ? ` ${r.amount}` : ''}</td>
-                <td>{r.dispute_id ? <button type="button" className="jd-linkish" onClick={() => selectCase(r.dispute_id)}>{r.dispute_id}</button> : ''}</td>
+                <td>{human(r.method).replace(/^./, (x) => x.toUpperCase())}{r.amount && <div className="jd-sub jd-num">{r.amount}</div>}</td>
+                <td>{r.dispute_id ? <button type="button" className="jd-linkish jd-id jd-nowrap" onClick={() => selectCase(r.dispute_id)}>{r.dispute_id}</button> : <span className="jd-faint">No case</span>}</td>
                 <td>{VERDICT[r.verdict] ?? r.verdict}</td>
                 <td>{r.outcome}{r.run_id && <> · <a href={`/run/${r.run_id}`} target="_blank" rel="noreferrer">run</a></>}</td>
               </tr>
