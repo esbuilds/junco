@@ -140,18 +140,6 @@ ol.jd-activity .jd-mono { white-space: nowrap; }
 
 /* Top bar with page tabs */
 body { margin: 0; background: var(--jd-bg); }
-.jd-topbar { height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--jd-bg); color: var(--jd-ink, inherit); font-family: Geist, system-ui, sans-serif; }
-.jd-topbar strong { font-size: 17px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px; }
-.jd-mark { width: 20px; height: 20px; flex: none; }
-.jd-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--jd-info-bg); color: var(--jd-info); font-weight: 600; }
-.jd-tag-live { background: #e3f1ea; color: #1f5c4a; }
-.jd-tag-recorded { background: #fbefd9; color: #8a4b05; }
-.jd-tag-simulated { background: #ece9f5; color: #5a4387; }
-.jd-topbar nav { margin-left: auto; display: flex; gap: 4px; }
-.jd-tab { font: inherit; font-size: 14px; color: inherit; background: none; border: 1px solid transparent; border-radius: 8px; padding: 5px 12px; cursor: pointer; }
-.jd-tab:hover { background: var(--jd-surface-2); }
-.jd-tab[aria-current="page"] { background: var(--jd-surface); border-color: var(--jd-line); font-weight: 600; }
-.jd-tab:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
 
 /* Standing approval */
 .jd-handle { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--jd-line); }
@@ -178,7 +166,6 @@ ol.jd-activity.jd-activity-replay li { grid-template-columns: 124px 164px 100px 
 .jd-panel a { color: var(--jd-accent, #1f5c4a); }
 
 /* Start here */
-.jd-start-n { width: 24px; height: 24px; border-radius: 999px; background: var(--jd-accent); color: var(--jd-accent-ink); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
 
 /* Studio's native widgets (Insights) get the same card as the desk's custom ones. */
 .jd-host .ag-studio-layout-widget:not(:has(.jd-panel)):not(:has(.jd-stats)):not(:has(.jd-holds-empty)) .ag-studio-layout-widget-container {
@@ -231,45 +218,15 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-card-alt { background: transparent; border-style: dashed; }
 
 /* Gate record (v3.14) */
-.jd-table-wrap { overflow-x: auto; }
-.jd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.jd-table th { text-align: left; font-weight: 600; color: var(--jd-muted); border-bottom: 1px solid var(--jd-line); padding: 6px 8px; white-space: nowrap; }
-.jd-table td { border-bottom: 1px solid var(--jd-line); padding: 6px 8px; vertical-align: top; }
 
 /* Status line (v3.14 item 3) */
-.jd-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.jd-status-ok { color: var(--jd-ok); background: var(--jd-ok-bg); }
-.jd-status-warn { color: var(--jd-warn); background: var(--jd-warn-bg); white-space: normal; }
 .jd-support-not-supported { color: var(--jd-danger); }
 
 /* v3.14 first screen: Start here is a strip under the header, not an overlay */
 .jd-app { height: 100vh; display: flex; flex-direction: column; }
 .jd-app > .jd-host { flex: 1; min-height: 0; height: auto; }
-.jd-strip { display: flex; align-items: center; gap: 12px; padding: 6px 24px 8px; background: var(--jd-bg); border-bottom: 1px solid var(--jd-line); font-family: Geist, system-ui, sans-serif; color: var(--jd-ink); }
-.jd-strip ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; }
-.jd-strip li { flex: 1 1 0; min-width: 150px; }
-.jd-strip-step { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--jd-surface); border: 1px solid var(--jd-line); font-size: 12px; line-height: 1.35; }
-.jd-strip-step:hover { outline: 1px solid var(--jd-accent); }
-.jd-strip-step:focus-visible { outline: 2px solid var(--jd-focus); }
-.jd-strip-step strong { display: block; font-size: 13px; }
-.jd-strip-step .jd-muted { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-width: 700px) { .jd-strip { flex-wrap: wrap; padding: 6px 16px; } .jd-strip ol { order: 3; flex-basis: 100%; } }
 /* Phone: the header keeps the brand and the page tabs (scrollable); the subtitle and status line give way */
-@media (max-width: 700px) {
-  .jd-topbar { padding: 0 16px; gap: 8px; }
-  .jd-topbar > .jd-muted, .jd-topbar .jd-status { display: none; }
-  .jd-topbar .jd-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; } /* D2: LIVE or RECORDED always shows */
-  .jd-topbar nav { overflow-x: auto; min-width: 0; }
-  .jd-tab { padding: 5px 8px; white-space: nowrap; }
-}
 /* Laptop widths: one header line. Tabs never wrap; the LIVE tag and status line shorten with an ellipsis (full text on hover). */
-.jd-tab { white-space: nowrap; }
-.jd-topbar > .jd-muted { white-space: nowrap; }
-.jd-topbar .jd-tag, .jd-topbar .jd-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.jd-topbar .jd-tag { max-width: 30vw; }
-.jd-topbar .jd-status { max-width: 20vw; }
-@media (max-width: 1280px) { .jd-tab { padding: 5px 8px; } }
-@media (max-width: 1180px) { .jd-topbar > .jd-muted { display: none; } } /* the product line stays on a 1280 laptop */
 .jd-gatecard { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--jd-line); background: var(--jd-surface-2); font-size: 13px; }
 .jd-gatecard.jd-gate-held { border-left: 3px solid var(--jd-warn); }
 .jd-gatecard.jd-gate-refused, .jd-gatecard.jd-gate-failed { border-left: 3px solid var(--jd-danger); }
@@ -279,8 +236,6 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-visitor [class*="ag-studio-widget-toolbar"] { display: none !important; }
 /* Phones and narrow tablets: the header wraps to a second line instead of clipping the page tabs. */
 @media (max-width: 900px) {
-  .jd-topbar { height: auto; flex-wrap: wrap; row-gap: 4px; padding-top: 6px; padding-bottom: 6px; }
-  .jd-topbar nav { flex-wrap: wrap; overflow-x: visible; margin-left: 0; }
   .jd-host .ag-studio-layout-canvas { min-width: 0 !important; } /* Studio's 720 px minimum; panels are stacked full width instead */
 }
 .jd-deadline { margin: 6px 0; padding-top: 6px; border-top: 1px dashed var(--jd-line); font-weight: 600; color: var(--jd-ink); }
@@ -300,3 +255,44 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-rail.jd-focus-live .jd-rail-live { outline: 1px solid var(--jd-ok); }
 /* Long picker labels (date, buyer txn, dispute, title) stay inside the widget. */
 .jd-ellipsis { flex: 1 1 0; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Gate record (v3.14) */
+.jd-table-wrap { overflow-x: auto; }
+.jd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jd-table th { text-align: left; font-weight: 600; color: var(--jd-muted); border-bottom: 1px solid var(--jd-line); padding: 6px 8px; white-space: nowrap; }
+.jd-table td { border-bottom: 1px solid var(--jd-line); padding: 6px 8px; vertical-align: top; }
+
+/* Header (UI polish): one 56px row, then tabs. */
+.jd-topbar { background: var(--jd-surface); border-bottom: 1px solid var(--jd-line); color: var(--jd-ink); }
+.jd-topbar-row { height: 56px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+.jd-brand { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+.jd-mark { width: 20px; height: 20px; flex: none; }
+.jd-slash { color: var(--jd-line); font-size: 20px; }
+.jd-grow { flex: 1; }
+.jd-env { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--jd-muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.jd-env strong { font-weight: 500; color: var(--jd-ink); }
+.jd-env i { width: 7px; height: 7px; border-radius: 50%; flex: none; box-sizing: border-box; background: var(--jd-muted); }
+.jd-env-recorded i { background: transparent; border: 1.5px solid var(--jd-muted); }
+.jd-env-simulated i { background: transparent; border: 1.5px dashed var(--jd-muted); }
+.jd-status { font-size: 13px; color: var(--jd-muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.jd-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .7; }
+.jd-status-failed { color: var(--jd-danger); }
+.jd-status-paused { color: var(--jd-attn-text); }
+.jd-btn-sm { padding: 5px 12px; font-size: 13px; line-height: 18px; border-radius: 6px; white-space: nowrap; }
+.jd-btn[aria-pressed="true"] { background: var(--jd-surface-2); }
+.jd-tabs { display: flex; align-items: stretch; gap: 20px; padding: 0 24px; overflow-x: auto; }
+.jd-tab { all: unset; cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--jd-muted); white-space: nowrap; box-shadow: inset 0 -2px transparent; }
+.jd-tab:hover { color: var(--jd-ink); }
+.jd-tab[aria-current="page"] { color: var(--jd-ink); box-shadow: inset 0 -2px var(--jd-ink); }
+.jd-tab:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: -2px; }
+.jd-tabs-sep { width: 1px; background: var(--jd-line); margin: 10px 0; flex: none; }
+.jd-tabs-group { font-size: 12px; color: var(--jd-faint); align-self: center; white-space: nowrap; margin-right: -8px; }
+.jd-pagehead { padding: 28px 24px 4px; background: var(--jd-bg); }
+.jd-pagehead h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+.jd-pagehead p { margin: 4px 0 0; color: var(--jd-muted); }
+@media (max-width: 900px) {
+  .jd-topbar-row { padding: 0 16px; gap: 8px; }
+  .jd-topbar .jd-status, .jd-slash { display: none; }
+  .jd-tabs { padding: 0 16px; gap: 16px; }
+  .jd-pagehead { padding: 20px 16px 4px; }
+}

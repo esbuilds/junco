@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AgStudio, AgStudioProvider } from 'ag-studio-react';
 import { studioTheme } from 'ag-studio';
 import { widgets } from './widgets/definitions';
-import { StartHere, startSeen } from './widgets/StartHere';
+import { KillSwitch } from './widgets/KillSwitch';
 import { CaseBanner } from './widgets/CaseBanner';
 import { StatusLine } from './widgets/StatusLine';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
@@ -76,7 +76,7 @@ const layout = {
 
 // v3.14 item 5: the owner can resize Desk panels from any edge (Studio's edit mode, on whenever the assistant is); this
 // browser remembers the sizes. Only positions of the desk's own panels are kept, so a stale save can't add or drop a panel.
-export const DESK_LAYOUT_KEY = 'jd-desk-layout';
+export const DESK_LAYOUT_KEY = 'jd-desk-layout-v2'; // v2: the UI polish layout; older saves are ignored
 function withSavedDesk(l: typeof layout) {
   let saved: Record<string, unknown> = {};
   try { saved = JSON.parse(localStorage.getItem(DESK_LAYOUT_KEY) ?? '{}') ?? {}; } catch { /* private mode or a bad save: defaults */ }
@@ -113,7 +113,9 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incident'], ['insights', 'Insights'], ['policy', 'Policy'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
+// Demo pages sit after a divider so they don't read as everyday merchant work.
+const TEST_PAGES = [['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;
@@ -132,7 +134,8 @@ const fit = (l: typeof layout) => !narrow ? l : { ...l, pages: l.pages.map((p: a
 export function App() {
   // The owner (cookie) keeps Studio's widget toolbar; visitors don't get its close icon (coldjudge F10).
   const owner = usePoll<{ owner?: boolean }>('/api/status', 60000).data?.owner;
-  const [start, setStart] = useState(() => !startSeen());
+  // Ask JUNCO opens AG Studio's assistant (Studio's edit mode, with its AI panel); closed, the Desk is view mode.
+  const [assistant, setAssistant] = useState(false);
   useEffect(() => { const on = (e: Event) => setPage((e as CustomEvent).detail); window.addEventListener('jd-go', on); return () => window.removeEventListener('jd-go', on); }, []);
   const [page, setPage] = useState<string>(() => new URLSearchParams(location.search).get('page') ?? 'desk'); // ?page= links (the counter's Gate record link)
   // Live disputes for the Insights page; only the rows change after first render (see insights.ts).
@@ -145,15 +148,31 @@ export function App() {
     <AgStudioProvider licenseKey={studioKey}>
       <div className={owner ? 'jd-app' : 'jd-app jd-visitor'}>
       <header className="jd-topbar">
-        <strong><svg className="jd-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" strokeWidth="6.4" strokeLinecap="round" /><circle cx="50.19" cy="21.5" r="4.6" fill="var(--jd-accent)" /></svg>JUNCO</strong><span className="jd-muted">Works your PayPal disputes; money moves wait for your OK</span><CaseBanner page={page} /><StatusLine />
-        <nav aria-label="Pages">
-          <button type="button" className="jd-tab" aria-expanded={start} onClick={() => setStart(!start)}>Start here</button>
+        <div className="jd-topbar-row">
+          <strong className="jd-brand"><svg className="jd-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" strokeWidth="6.4" strokeLinecap="round" /><circle cx="50.19" cy="21.5" r="4.6" fill={isDark ? '#5fb497' : '#1f5c4a'} /></svg>JUNCO</strong>
+          <span className="jd-slash" aria-hidden="true">/</span>
+          <CaseBanner page={page} />
+          <span className="jd-grow" />
+          <StatusLine />
+          {ai && !narrow && <button type="button" className="jd-btn jd-btn-sm" aria-pressed={assistant} onClick={() => { setAssistant(!assistant); setPage('desk'); }}>{assistant ? 'Close assistant' : 'Ask JUNCO'}</button>}
+          <KillSwitch compact />
+        </div>
+        <nav aria-label="Pages" className="jd-tabs">
           {PAGES.map(([id, label]) => (
+            <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
+          ))}
+          <span className="jd-tabs-sep" aria-hidden="true" /><span className="jd-tabs-group">Test it</span>
+          {TEST_PAGES.map(([id, label]) => (
             <button key={id} type="button" className="jd-tab" aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>{label}</button>
           ))}
         </nav>
       </header>
-      {start && <StartHere go={setPage} close={() => setStart(false)} />}
+      {page === 'desk' && (
+        <div className="jd-pagehead">
+          <h1>Desk</h1>
+          <p>Every money move an agent proposes goes through your policy. Anything it holds waits here for you.</p>
+        </div>
+      )}
       <ReplayDrawer />
       <div className="jd-host">
         {/* Studio mounts once the first cases arrive: native widgets (filters, grid) build their first query on mount. */}
@@ -164,7 +183,7 @@ export function App() {
           widgets={widgets}
           initialState={{ ...fit(withSavedDesk(layout)), selectedPageId: page } as any}
           onStateUpdated={saveDesk}
-          mode={ai && page === 'desk' && !narrow ? 'edit' : 'view'}
+          mode={ai && page === 'desk' && !narrow && assistant ? 'edit' : 'view'}
           theme={theme}
           // The desk is a fixed layout for the judges: no filter panel in view mode.
           panels={{ view: { left: [], right: [] }, edit: { left: [], right: ['ai'] } }}
