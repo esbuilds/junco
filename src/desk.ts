@@ -501,6 +501,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
         own, own_ready: !kindRefusal(visitor, 'unshipped'),
         hold: hold ? { id: hold.id, dispute_id: hold.args.dispute_id, method: hold.method } : null,
         refusal, replay, orders: Object.keys(readOrders()).length,
+        incident: listIncidents().find((i) => i.dispute_id)?.id ?? null, // BLACK BOX: the newest AI purchase that was disputed
       });
     }
     if (req.method === 'GET' && url.pathname === '/api/activity') { // a red-team run that failed or skipped is the owner's news, not a judge's

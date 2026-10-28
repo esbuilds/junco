@@ -93,7 +93,7 @@
 </head>
 <body>
 <header>
-  <h1><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</h1><span class="sub">Dispute desk</span><span class="tag">PayPal sandbox</span>
+  <h1><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</h1><span class="sub">Dispute desk</span><span class="tag">PayPal sandbox</span><a id="start-incident" style="font-weight:600;color:var(--accent)" hidden>Start here: investigate an AI purchase</a>
 </header>
 
 <section class="stats" aria-label="Summary">
@@ -283,6 +283,8 @@ setInterval(() => { if (!document.hidden) loadActivity().catch(() => {}); }, 500
 
 async function refresh() { await Promise.all([loadCases(), loadHolds()]); }
 loadActivity().catch(() => {});
+// BLACK BOX: the newest AI purchase that was disputed, first thing a judge sees.
+api('/api/start').then((s) => { if (s.incident) Object.assign($('#start-incident'), { href: `/incident/${encodeURIComponent(s.incident)}`, hidden: false }); }).catch(() => {});
 refresh().catch((err) => { $('#panel').innerHTML = `<div class="result err">Could not load disputes: ${esc(err.message)}</div>`; });
 </script>
 </body>

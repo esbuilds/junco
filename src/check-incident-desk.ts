@@ -2,7 +2,9 @@
 // takes, events wear the right LIVE / RECORDED label, and the receipt carries the capture id, the incident id, what
 // the records lack and a QR with the URL printed under it. The join and the what-if are check-incident's.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { acceptedText, modeOf, paypalRefund, receiptPage } from './incident-view.js';
+import { NOTHING_PROPOSED, notInRecords, reachedPayPal, whatIfPreset } from './incident-questions.js';
 import type { Incident, IncidentEvent } from './incident-types.js';
 
 const refund = (result: string, method = 'create_refund') => paypalRefund({ method, result });
@@ -41,4 +43,19 @@ assert.ok(page.includes('<td>WKD-01 Dry bag</td>') && !page.includes('WKD-01, WK
 assert.ok(page.includes('<svg') && page.includes(`<div class="u">${url}</div>`)); // QR, and the URL as text under it
 assert.ok(!page.includes('<script>x') && page.includes('&#60;script&#62;x'));
 console.log('receipt: capture id, incident id, refund id, what the records lack, a QR and the URL in text; titles escaped');
+// The judge's three questions, from the incident JSON alone.
+const asked = reachedPayPal(inc);
+assert.deepEqual(asked.ids, live.map((e) => e.id)); // exactly the LIVE events, to highlight
+assert.match(asked.text, /^7 of 12 events reached PayPal/);
+assert.match(notInRecords(inc).text, /^1 thing is not in the records/);
+assert.equal(notInRecords({ ...inc, missing: [] }).text, `Nothing missing. ${12 + 3 + 6 + 1} facts on record checked.`); // events, authority, purchase, dispute
+const preset = whatIfPreset(inc);
+assert.equal(preset.limit, 24); // 34.00 less 10
+assert.deepEqual(preset.targets, ['gate:c', 'gate:b', 'hold:h1', 'gate:a']); // recorded money moves, newest first (same time: reverse order)
+assert.equal(preset.none, null);
+const quiet = whatIfPreset({ ...inc, purchase: { ...inc.purchase!, amount: '6.00' }, events: inc.events.filter((e) => e.kind !== 'gate' && e.kind !== 'hold') });
+assert.deepEqual([quiet.limit, quiet.targets, quiet.none], [0, [], NOTHING_PROPOSED]); // never below 0; says how a move gets proposed
+const pageJs = readFileSync('public/incident.html', 'utf8');
+assert.ok(pageJs.includes(NOTHING_PROPOSED) && pageJs.includes('(amount - 10)') && pageJs.includes("/^allow:/")); // the page's plain-JS copy keeps step
+console.log('questions: LIVE events highlighted, missing listed or counted, what-if preset at the amount less $10, nothing proposed said plainly');
 console.log('incident-desk: ok');
