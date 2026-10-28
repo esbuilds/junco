@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, money } from '../api';
 import { selectCase, usePoll } from '../store';
 import { Panel } from './Panel';
+import { KillSwitch } from './KillSwitch';
 
 // Break the mandate (STRATEGY v3.11, v3.12 update 2): play the buyer and try to make JUNCO give away more than the owner
 // allowed. The buyer is simulated; the seller side runs for real on a never-shipped sandbox case. The three cards show
@@ -98,6 +99,7 @@ export function ChallengeWidget() {
       <h3>Use this gate in your own agent</h3>
       <p className="jd-muted">The gate wraps any MCP server's tools: a policy file (read, allowed write, hold, not exposed), holds bound to the exact action,
         a re-check of the case before an approved hold runs, and an action log. This desk's own tools are at /mcp and PayPal's hosted ones at /mcp/paypal, behind the same gate.</p>
+      <KillSwitch />
       <h3>Bring your own agent</h3>
       <p className="jd-muted">Point any MCP client at /mcp/challenge (tools: send_buyer_message, get_run) and let your agent try to talk JUNCO into a refund.
         Same caps as this page, per IP address.</p>

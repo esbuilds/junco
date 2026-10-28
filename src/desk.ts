@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { holdPage, linkRefusal, signedLink } from './onetap.js';
-import { bearer, challenge as signIn, oauth } from './oauth.js';
+import { bearer, challenge as signIn, connectorSessions, oauth, revokeAll } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -435,7 +435,7 @@ httpServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
   const mcpPath = url.pathname === '/mcp' || url.pathname === '/mcp/paypal', token = mcpPath ? bearer(req) : null;
   if (token) return actor.run({ owner: token.role === 'owner', session: `connector-${token.client_id}` }, () => route(req, res, url, 'Claude connector'));
-  if (mcpPath && !authorized(req)) return signIn(res, DESK_URL, url.pathname);
+  if (mcpPath && !authorized(req)) return signIn(res, DESK_URL, url.pathname, req);
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   if (url.pathname === '/owner') { // the owner's browser, once: everyone else shares the desk password
     if (!process.env.OWNER_TOKEN || url.searchParams.get('token') !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
@@ -656,8 +656,12 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     if (req.method === 'GET' && url.pathname === '/api/challenge/stats') return json(res, 200, challengeStats()); // the counter (v3.13)
     if (req.method === 'GET' && url.pathname === '/api/status') // the header's status line (v3.14 item 3)
       return json(res, 200, actor.getStore()?.owner // the self-check is the owner's; visitors only hear when the AI is paused
-        ? { owner: true, started: STARTED, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) } }
+        ? { owner: true, started: STARTED, check: lastCheck, ai_paused: claudeDown(), spend: { ...readSpend(), cap: Number(process.env.DESK_DAILY_USD ?? 15) }, connectors: connectorSessions() }
         : { owner: false, check: null, ai_paused: claudeDown() });
+    if (req.method === 'POST' && url.pathname === '/api/connectors/revoke') { // owner: the kill switch, every connector signed out
+      if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
+      return json(res, 200, revokeAll());
+    }
     if (req.method === 'POST' && url.pathname === '/api/status/check') { // owner: run the self-check now
       if (!actor.getStore()?.owner) return json(res, 403, { error: { message: 'Owner only' } });
       await actor.exit(selfCheck); return json(res, 200, lastCheck);
@@ -678,8 +682,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       // Prepared orders for M1 (scripts/pool.ts). Owner token, not the desk password: judges will share that.
       if (!process.env.OWNER_TOKEN || req.headers['x-owner-token'] !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
       const body = await readBody(req);
-      const added = addToPool(Array.isArray(body?.entries) ? body.entries : []); actor.exit(() => void kick());
-      return json(res, 200, { added, live_left: Object.fromEntries(KINDS.map((k) => [k, liveLeft(k)])) });
+      const { added, backfilled } = addToPool(Array.isArray(body?.entries) ? body.entries : []); actor.exit(() => void kick());
+      return json(res, 200, { added, backfilled, live_left: Object.fromEntries(KINDS.map((k) => [k, liveLeft(k)])) });
     }
     if (req.method === 'GET' && url.pathname === '/api/policy/tools') {
       // T1 matrix: every tool the gate exposes, on the desk's server and on PayPal's hosted one, with its class.

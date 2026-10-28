@@ -36,7 +36,8 @@
     "check-recheck": "tsx src/check-recheck.ts",
     "check-token": "tsx src/check-token.ts",
     "check-holdcard": "tsx src/check-holdcard.ts",
-    "check-incident": "tsx src/check-incident.ts"
+    "check-incident": "tsx src/check-incident.ts",
+    "check-killswitch": "tsx src/check-killswitch.ts"
   },
   "keywords": [],
   "author": "",

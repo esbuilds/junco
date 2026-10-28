@@ -114,5 +114,15 @@ assert.equal(JSON.parse(readFileSync('.junco/holds.json', 'utf8')).length, 5); /
 await client.close();
 console.log('tools: three read tools pass the gate; no hold made');
 
+// Backfill: a re-posted pool entry gives an old agent record its capture_id, and changes nothing else.
+const { addToPool, readPool } = await import('./store-dispute.js');
+const before = readPool();
+assert.deepEqual(addToPool([{ buyer_txn: B, amount: '99', order_id: 'X', agent: { capture_id: 'CAPCHECK2', sku: 'X' } },
+  { buyer_txn: A, amount: '62', agent: { capture_id: 'CAPOTHER' } }, { buyer_txn: 'CCCCCCCCCCCCCCCC3', amount: '48', agent: { capture_id: 'CAPX' } }]), { added: 0, backfilled: 1 });
+assert.deepEqual(readPool(), before.map((p) => (p.buyer_txn === B ? { ...p, agent: { ...p.agent!, capture_id: 'CAPCHECK2' } } : p)));
+assert.ok(!buildIncident(B)!.missing.some((x) => /capture id/.test(x)) && buildIncident(A)!.purchase?.capture_id === CAP);
+assert.equal(addToPool([{ buyer_txn: B, amount: '38', agent: { capture_id: 'bad id!' } }]).backfilled, 0);
+console.log('backfill: a missing capture_id is set from the post; existing ones and every other field stay');
+
 assert.equal(fetches, 0);
 console.log('incident: ok (0 network calls)');

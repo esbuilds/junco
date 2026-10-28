@@ -86,18 +86,25 @@ export function recordedRun(): Run | null {
   return pinned ?? newestAged ?? runs.at(-1) ?? null;
 }
 
-// Owner adds prepared orders. Entries already in the pool are skipped.
-export function addToPool(entries: any[]): number {
+// Owner adds prepared orders. Entries already in the pool are skipped, except that an agent record missing its capture_id
+// takes it from the post (entries filled before Oct 28); nothing else on an existing entry changes.
+const captureOf = (e: any): string | undefined => (typeof e?.agent?.capture_id === 'string' && /^\w{1,40}$/.test(e.agent.capture_id) ? e.agent.capture_id : undefined);
+export function addToPool(entries: any[]): { added: number; backfilled: number } {
   const pool = readPool(), have = new Set(pool.map((p) => p.buyer_txn));
+  let backfilled = 0;
+  for (const e of entries) {
+    const p = pool.find((x) => x.buyer_txn === e?.buyer_txn), c = captureOf(e);
+    if (p?.agent && !p.agent.capture_id && c) { p.agent.capture_id = c; backfilled++; }
+  }
   const fresh = entries
     .filter((e) => typeof e?.buyer_txn === 'string' && /^[A-Z0-9]{17}$/.test(e.buyer_txn) && !have.has(e.buyer_txn) && Number(e.amount) > 0)
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking,
       ...(typeof e.scan === 'string' && (e.tracking || e.agent) && { scan: e.scan.slice(0, 500) }),
       ...(e.agent && { agent: { ...Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])),
-        ...(typeof e.agent.capture_id === 'string' && /^\w{1,40}$/.test(e.agent.capture_id) && { capture_id: e.agent.capture_id }) } as AgentRecord }),
+        ...(captureOf(e) && { capture_id: captureOf(e) }) } as AgentRecord }),
       added: new Date().toISOString() }));
-  if (fresh.length) write(POOL, [...pool, ...fresh]);
-  return fresh.length;
+  if (fresh.length || backfilled) write(POOL, [...pool, ...fresh]);
+  return { added: fresh.length, backfilled };
 }
 
 // D1 leases. A leased case belongs to the session that leased it for 30 minutes from the lease; after that it's a past

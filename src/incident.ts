@@ -7,12 +7,14 @@ import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
 import { readPool, readRuns, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
+import type { Revocation } from './oauth.js';
 
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 // agent.ts and desk.ts own these files; read here directly because agent.ts imports the PayPal client.
 type Activity = { at: string; dispute_id: string; trigger: string; step: string; detail: string };
 const readActivity = () => read<Activity[]>('.junco/activity.json', []);
 const holdTags = () => read<Record<string, string>>('.junco/hold-tags.json', {});
+const readRevocations = () => read<Revocation[]>('.junco/revocations.json', []); // oauth.ts's kill switch log
 
 // Who proposed a move, from the desk's hold tag or the gate log's source ('desk agent' is JUNCO's own agent).
 const who = (tag?: string) => (!tag ? 'unknown caller' : tag === 'desk agent' ? 'JUNCO agent' : tag);
@@ -88,6 +90,10 @@ function build(p: PoolEntry): Incident {
       summary: `${who(m.source)} asked for ${said(m.method, m.args)}; the gate ${m.verdict === 'allow' ? 'allowed' : 'denied'} it (${m.reason})${m.verdict === 'deny' ? ', nothing sent' : m.error ? `, and PayPal refused it: ${m.error.slice(0, 200)}` : ', and PayPal accepted it'}.`,
       ref: { ...(m.args?.dispute_id && { dispute_id: m.args.dispute_id }), ...(m.args?.capture_id && { capture_id: m.args.capture_id }), rule: m.reason } });
   }
+  // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
+  for (const r of readRevocations().filter((r) => r.at > p.added))
+    events.push({ id: `revoke:${r.at}`, at: r.at, kind: 'gate', actor: 'owner', source: 'revocations',
+      summary: `The owner disconnected every Claude connector (${r.sessions} signed in); each had to sign in again before its next tool call.` });
   events.sort((x, y) => x.at.localeCompare(y.at));
   return {
     id: p.buyer_txn, title: `Agent bought ${a.sku} for "${a.instruction}"`,

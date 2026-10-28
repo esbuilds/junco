@@ -15,7 +15,7 @@ const ACCESS_S = 3600, REFRESH_MS = 30 * 86400_000, CODE_MS = 10 * 60_000, MAX_C
 export type Role = 'owner' | 'judge';
 type Client = { redirect_uris: string[]; name: string; at: number };
 type Token = { kind: 'access' | 'refresh'; client_id: string; role: Role; exp: number };
-type Store = { clients: Record<string, Client>; tokens: Record<string, Token> };
+type Store = { clients: Record<string, Client>; tokens: Record<string, Token>; revoked_at?: string };
 const codes = new Map<string, { client_id: string; redirect_uri: string; challenge: string; role: Role; exp: number }>();
 
 let store: Store | null = null;
@@ -48,11 +48,30 @@ export function bearer(req: IncomingMessage): { role: Role; client_id: string; c
   if (!t || t.kind !== 'access' || t.exp < Date.now()) return null;
   return { role: t.role, client_id: t.client_id, client: load().clients[t.client_id]?.name ?? 'an MCP client' };
 }
-// The 401 that starts Claude's sign-in: it points at this resource's metadata.
-export const challenge = (res: ServerResponse, base: string, path: string) => {
+// The 401 that starts Claude's sign-in: it points at this resource's metadata. A client still sending a bearer after the
+// owner's kill switch is told why it was signed out.
+export const challenge = (res: ServerResponse, base: string, path: string, req?: IncomingMessage) => {
+  const at = load().revoked_at, stale = /^bearer /i.test(String(req?.headers.authorization ?? ''));
   res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource${path}"` });
-  res.end(JSON.stringify({ error: 'invalid_token', error_description: 'Sign in to use this desk' }));
+  res.end(JSON.stringify({ error: 'invalid_token', error_description: stale && at
+    ? `The desk owner disconnected every connector at ${at.slice(0, 16).replace('T', ' ')} UTC. Sign in again to reconnect.` : 'Sign in to use this desk' }));
 };
+
+// The kill switch: the owner signs every connector out at once. All access and refresh tokens and any sign-in in flight
+// die, so the next tool call from any connected client gets the 401 above and must sign in again. Registrations stay, so
+// signing in is one step. Each use is logged to .junco/revocations.json, which an incident shows.
+export const connectorSessions = () => new Set(Object.values(load().tokens).filter((t) => t.exp >= Date.now()).map((t) => t.client_id)).size;
+export type Revocation = { at: string; sessions: number };
+const REVOKED = '.junco/revocations.json';
+export const readRevocations = (): Revocation[] => { try { return JSON.parse(readFileSync(REVOKED, 'utf8')); } catch { return []; } };
+export function revokeAll(): Revocation {
+  const s = load(), r = { at: new Date().toISOString(), sessions: connectorSessions() };
+  s.tokens = {}; s.revoked_at = r.at; codes.clear();
+  save();
+  const all = [...readRevocations(), r].slice(-200);
+  writeFileSync(REVOKED, JSON.stringify(all, null, 2)); mirror(REVOKED, all);
+  return r;
+}
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const PARAMS = ['client_id', 'redirect_uri', 'state', 'code_challenge', 'code_challenge_method', 'scope', 'resource', 'response_type'];
