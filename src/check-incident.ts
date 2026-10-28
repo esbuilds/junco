@@ -86,6 +86,8 @@ assert.ok(b.missing.some((x) => /^capture id: .*ORDCHECK2/.test(x)) && b.missing
 assert.equal(b.events[0].kind, 'purchase'); assert.equal(b.events[0].at, '2026-10-21T10:00:00.000Z'); // first, though the watch event's clock is earlier
 assert.ok(b.missing.includes('purchase time: not recorded; shown at the time the desk received it'));
 assert.equal(buildIncident('ZZZZZZZZZZZZZZZZZ'), null);
+assert.equal(buildIncident('ORDCHECK1')?.id, A); assert.equal(buildIncident(CAP)?.id, A); assert.equal(buildIncident('ORDCHECK2')?.id, B); // order or capture id, exact
+assert.equal(buildIncident('ORDCHECK'), null); assert.equal(buildIncident('ordcheck1'), null);
 console.log('join: pool, store runs, holds, gate log and activity in one story; missing facts listed, never filled');
 
 const refund = whatIf('hold:hrefund1', { max_amount: 50 });
@@ -140,6 +142,11 @@ assert.equal(addToPool([{ buyer_txn: B, amount: '38', agent: { capture_id: 'bad 
 const bad = ['2026-10-21', '2026-10-21T09:55:00+02:00', 'yesterday', '2026-13-40T25:00:00Z'];
 assert.equal(addToPool(bad.map((t, i) => ({ buyer_txn: `BADTIME00000000${i}X`, amount: '1', agent: { ...agent('X'), paid_at: t } }))).added, 4);
 assert.ok(readPool().filter((p) => p.buyer_txn.startsWith('BADTIME')).every((p) => p.agent && !('paid_at' in p.agent))); // ISO UTC only
+// Two purchases sharing an order id (a bad post): none, said plainly, never a guess.
+writeFileSync('.junco/pool.json', JSON.stringify([...readPool(), { buyer_txn: 'DUPDUPDUPDUPDUP01', amount: '5.00', order_id: 'ORDCHECK1', agent: agent('DUP'), added: '2026-10-25T10:00:00.000Z' }]));
+assert.throws(() => buildIncident('ORDCHECK1'), (e: any) => e.code === 404 && /ORDCHECK1 matches 2 purchases \(AAAAAAAAAAAAAAAA1, DUPDUPDUPDUPDUP01\); ask by buyer transaction id/.test(e.message));
+assert.equal(buildIncident(A)?.id, A); // the buyer transaction id still resolves
+console.log('lookup: buyer transaction, order or capture id, exact; an id two purchases share returns none and says so');
 console.log('backfill: a missing capture_id or paid_at is set from the post (ISO UTC only); existing ones and every other field stay');
 console.log('purchase: at PayPal capture time when recorded, else the pool post time and said so in missing; always first');
 
