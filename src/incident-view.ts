@@ -1,13 +1,9 @@
 // BLACK BOX, the desk's side (goals 4 to 6): which label an event wears, PayPal's refund id after an approve, and the
 // printable receipt. The Incident itself comes from src/incident.ts.
 import qrcode from 'qrcode-generator';
-import type { Incident, IncidentEvent, Mode } from './incident-types.js';
+import type { Incident } from './incident-types.js';
 
-// LIVE: something PayPal's sandbox did or recorded. RECORDED: a decision made only inside the desk (agent, gate, hold,
-// owner), except a gate event that allowed the move, which went straight to PayPal. WHAT-IF events are never in an
-// Incident; they come back from whatIf() and the page draws them apart. public/incident.html and Studio repeat this rule.
-const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
-export const modeOf = (e: IncidentEvent): Mode => (LIVE.has(e.kind) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
+export { modeOf } from './incident-questions.js';
 
 // PayPal's refund id and status from a hold's stored result. The result is the tool's text: PayPal's JSON, sometimes
 // wrapped (hosted MCP content, or a settle's `was`), sometimes prose. Null when no refund id is in it.

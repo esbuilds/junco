@@ -4,7 +4,7 @@ import { selectCase } from '../store';
 // Judges' "Start here" (v3.14 first screen): a dismissible strip under the header, so the holds and the assistant stay
 // visible on load. Steps follow the judge's 90 seconds and are worked out live by the desk (/api/start), so it never
 // names a stale case.
-type Start = { own: string | null; own_ready: boolean; hold: { id: string; dispute_id: string; method: string } | null };
+type Start = { own: string | null; own_ready: boolean; hold: { id: string; dispute_id: string; method: string } | null; incident: string | null };
 const KEY = 'jd-start-dismissed';
 const WANTS: Record<string, string> = { accept_dispute_claim: 'accept the claim', make_dispute_offer: 'make an offer', create_refund: 'issue a refund', provide_dispute_evidence: 'submit evidence' };
 export const startSeen = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
@@ -20,7 +20,10 @@ export function StartHere({ go, close }: { go: (page: string) => void; close: ()
     ? ['Approve or reject', `JUNCO wants to ${WANTS[data.hold.method] ?? data.hold.method.replace(/_/g, ' ')} on your case ${data.hold.dispute_id}. Money moves only with your OK.`, desk(undefined, data.hold.dispute_id)]
     : data?.own ? ['Your case', `${data.own} is yours for 30 minutes. If JUNCO holds an action, you decide.`, desk(undefined, data.own)]
     : ['Get your own case', data?.own_ready ? 'Dispute this store: take "An order that was never shipped". JUNCO holds an accept for your OK.' : 'Dispute this store gives you a real sandbox case when one is ready; until then, a recorded run.', desk('store-dispute')];
+  // BLACK BOX first: the newest AI purchase that was disputed, on the Incident page (it reads ?id= when it mounts).
+  const investigate = () => { history.replaceState(null, '', `?page=incident${data?.incident ? `&id=${encodeURIComponent(data.incident)}` : ''}`); go('incident'); };
   const steps: [string, string, () => void][] = [
+    ['Investigate an AI purchase', 'A shopping agent bought it and the buyer disputed it. See what it was allowed, what reached PayPal, and re-run the gate.', investigate],
     first,
     ['Every money move', 'The Gate record: each one any agent proposed, held for the owner, from every source.', desk('gate-record')],
     ['Change the owner', 'Policy: try a different limit and see which past actions would have gone out without you.', () => go('policy')],

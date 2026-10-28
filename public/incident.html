@@ -47,6 +47,12 @@
   ol.rail li.live::before { border-color: var(--ok); background: var(--ok); }
   ol.rail li.what-if { background: var(--whatif-bg); border: 2px dashed var(--whatif); }
   ol.rail li.what-if::before { border-color: var(--whatif); border-style: dashed; }
+  ol.rail.focus-live li:not(.live) { opacity: .35; }
+  ol.rail.focus-live li.live { border-color: var(--ok); }
+  .ask { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 24px 4px; }
+  .ask button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font-weight: 600; cursor: pointer; }
+  #answer { padding: 4px 24px 12px; margin: 0; min-height: 1.5em; }
+  @media (max-width: 760px) { .ask, #answer { padding-left: 16px; padding-right: 16px; } }
   .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
   .mode { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 8px; border-radius: 999px; }
   .mode.live { background: var(--ok-bg); color: var(--ok); }
@@ -71,6 +77,8 @@
   <h1 id="title">Loading the incident...</h1>
 </header>
 <div class="stats" id="counts" aria-label="Money moves"></div>
+<div class="ask" aria-label="Ask the records"><button id="q-live">Which actions reached PayPal?</button><button id="q-missing">What's not in the records?</button><button id="q-whatif">What if the refund limit were lower?</button></div>
+<p id="answer" class="muted" aria-live="polite"></p>
 <main>
   <section class="card" aria-labelledby="rail-h"><h2 id="rail-h">What happened</h2>
     <p class="muted" style="margin-top:0">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
@@ -91,7 +99,8 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const id = decodeURIComponent(location.pathname.split('/')[2] ?? '');
-// Same rule as modeOf in src/incident-view.ts: PayPal's events, and gate calls it allowed straight through, are LIVE.
+// The questions below repeat src/incident-questions.ts (checked by check-incident-desk) in plain JS.
+// modeOf: PayPal's events, and gate calls it allowed straight through, are LIVE.
 const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
 const modeOf = (e) => LIVE.includes(e.kind) || (e.kind === 'gate' && /^allow:/.test(e.ref?.rule ?? '')) ? 'live' : 'recorded';
 const LABEL = { live: 'LIVE', recorded: 'RECORDED', 'what-if': 'WHAT-IF' };
@@ -119,17 +128,49 @@ function render() {
   const calls = inc.events.filter((e) => e.kind === 'gate' || e.kind === 'hold').reverse();
   $('#target').innerHTML = calls.map((e) => `<option value="${esc(e.id)}">${esc(when(e.at))}: ${esc(e.summary.slice(0, 90))}</option>`).join('') || '<option value="">No recorded money moves</option>';
   $('#rerun').disabled = !calls.length;
+  $('#q-whatif').textContent = whatIfPreset().label;
 }
+
+const answer = (t) => { $('#answer').textContent = t; };
+const reachedPayPal = () => { const ids = inc.events.filter((e) => modeOf(e) === 'live').map((e) => e.id), n = inc.events.length;
+  return { ids, text: ids.length ? `${ids.length} of ${n} events reached PayPal or came from it (LIVE). The other ${n - ids.length} stayed inside the desk.` : 'Nothing in this incident reached PayPal.' }; };
+const notInRecords = () => { const facts = inc.events.length + Object.values(inc.authority ?? {}).filter(Boolean).length + Object.values(inc.purchase ?? {}).filter(Boolean).length + (inc.dispute_id ? 1 : 0);
+  return { missing: inc.missing, text: inc.missing.length ? `${inc.missing.length} thing${inc.missing.length === 1 ? ' is' : 's are'} not in the records, listed as missing, never filled in.` : `Nothing missing. ${facts} facts on record checked.` }; };
+const NOTHING_PROPOSED = 'Nothing was proposed yet, so there is no recorded request to re-run. To get one: connect Claude to JUNCO, ask it for a refund on this order, and it waits here as a hold for the owner.';
+const whatIfPreset = () => { const amount = parseFloat(inc.purchase?.amount ?? ''), limit = Number.isFinite(amount) ? Math.max(0, Math.round((amount - 10) * 100) / 100) : 0;
+  const targets = inc.events.filter((e) => e.kind === 'hold' || e.kind === 'gate').reverse().map((e) => e.id);
+  return { limit, label: `What if the refund limit were $${limit}?`, targets, none: targets.length ? null : NOTHING_PROPOSED }; };
+
+async function runWhatIf(eventId, limit) {
+  const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, max_amount: limit }) });
+  const w = await r.json();
+  if (!r.ok) throw Object.assign(new Error(w.error?.message ?? r.status), { status: r.status });
+  const same = w.before.verdict === w.after.verdict;
+  $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.`)}</ol>`;
+  return w;
+}
+
+$('#q-live').addEventListener('click', () => { $('#rail').classList.add('focus-live'); answer(reachedPayPal().text); });
+$('#q-missing').addEventListener('click', () => { $('#rail').classList.remove('focus-live'); const q = notInRecords(); answer(q.text); if (q.missing.length) $('#missing-card').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('#q-whatif').addEventListener('click', async (ev) => {
+  $('#rail').classList.remove('focus-live');
+  const p = whatIfPreset();
+  if (p.none) { $('#wi-out').innerHTML = ''; return answer(p.none); }
+  ev.target.disabled = true; $('#limit').value = p.limit;
+  try {
+    // Newest recorded move first; one without an amount limit (an accept, a message) answers 400 and the next is tried.
+    for (const t of p.targets) {
+      try { const w = await runWhatIf(t, p.limit); $('#target').value = t; answer(`Re-ran ${w.method.replace(/_/g, ' ')} at a $${p.limit} limit: ${w.before.verdict} then, ${w.after.verdict} now. Nothing was sent to PayPal.`); $('#wi-out').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      catch (e) { if (e.status !== 400) throw e; }
+    }
+    answer('None of the recorded moves has an amount limit to change: accepts and messages have none. Nothing was sent to PayPal.');
+  } catch (e) { answer(`Could not re-run: ${e.message}`); }
+  finally { ev.target.disabled = false; }
+});
 
 $('#rerun').addEventListener('click', async (ev) => {
   ev.target.disabled = true;
-  try {
-    const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: $('#target').value, max_amount: Number($('#limit').value) }) });
-    const w = await r.json();
-    if (!r.ok) throw new Error(w.error?.message ?? r.status);
-    const same = w.before.verdict === w.after.verdict;
-    $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.`)}</ol>`;
-  } catch (e) { $('#wi-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  try { await runWhatIf($('#target').value, Number($('#limit').value)); } catch (e) { $('#wi-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
   ev.target.disabled = false;
 });
 

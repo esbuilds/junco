@@ -307,3 +307,7 @@ a.jd-btn { color: inherit; text-decoration: none; display: inline-block; }
 .jd-mode-live { background: var(--jd-ok-bg); color: var(--jd-ok); }
 .jd-mode-recorded { border: 1px solid var(--jd-line); }
 .jd-mode-what-if { background: var(--jd-whatif); color: var(--jd-surface); }
+.jd-rail.jd-focus-live li:not(.jd-rail-live) { opacity: .35; }
+.jd-rail.jd-focus-live .jd-rail-live { outline: 1px solid var(--jd-ok); }
+/* Long picker labels (date, buyer txn, dispute, title) stay inside the widget. */
+.jd-ellipsis { flex: 1 1 0; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
