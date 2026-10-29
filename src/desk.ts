@@ -29,6 +29,7 @@ import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './w
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
+import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
 import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
@@ -631,6 +632,16 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: kindRefusal(visitor, k) }]));
       const rec = recordedRun();
       return json(res, 200, { kinds, mine: mine && view(mine), recent: rec ? [view(rec)] : [] });
+    }
+    if (url.pathname === '/api/shop') {
+      // Your AI buys, you investigate: the visitor's own shopping agent, a real sandbox order on the saved PayPal account.
+      const { session, owner } = actor.getStore()!;
+      if (req.method === 'POST') {
+        const b = await readBody(req);
+        try { return json(res, 200, await visitorShop(ctx, { session, owner, instruction: b?.instruction, budget: b?.budget })); }
+        catch (e: any) { return json(res, e.code ?? 500, { error: { message: e.code ? e.message : 'Shopping failed. Nothing was bought.' } }); }
+      }
+      return json(res, 200, { enabled: !!process.env.AGENT_VAULT_ID, left: shopLeft(session), max_budget: SHOP_MAX_BUDGET });
     }
     if (url.pathname === '/api/challenge') {
       // Break the mandate: the visitor's paired case, the visible policy, personas, caps, and their own runs.

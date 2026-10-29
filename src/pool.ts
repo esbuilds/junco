@@ -11,7 +11,7 @@
 import { createRequire } from 'node:module';
 import { paypal } from './disputes.js';
 import { sandboxCtx } from './server.js';
-import { AGENT_NAME, CATALOG, INSTRUCTIONS, listing, shop } from './shopper.js';
+import { AGENT_NAME, CATALOG, INSTRUCTIONS, charge, listing, shop } from './shopper.js';
 
 const { chromium } = createRequire(new URL('../studio/package.json', import.meta.url))('playwright');
 const ctx = await sandboxCtx();
@@ -71,25 +71,19 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
       declines.push({ at: new Date().toISOString(), instruction: ask.instruction, budget: ask.budget, reason: choice.declined, agent: AGENT_NAME, listings: CATALOG.map((c) => listing(c.sku)) });
       console.log(`agent bought nothing for "${ask.instruction}": ${choice.declined}`); continue;
     }
-    const item = CATALOG.find((c) => c.sku === choice.sku)!;
-    if (Number(item.price) > Number(ask.budget)) { console.log(`store refused ${item.sku} at $${item.price}: over the agent's $${ask.budget} budget`); continue; }
-    const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { headers: { 'PayPal-Request-Id': crypto.randomUUID() }, json: {
-      intent: 'CAPTURE',
-      purchase_units: [{ description: 'Placed by a shopping agent for the buyer', amount: { currency_code: 'USD', value: item.price, breakdown: { item_total: { currency_code: 'USD', value: item.price } } },
-        items: [{ name: item.name, sku: item.sku, quantity: '1', unit_amount: { currency_code: 'USD', value: item.price } }] }],
-      payment_source: { paypal: { vault_id: vaultId, stored_credential: { payment_initiator: 'MERCHANT', usage: 'SUBSEQUENT', usage_pattern: 'IMMEDIATE' } } },
-    } });
-    const capture = o.body.purchase_units?.[0]?.payments?.captures?.[0]?.id, paidAt = o.body.purchase_units?.[0]?.payments?.captures?.[0]?.create_time ?? new Date().toISOString();
-    if (!capture) { console.error('Agent order failed', o.status, JSON.stringify(o.body)); break; }
+    const c = await charge(ctx, choice.sku, ask.budget, vaultId); // the catalog price; over the budget it refuses (shopper.ts)
+    if ('refused' in c) { console.log(c.refused); continue; }
+    if ('failed' in c) { console.error('Agent order failed', c.failed.status, JSON.stringify(c.failed.body)); break; }
+    const { item, capture_id: capture, paid_at: paidAt } = c;
     const number = `9400${String(Date.now()).padStart(18, '0')}`;
     let txn: string | undefined;
     for (let t = 0; !txn && t < 6; t++) { const top = await newestTxn(); if (top && top !== last) txn = top; else await page.waitForTimeout(10_000); }
     if (!txn) await fail('Reading the buyer transaction ID');
     last = txn;
-    entries.push({ buyer_txn: txn, amount: item.price, order_id: o.body.id, tracking: false,
+    entries.push({ buyer_txn: txn, amount: item.price, order_id: c.order_id, tracking: false,
       scan: `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
       agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt } });
-    console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${o.body.id}, capture ${capture}, buyer transaction ${txn}`);
+    console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${c.order_id}, capture ${capture}, buyer transaction ${txn}`);
     continue;
   }
   i++;

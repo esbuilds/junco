@@ -26,13 +26,25 @@ export type Run = { at: string; visitor: string; session?: string; buyer_txn: st
   unlocked_at?: string; leased_at?: string; retired_at?: string };
 // A shopping agent that bought nothing (pool.ts agent): what it was asked, why it declined, the listings it saw. No order,
 // so it never enters the pool (the pool feeds dispute filing). id: 'decline-' and the agent's time, digits only.
-export type Decline = { id: string; at: string; instruction: string; budget: string; reason: string; agent: string; listings: string[]; added: string };
-const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json', DECLINES = '.junco/declines.json';
+// session: set when a desk visitor sent the agent (/api/shop); only that session and the owner see it in the list.
+export type Decline = { id: string; at: string; instruction: string; budget: string; reason: string; agent: string; listings: string[]; added: string; session?: string };
+// "Your AI buys, you investigate": an order the desk placed for a visitor's shopping agent on the saved PayPal account.
+// The desk can't read the buyer's PayPal activity, so there is no buyer transaction id: the capture id keys it, and it
+// can't be disputed (filing needs that id), only refunded. Never in the pool.
+export type AgentBuy = { capture_id: string; order_id: string; amount: string; agent: AgentRecord; session: string; added: string };
+const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json', DECLINES = '.junco/declines.json', BUYS = '.junco/agent-buys.json', TRIES = '.junco/shop-tries.json';
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 const write = (f: string, v: unknown) => { mkdirSync('.junco', { recursive: true }); writeFileSync(f, JSON.stringify(v, null, 2)); mirror(f, v); };
 export const readPool = () => read<PoolEntry[]>(POOL, []);
 export const readRuns = () => read<Run[]>(RUNS, []);
 export const readDeclines = () => read<Decline[]>(DECLINES, []);
+export const readAgentBuys = () => read<AgentBuy[]>(BUYS, []);
+export const addAgentBuy = (b: AgentBuy) => write(BUYS, [...readAgentBuys(), b]);
+// Every /api/shop attempt that reaches Claude, kept for the caps (a refused or failed charge still cost a call).
+type Try = { at: string; session: string };
+export const readShopTries = () => read<Try[]>(TRIES, []);
+export const addShopTry = (session: string) => write(TRIES, [...readShopTries(), { at: new Date().toISOString(), session }]);
+export const declineId = (at: string) => `decline-${at.replace(/\D/g, '')}`;
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
 const kindOf = (p: PoolEntry): Kind | null => (p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
@@ -125,16 +137,16 @@ export function addToPool(entries: any[]): { added: number; backfilled: number }
   return { added: fresh.length, backfilled };
 }
 // Same owner-token post as the pool. The id comes from the agent's own time, so a re-post adds nothing.
-export function addDeclines(list: any[]): number {
+export function addDeclines(list: any[], session?: string): number {
   const have = readDeclines(), ids = new Set(have.map((d) => d.id)), s = (v: unknown) => String(v ?? '').slice(0, 1000);
   const fresh: Decline[] = [];
   for (const d of list) {
     const at = typeof d?.at === 'string' && !Number.isNaN(Date.parse(d.at)) ? new Date(d.at).toISOString() : null;
-    const id = at && `decline-${at.replace(/\D/g, '')}`;
+    const id = at && declineId(at);
     if (!id || ids.has(id) || !s(d.instruction) || !s(d.reason)) continue;
     ids.add(id);
     fresh.push({ id, at: at!, instruction: s(d.instruction), budget: s(d.budget), reason: s(d.reason), agent: s(d.agent),
-      listings: Array.isArray(d.listings) ? d.listings.slice(0, 20).map(s) : [], added: new Date().toISOString() });
+      listings: Array.isArray(d.listings) ? d.listings.slice(0, 20).map(s) : [], added: new Date().toISOString(), ...(session && { session }) });
   }
   if (fresh.length) write(DECLINES, [...have, ...fresh]);
   return fresh.length;

@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { readDeclines, readPool, readRuns, type Decline, type PoolEntry } from './store-dispute.js';
+import { actor, readAgentBuys, readDeclines, readPool, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import type { Revocation } from './oauth.js';
 
@@ -33,8 +33,14 @@ const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', '
 const modeOf = (e: Omit<IncidentEvent, 'mode'>): IncidentEvent['mode'] =>
   e.id.endsWith(':leased') ? 'recorded' : e.kind === 'gate' ? (e.ref?.rule?.startsWith('allow:') ? 'live' : 'recorded') : LIVE.has(e.kind) ? 'live' : 'recorded';
 
-function build(p: PoolEntry): Incident {
-  const a = p.agent!, run = runOf(p.buyer_txn), dispute_id = run?.dispute_id ?? null;
+// A visitor's own buys and declines (session set) list only for that session and the owner; anyone with the link opens one.
+const seen = (session?: string) => { if (!session) return true; const a = actor.getStore(); return !!a && (a.owner || a.session === session); };
+// The desk placed it for a visitor (agent-buys.json): keyed by the capture id, with no buyer transaction id and no dispute.
+const fromDesk = (b: AgentBuy): PoolEntry => ({ buyer_txn: b.capture_id, amount: b.amount, order_id: b.order_id, agent: b.agent, added: b.added });
+const DESK_BUY = "buyer transaction id: the desk placed this order for a visitor's agent and cannot read the buyer's PayPal activity, so it is keyed by the capture id and cannot be disputed; refunds name the capture and land here";
+
+function build(p: PoolEntry, desk = false): Incident {
+  const a = p.agent!, run = desk ? undefined : runOf(p.buyer_txn), dispute_id = run?.dispute_id ?? null;
   const capture_id = a.capture_id || undefined;
   const missing: string[] = [];
   if (!p.order_id) missing.push('order id: the pool entry has none');
@@ -42,13 +48,14 @@ function build(p: PoolEntry): Incident {
   // The purchase happened when PayPal captured it; `added` is when the desk got the pool post, minutes later.
   const paid = a.paid_at ?? p.added;
   if (!a.paid_at) missing.push('purchase time: not recorded; shown at the time the desk received it');
-  if (!dispute_id) missing.push(run?.error ? `dispute: filing failed (${run.error})` : 'dispute: none filed for this purchase yet');
+  if (desk) missing.push(DESK_BUY);
+  else if (!dispute_id) missing.push(run?.error ? `dispute: filing failed (${run.error})` : 'dispute: none filed for this purchase yet');
   const mine = (args: any) => (!!dispute_id && args?.dispute_id === dispute_id) || (!!capture_id && args?.capture_id === capture_id);
 
   // pool amounts are USD: pool.ts only places USD orders
-  const events: Omit<IncidentEvent, 'mode'>[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: 'pool',
-    summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store.`,
-    ref: { buyer_txn: p.buyer_txn, ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
+  const events: Omit<IncidentEvent, 'mode'>[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: desk ? 'agent-buys' : 'pool',
+    summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store${desk ? ' (a desk visitor sent it)' : ''}.`,
+    ref: { ...(!desk && { buyer_txn: p.buyer_txn }), ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
     summary: dispute_id ? `The buyer disputed the order as not as described; PayPal opened ${dispute_id}.` : `Filing the buyer's dispute failed: ${run.error ?? 'no dispute id recorded'}.`,
     ref: { buyer_txn: p.buyer_txn, ...(dispute_id && { dispute_id }) } });
@@ -126,7 +133,8 @@ function buildDecline(d: Decline): Incident {
 }
 
 export function listIncidents(): IncidentSummary[] {
-  return [...entries().map(build), ...readDeclines().map(buildDecline)].map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
+  return [...entries().map((p) => build(p)), ...readAgentBuys().filter((b) => seen(b.session)).map((b) => build(fromDesk(b), true)),
+    ...readDeclines().filter((d) => seen(d.session)).map(buildDecline)].map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
 }
 // By the buyer transaction id, the order id or the capture id, exact match (Oct 28: a fresh agent asked by order id and was
@@ -134,6 +142,8 @@ export function listIncidents(): IncidentSummary[] {
 export function buildIncident(id: string): Incident | null {
   const d = readDeclines().find((x) => x.id === id);
   if (d) return buildDecline(d);
+  const b = readAgentBuys().find((x) => x.capture_id === id || x.order_id === id);
+  if (b) return build(fromDesk(b), true);
   const hits = entries().filter((e) => e.buyer_txn === id || e.order_id === id || e.agent?.capture_id === id);
   if (hits.length > 1) throw Object.assign(new Error(`${id} matches ${hits.length} purchases (${hits.map((e) => e.buyer_txn).join(', ')}); ask by buyer transaction id`), { code: 404 });
   return hits[0] ? build(hits[0]) : null;

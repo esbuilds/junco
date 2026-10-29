@@ -12,8 +12,39 @@ export const incidentLabel = (i: IncidentSummary) =>
   `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+// Your AI buys, you investigate: the visitor's own shopping agent. A real sandbox order on the test buyer's saved PayPal
+// account (or nothing, if the agent declines), then the incident opens below. Only this visitor and the owner list it.
+type ShopState = { enabled: boolean; left: { you: number; today: number }; max_budget: number };
+function ShopForm({ onDone }: { onDone: (id: string) => void }) {
+  const { data, reload } = usePoll<ShopState>('/api/shop', 60000);
+  const [ask, setAsk] = useState('');
+  const [budget, setBudget] = useState('70');
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<{ ok: boolean; text: string } | null>(null);
+  if (!data) return null;
+  if (!data.enabled) return <p className="jd-muted">Sending your own shopping agent is off on this desk.</p>;
+  const send = async () => {
+    setBusy(true); setOut(null);
+    try { const r = await api<{ id: string; text: string }>('/api/shop', { method: 'POST', json: { instruction: ask, budget: Number(budget) } }); setOut({ ok: true, text: r.text }); onDone(r.id); }
+    catch (e: any) { setOut({ ok: false, text: e.message }); }
+    finally { setBusy(false); reload(); }
+  };
+  return (
+    <div className="jd-shop">
+      <h3>Send your own shopping agent</h3>
+      <p className="jd-sub">Tell it what to buy and your budget. It picks one of the demo store's three bags or buys nothing. If it buys, the store charges the test buyer's saved PayPal account in PayPal's sandbox, then you investigate the order here. {data.left.you} of your runs left today.</p>
+      <div className="jd-row">
+        <input type="text" aria-label="What to buy" placeholder="A waterproof bag for kayaking" maxLength={200} value={ask} onChange={(e) => setAsk(e.target.value)} style={{ flex: '1 1 220px' }} />
+        <span className="jd-money-input">Budget $<input type="number" aria-label="Budget in dollars" min={1} max={data.max_budget} step={1} value={budget} onChange={(e) => setBudget(e.target.value)} /></span>
+        <button type="button" className="jd-btn jd-primary" disabled={busy || ask.trim().length < 3} onClick={send}>{busy ? 'Your agent is shopping...' : 'Send it shopping'}</button>
+      </div>
+      {out && <div className={out.ok ? 'jd-result' : 'jd-result jd-err'} role="status">{out.text}</div>}
+    </div>
+  );
+}
+
 export function IncidentWidget() {
-  const list = usePoll<IncidentSummary[]>('/api/incidents', 30000).data ?? [];
+  const listPoll = usePoll<IncidentSummary[]>('/api/incidents', 30000), list = listPoll.data ?? [];
   const selectedCase = useSelectedCase();
   // ?id= picks the incident (a shared link); else the Desk's open case when it came from an AI purchase; else the latest.
   const linked = new URLSearchParams(location.search).get('id');
@@ -51,9 +82,11 @@ export function IncidentWidget() {
     setAnswer('None of the recorded moves has an amount limit to change: accepts and messages have none. Nothing was sent to PayPal.');
   };
 
-  if (!list.length) return <Panel title="Incident"><p className="jd-muted">No AI purchases on record yet.</p></Panel>;
+  const shopped = (newId: string) => { setId(newId); listPoll.reload(); };
+  if (!list.length) return <Panel title="Incident"><ShopForm onDone={shopped} /><p className="jd-muted">No AI purchases on record yet.</p></Panel>;
   return (
     <Panel title="Incident" subtitle={inc?.title ?? 'Loading...'}>
+      <ShopForm onDone={shopped} />
       <div className="jd-row">
         <select className="jd-ellipsis" aria-label="Incident" value={id ?? ''} onChange={(e) => setId(e.target.value)}>
           {list.map((i) => <option key={i.id} value={i.id}>{incidentLabel(i)}</option>)}

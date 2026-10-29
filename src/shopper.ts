@@ -1,8 +1,10 @@
 // v3.15 move 1: the buyer's shopping agent. A Claude agent gets a buyer's instruction and budget, reads the demo store's
 // catalog, and either buys one item (the store then charges the PayPal account the buyer saved for it) or buys nothing.
-// It runs for the pool filler only (src/pool.ts agent); the desk never shops. Its choice is whatever the model decides:
-// the cases JUNCO later gets are not scripted to make the agent wrong.
-import { claude } from './spend.js';
+// It runs for the pool filler (src/pool.ts agent) and for desk visitors ("Your AI buys, you investigate", /api/shop).
+// Its choice is whatever the model decides: the cases JUNCO later gets are not scripted to make the agent wrong.
+import { paypal, type Ctx } from './disputes.js';
+import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
+import { addAgentBuy, addDeclines, addShopTry, declineId, readDeclines, readShopTries } from './store-dispute.js';
 
 export const CATALOG = [
   { sku: 'WKD-01', name: 'Waxed canvas weekender', price: '62.00',
@@ -40,3 +42,68 @@ export async function shop(instruction: string, budget: string): Promise<Choice>
 }
 
 export const listing = (sku: string) => { const c = CATALOG.find((x) => x.sku === sku)!; return `${c.sku} ${c.name}, $${c.price}. ${c.text}`; };
+
+// The store's side of an agent checkout, for pool.ts and /api/shop: the price is the catalog's, never the agent's; an item
+// over the agent's budget is refused before PayPal is called. One merchant-initiated order on the saved PayPal account,
+// captured in the same call.
+type Item = (typeof CATALOG)[number];
+export type Charge = { refused: string } | { failed: { status: number; body: any } } | { item: Item; order_id: string; capture_id: string; paid_at: string };
+export async function charge(ctx: Ctx, sku: string, budget: string, vaultId: string | undefined): Promise<Charge> {
+  const item = CATALOG.find((c) => c.sku === sku);
+  if (!item) return { refused: `store refused ${sku}: not in the catalog` };
+  if (Number(item.price) > Number(budget)) return { refused: `store refused ${item.sku} at $${item.price}: over the agent's $${budget} budget` };
+  const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { headers: { 'PayPal-Request-Id': crypto.randomUUID() }, json: {
+    intent: 'CAPTURE',
+    purchase_units: [{ description: 'Placed by a shopping agent for the buyer', amount: { currency_code: 'USD', value: item.price, breakdown: { item_total: { currency_code: 'USD', value: item.price } } },
+      items: [{ name: item.name, sku: item.sku, quantity: '1', unit_amount: { currency_code: 'USD', value: item.price } }] }],
+    payment_source: { paypal: { vault_id: vaultId, stored_credential: { payment_initiator: 'MERCHANT', usage: 'SUBSEQUENT', usage_pattern: 'IMMEDIATE' } } },
+  } });
+  const cap = o.body?.purchase_units?.[0]?.payments?.captures?.[0];
+  if (!cap?.id) return { failed: o };
+  return { item, order_id: o.body.id, capture_id: cap.id, paid_at: cap.create_time ?? new Date().toISOString() };
+}
+
+// "Your AI buys, you investigate": a desk visitor's ask and budget, the agent's choice, then a decline or a guarded order.
+// The checks run cheapest first, and nothing reaches Claude until all of them pass. The caps count every attempt that
+// reached Claude. The owner skips the per-session cap, not the daily one.
+export const SHOP_MAX_BUDGET = 80;
+const PER_SESSION = () => Number(process.env.SHOP_PER_SESSION ?? 2), PER_DAY = () => Number(process.env.SHOP_PER_DAY ?? 20);
+export function shopLeft(session: string) {
+  const today = new Date().toISOString().slice(0, 10), tries = readShopTries().filter((t) => t.at.startsWith(today));
+  return { you: Math.max(0, PER_SESSION() - tries.filter((t) => t.session === session).length), today: Math.max(0, PER_DAY() - tries.length) };
+}
+const no = (code: number, message: string) => Object.assign(new Error(message), { code });
+export async function visitorShop(ctx: Ctx, v: { session: string; owner: boolean; instruction: unknown; budget: unknown }) {
+  const vault = process.env.AGENT_VAULT_ID;
+  if (!vault) throw no(400, 'Shopping is off on this desk.');
+  const instruction = typeof v.instruction === 'string' ? v.instruction.trim().replace(/\s+/g, ' ') : '';
+  if (instruction.length < 3 || instruction.length > 200) throw no(400, 'Say what to buy in 3 to 200 characters.');
+  const n = Number(v.budget);
+  if (!Number.isFinite(n) || n < 1 || n > SHOP_MAX_BUDGET) throw no(400, `The budget is a number of dollars from 1 to ${SHOP_MAX_BUDGET}.`);
+  const budget = n.toFixed(2), left = shopLeft(v.session);
+  if (!left.today) throw no(429, 'The shopping agent has had its runs for today. Come back tomorrow.');
+  if (!left.you && !v.owner) throw no(429, `That was your last shopping run today (${PER_SESSION()} a visitor). Your incidents are below.`);
+  if (claudeDown()) throw no(503, pausedText());
+  addShopTry(v.session);
+  let choice: Choice;
+  try { choice = await shop(instruction, budget); }
+  catch (e: any) { throw no(isClaudeDown(e) ? 503 : 502, isClaudeDown(e) ? pausedText() : 'The shopping agent did not answer. Nothing was bought.'); }
+  if ('declined' in choice) {
+    let t = Date.now(); // the id is the time: two declines in one millisecond must not share it
+    while (readDeclines().some((d) => d.id === declineId(new Date(t).toISOString()))) t++;
+    const at = new Date(t).toISOString();
+    addDeclines([{ at, instruction, budget, reason: choice.declined, agent: AGENT_NAME, listings: CATALOG.map((c) => listing(c.sku)) }], v.session);
+    return { id: declineId(at), bought: false, text: `Your agent bought nothing: ${choice.declined}` };
+  }
+  let c: Charge;
+  try { c = await charge(ctx, choice.sku, budget, vault); }
+  catch { throw no(502, 'The store could not reach PayPal to charge the saved PayPal account. Nothing was bought.'); }
+  if ('refused' in c) throw no(400, `The store refused it: your agent picked ${choice.sku}, which costs more than your $${budget} budget. Nothing was bought.`);
+  if ('failed' in c) {
+    const declined = (c.failed.body?.details ?? []).some((d: any) => /DECLINED/.test(String(d?.issue)));
+    throw no(502, `The store could not charge the saved PayPal account${declined ? ': PayPal declined the payment' : ` (PayPal answered ${c.failed.status})`}. Nothing was bought.`);
+  }
+  addAgentBuy({ capture_id: c.capture_id, order_id: c.order_id, amount: c.item.price, session: v.session, added: new Date().toISOString(),
+    agent: { instruction, budget, sku: c.item.sku, listing: listing(c.item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: c.capture_id, paid_at: c.paid_at } });
+  return { id: c.capture_id, bought: true, text: `Your agent bought ${c.item.name} for $${c.item.price}: ${choice.reason}` };
+}

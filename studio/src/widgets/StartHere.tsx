@@ -24,7 +24,7 @@ export function StartRail() {
   // BLACK BOX first: the newest AI purchase that was disputed, on the Incident page (it reads ?id= when it mounts).
   const investigate = () => { history.replaceState(null, '', `?page=incident${data?.incident ? `&id=${encodeURIComponent(data.incident)}` : ''}`); go('incident'); };
   const steps: [string, string, () => void][] = [
-    ['Investigate an AI purchase', 'A shopping agent bought it and the buyer disputed it. See what it was allowed, what reached PayPal, and re-run the gate.', investigate],
+    ['Investigate an AI purchase', 'A shopping agent bought it and the buyer disputed it. See what it was allowed, what reached PayPal, and re-run the gate. Or send your own agent shopping and investigate what it buys.', investigate],
     first,
     ['Every money move', 'The Gate record: each one any agent proposed, held for the owner, from every source.', desk('gate-record')],
     ['Change the owner', 'Policy: try a different limit and see which past actions would have gone out without you.', () => go('policy')],
