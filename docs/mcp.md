@@ -4,7 +4,9 @@ Every way to connect, the tools JUNCO adds, and the policy file. Back to the [RE
 
 ## As a Claude connector (no config file)
 
-In claude.ai, Settings, Connectors, Add custom connector, enter `https://junco-desk.onrender.com/mcp/paypal` (or `/mcp` for the desk's own server with PayPal's stock toolkit). Claude registers itself, the desk shows a sign-in page, and you sign in as `judge` with the desk password from the Devpost testing instructions. The connector then shows up in Claude on a phone too. Tested Oct 21 2026 from claude.ai on the web and on a phone: the tools listed, `list_disputes` ran, and `create_refund` came back held, marked "Claude connector" on the desk. `npm run check-connector` runs the same sign-in against any desk.
+In claude.ai, Settings, Connectors, Add custom connector, enter `https://junco-desk.onrender.com/mcp` (the desk's own server with PayPal's Agent Toolkit; the working path while PayPal's hosted server fails its calls, since Oct 28) or `/mcp/paypal` (PayPal's hosted tools behind the same gate). Claude registers itself, the desk shows a sign-in page, and you sign in as `judge` with the desk password from the Devpost submission's testing instructions. The connector then shows up in Claude on a phone too. Tested Oct 21 2026 from claude.ai on the web and on a phone: the tools listed, `list_disputes` ran, and `create_refund` came back held, marked "Claude connector" on the desk. `npm run check-connector` runs the same sign-in against any desk.
+
+claude.ai now declines to call tools that move money, so from claude.ai use the connector to investigate: the read tools and the incident tools below. To see a money move held for the owner, use a client that calls the tool, such as Claude Code or Claude Desktop with the recipes below.
 
 ## Use it from an AI agent (MCP)
 
@@ -68,11 +70,11 @@ On both `/mcp` and `/mcp/paypal`, classed `read` in `policy.json`, so the gate p
 
 | Tool | Takes | Returns |
 |---|---|---|
-| `junco_list_incidents` | nothing | every AI purchase on record: buyer txn, title, dispute id, money-move counts |
-| `junco_get_incident` | `id` (the buyer txn) | the incident: what the buyer allowed, the purchase, every event with its mode (live or recorded) and refs, the counts, and what the records don't have |
+| `junco_list_incidents` | nothing | every AI purchase on record, and every request where the agent bought nothing (ids starting `decline-`): id, title, dispute id, money-move counts. A desk visitor's own shopping runs list only for the owner |
+| `junco_get_incident` | `id`: a buyer txn, an order id, a capture id or a `decline-` id | the incident: what the buyer allowed, the purchase (null for a decline, with `decline` holding the agent's reason and the listings it saw), every event with its mode (live or recorded) and refs, the counts, and what the records don't have |
 | `junco_what_if` | `event_id` (a `hold:` or `gate:` event) and exactly one of `max_amount` or `budget` | the recorded verdict, the verdict under today's policy with that one change, and `paypal_calls: 0` |
 
-The same incident is on the desk at `/incident/<buyer txn>` (page), `/incident/<buyer txn>/receipt` (printable, with a QR code to the page) and `/api/incident/<buyer txn>` (JSON), with `/api/incidents` for the list and `POST /api/incident/<buyer txn>/what-if` (`event_id`, `max_amount`) for the page's what-if. All of them sit behind the desk password.
+The same incident is on the desk at `/incident/<id>` (page), `/incident/<id>/receipt` (printable, with a QR code to the page) and `/api/incident/<id>` (JSON), with `/api/incidents` for the list and `POST /api/incident/<id>/what-if` (`event_id`, `max_amount`) for the page's what-if. All of them sit behind the desk password. A decline has nothing for the what-if to re-run, and its page and receipt say it bought nothing.
 
 ## Policy file
 
