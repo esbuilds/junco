@@ -52,7 +52,8 @@ function notifyDecision(h: Pick<Hold, 'method' | 'args'>, outcome: string) {
 }
 
 // "My phone buzzed": one Slack-compatible webhook call per new hold. Off unless HOLD_WEBHOOK_URL is set.
-async function notifyHold(h: Hold) {
+// asker: a visitor's support-agent ask (refund-ask.ts), whose hold expires after 24 hours, before the 48-hour link does.
+async function notifyHold(h: Hold, asker?: string) {
   const url = process.env.HOLD_WEBHOOK_URL;
   if (!url) return;
   try {
@@ -61,7 +62,7 @@ async function notifyHold(h: Hold) {
     const amount = m?.value ? ` (${m.value} ${m.currency_code ?? ''})`.replace(' )', ')') : '';
     const what = h.method.replace(/_/g, ' ');
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      text: `JUNCO is holding *${what}* on ${target(h.args)}${amount} for your OK.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `<${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}|Approve or reject>, one tap, good for 48 hours` : `Approve or reject: ${DESK_URL}`}`,
+      text: `JUNCO is holding *${what}* on ${target(h.args)}${amount} for your OK${asker ? `, asked by ${asker}` : ''}.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `<${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}|Approve or reject>, one tap, ${asker ? "decide within 24 hours or it expires and nothing moves" : 'good for 48 hours'}` : `Approve or reject: ${DESK_URL}`}`,
     }) });
     if (!r.ok) console.warn('[notify] webhook returned', r.status);
   } catch (e: any) { console.warn('[notify] failed', e.message); }
@@ -142,7 +143,7 @@ const refundDeps: RefundDeps = {
   policy: () => policy,
   captureStatus: async (id) => { const r = await paypal(ctx, 'GET', `/v2/payments/captures/${encodeURIComponent(id)}`); return r.status === 200 ? String(r.body.status) : `unreadable (PayPal ${r.status})`; },
   connect: async () => {
-    const { server: s } = await createServer(ctx, policy, (h) => { tagHold(h, ASKER); agent.log(h.args?.capture_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from ${ASKER}: ${h.reason}`); void notifyHold(h); }, onMcpWrite('', ASKER));
+    const { server: s } = await createServer(ctx, policy, (h) => { tagHold(h, ASKER); agent.log(h.args?.capture_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from ${ASKER}: ${h.reason}`); void notifyHold(h, ASKER); }, onMcpWrite('', ASKER));
     const [a, b] = InMemoryTransport.createLinkedPair(); await s.connect(a);
     const c = new Client({ name: 'junco-support-agent', version: '1.0.0' }); await c.connect(b);
     const { tools } = await c.listTools();
