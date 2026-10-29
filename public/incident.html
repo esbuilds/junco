@@ -40,6 +40,7 @@
   main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 0 24px 32px; align-items: start; }
   .card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .card + .card { margin-top: 16px; }
+  [hidden] { display: none !important; }
   .card h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ink); }
   dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
   dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
@@ -90,8 +91,8 @@
     <ol class="rail" id="rail"></ol></section>
   <div>
     <section class="card"><h2>What the buyer allowed</h2><div id="authority"></div></section>
-    <section class="card"><h2>The purchase</h2><div id="purchase"></div></section>
-    <section class="card"><h2>What if</h2>
+    <section class="card"><h2 id="purchase-h">The purchase</h2><div id="purchase"></div></section>
+    <section class="card" id="whatif-card"><h2>What if</h2>
       <p class="muted" style="margin:0">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers). Nothing is sent to PayPal.</p>
       <div class="row"><label style="flex:1 1 100%">Recorded request<select id="target"></select></label>
         <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
@@ -119,14 +120,19 @@ function render() {
   document.title = `JUNCO Incident ${inc.id}`;
   $('#title').textContent = inc.title;
   $('#receipt').href = `/incident/${encodeURIComponent(inc.id)}/receipt`;
-  const c = inc.counts;
+  const c = inc.counts, d = inc.decline;
   $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
     .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  // A decline: the agent bought nothing, so there are no money moves to count and nothing for the what-if to re-run.
+  $('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
   $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
     Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
   const a = inc.authority, p = inc.purchase;
   $('#authority').innerHTML = a ? dl([['Instruction', a.instruction], ['Budget', a.budget], ['Agent', a.agent]]) : '<p class="muted">Not in the records.</p>';
-  $('#purchase').innerHTML = p ? dl([['Item', p.listing], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
+  $('#purchase-h').textContent = d ? 'What the agent chose not to buy' : 'The purchase';
+  if (d) $('#purchase').innerHTML = dl([['Outcome', 'Bought nothing. No order was placed and no money moved.'], ['Why the agent declined', d.reason]])
+    + (d.listings.length ? `<p class="muted" style="margin:12px 0 4px">Listings it saw</p><ul style="margin:0;padding-left:18px">${d.listings.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
+  else $('#purchase').innerHTML = p ? dl([['Item', p.listing], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
   $('#missing-card').hidden = !inc.missing.length;
   $('#missing').innerHTML = inc.missing.map((m) => `<li>${esc(m)}</li>`).join('');
   // The what-if re-runs the gate's decision on a recorded call: a hold or a gate-log event, latest first.
@@ -142,9 +148,10 @@ const reachedPayPal = () => { const ids = inc.events.filter((e) => modeOf(e) ===
 const notInRecords = () => { const facts = inc.events.length + Object.values(inc.authority ?? {}).filter(Boolean).length + Object.values(inc.purchase ?? {}).filter(Boolean).length + (inc.dispute_id ? 1 : 0);
   return { missing: inc.missing, text: inc.missing.length ? `${inc.missing.length} thing${inc.missing.length === 1 ? ' is' : 's are'} not in the records, listed as missing, never filled in.` : `Nothing missing. ${facts} facts on record checked.` }; };
 const NOTHING_PROPOSED = 'Nothing was proposed yet, so there is no recorded request to re-run. To get one: connect Claude to JUNCO, ask it for a refund on this order, and it waits here as a hold for the owner.';
+const NOTHING_BOUGHT = 'The agent bought nothing, so there is no order, no payment and no money move to re-run.';
 const whatIfPreset = () => { const amount = parseFloat(inc.purchase?.amount ?? ''), limit = Number.isFinite(amount) ? Math.max(0, Math.round((amount - 10) * 100) / 100) : 0;
   const targets = inc.events.filter((e) => e.kind === 'hold' || e.kind === 'gate').reverse().map((e) => e.id);
-  return { limit, label: `What if the refund limit were $${limit}?`, targets, none: targets.length ? null : NOTHING_PROPOSED }; };
+  return { limit, label: `What if the refund limit were $${limit}?`, targets, none: inc.decline ? NOTHING_BOUGHT : targets.length ? null : NOTHING_PROPOSED }; };
 
 async function runWhatIf(eventId, limit) {
   const r = await fetch(`/api/incident/${encodeURIComponent(inc.id)}/what-if`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, max_amount: limit }) });

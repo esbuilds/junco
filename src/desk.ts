@@ -30,7 +30,7 @@ import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
-import { actor, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
@@ -703,7 +703,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       if (!process.env.OWNER_TOKEN || req.headers['x-owner-token'] !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
       const body = await readBody(req);
       const { added, backfilled } = addToPool(Array.isArray(body?.entries) ? body.entries : []); actor.exit(() => void kick());
-      return json(res, 200, { added, backfilled, live_left: Object.fromEntries(KINDS.map((k) => [k, liveLeft(k)])) });
+      const declined = addDeclines(Array.isArray(body?.declines) ? body.declines : []);
+      return json(res, 200, { added, backfilled, declined, live_left: Object.fromEntries(KINDS.map((k) => [k, liveLeft(k)])) });
     }
     if (req.method === 'GET' && url.pathname === '/api/policy/tools') {
       // T1 matrix: every tool the gate exposes, on the desk's server and on PayPal's hosted one, with its class.

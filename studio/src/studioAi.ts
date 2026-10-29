@@ -146,8 +146,9 @@ function juncoTools(api: any): AgAiTool[] {
           return ctx.success([
             `${i.id}: ${i.title}`,
             `Buyer allowed: ${i.authority ? `${i.authority.instruction} (budget ${i.authority.budget}, ${i.authority.agent})` : 'not in the records'}`,
-            `Bought: ${i.purchase ? `${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
-            `Money moves: ${i.counts.proposed} proposed, ${i.counts.approved} approved, ${i.counts.executed} executed, ${i.counts.outcome_unknown} outcome unknown`,
+            ...(i.decline ? [`Bought: nothing (no order, no payment, nothing to re-run), because ${i.decline.reason}`, `Listings it saw: ${i.decline.listings.join(' | ')}`] : [
+              `Bought: ${i.purchase ? `${i.purchase.listing}, ${i.purchase.amount}, because ${i.purchase.reason}` : 'not in the records'}`,
+              `Money moves: ${i.counts.proposed} proposed, ${i.counts.approved} approved, ${i.counts.executed} executed, ${i.counts.outcome_unknown} outcome unknown`]),
             ...i.events.map((e) => `${e.at.slice(0, 16).replace('T', ' ')} [${modeOf(e).toUpperCase()}] ${e.id} ${e.actor}: ${e.summary}`),
             ...(i.missing.length ? [`Not in the records: ${i.missing.join(' ')}`] : []),
           ].join('\n'));

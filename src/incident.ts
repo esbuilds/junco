@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { readPool, readRuns, type PoolEntry } from './store-dispute.js';
+import { readDeclines, readPool, readRuns, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import type { Revocation } from './oauth.js';
 
@@ -112,13 +112,28 @@ function build(p: PoolEntry): Incident {
   };
 }
 
+// The agent bought nothing: one RECORDED event, no order, no payment, nothing for the gate (counts stay 0, no what-if).
+function buildDecline(d: Decline): Incident {
+  return {
+    id: d.id, title: `Agent bought nothing for "${d.instruction}"`,
+    authority: { instruction: d.instruction, budget: `${d.budget} USD`, agent: d.agent },
+    purchase: null, decline: { reason: d.reason, listings: d.listings }, dispute_id: null,
+    events: [{ id: `decline:${d.id}`, at: d.at, kind: 'decline', mode: 'recorded', actor: 'shopping agent', source: 'declines',
+      summary: `${d.agent} looked at ${d.listings.length} listing${d.listings.length === 1 ? '' : 's'} for "${d.instruction}" with a ${d.budget} USD budget and bought nothing: ${d.reason}` }],
+    counts: { proposed: 0, approved: 0, executed: 0, outcome_unknown: 0 },
+    missing: ['order and payment: the agent bought nothing, so there is no PayPal order, capture or dispute for this request'],
+  };
+}
+
 export function listIncidents(): IncidentSummary[] {
-  return entries().map(build).map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
+  return [...entries().map(build), ...readDeclines().map(buildDecline)].map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
 }
 // By the buyer transaction id, the order id or the capture id, exact match (Oct 28: a fresh agent asked by order id and was
 // told there was no incident). Two purchases sharing an id is never guessed between: none, said plainly.
 export function buildIncident(id: string): Incident | null {
+  const d = readDeclines().find((x) => x.id === id);
+  if (d) return buildDecline(d);
   const hits = entries().filter((e) => e.buyer_txn === id || e.order_id === id || e.agent?.capture_id === id);
   if (hits.length > 1) throw Object.assign(new Error(`${id} matches ${hits.length} purchases (${hits.map((e) => e.buyer_txn).join(', ')}); ask by buyer transaction id`), { code: 404 });
   return hits[0] ? build(hits[0]) : null;
@@ -184,7 +199,8 @@ export function addIncidentTools(server: any) {
   server.registerTool('junco_list_incidents', {
     description: 'List AI purchases this store recorded: orders a shopping agent placed for a buyer with PayPal, newest activity first. '
       + 'Each has an id (the buyer transaction id), a title, the PayPal dispute id if the buyer disputed it, and counts of money moves '
-      + '(proposed, approved, executed, outcome unknown). Start here, then call junco_get_incident with an id. Read only; nothing is sent to PayPal.',
+      + '(proposed, approved, executed, outcome unknown). Also lists requests where the agent bought nothing: their id starts decline- '
+      + 'and they have no order, payment or money moves. Start here, then call junco_get_incident with an id. Read only; nothing is sent to PayPal.',
     inputSchema: {},
   }, async () => reply(listIncidents));
   server.registerTool('junco_get_incident', {
@@ -193,8 +209,9 @@ export function addIncidentTools(server: any) {
       + 'agent steps, each money move the gate held, allowed or denied with the rule it applied, the owner\'s decision, and PayPal\'s answer '
       + 'such as a refund id). `missing` lists facts the records do not have; treat them as unknown, never guess them. Event ids starting '
       + 'hold: or gate: are recorded gate decisions you can pass to junco_what_if. Takes the buyer transaction id, the order id or '
-      + 'the capture id. Read only.',
-    inputSchema: { id: z.string().regex(/^[A-Za-z0-9_-]{15,32}$/).describe('The purchase: its buyer transaction id (from junco_list_incidents), its PayPal order id, or its capture id') },
+      + 'the capture id, or a decline- id: then purchase is null, `decline` holds the agent\'s reason and the listings it saw, '
+      + 'and there is nothing to pass to junco_what_if. Read only.',
+    inputSchema: { id: z.string().regex(/^[A-Za-z0-9_-]{15,32}$/).describe('The purchase: its buyer transaction id (from junco_list_incidents), its PayPal order id, its capture id, or a decline- id') },
   }, async ({ id }: { id: string }) => reply(() => buildIncident(id)));
   server.registerTool('junco_what_if', {
     description: "Re-run JUNCO's gate on one recorded request under one changed rule, to see what would have happened. Give the event id "

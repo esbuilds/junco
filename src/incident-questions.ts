@@ -23,9 +23,11 @@ export function notInRecords(inc: Incident) {
 // "What if the refund limit were $X?": X is the purchase amount less $10, re-run on the recorded money moves newest
 // first (the caller tries each until one has an amount limit to change). None recorded: say how one gets proposed.
 export const NOTHING_PROPOSED = 'Nothing was proposed yet, so there is no recorded request to re-run. To get one: connect Claude to JUNCO, ask it for a refund on this order, and it waits here as a hold for the owner.';
+// A decline has no order: the page and Studio hide the what-if for it; this text is the answer if anything still asks.
+export const NOTHING_BOUGHT = 'The agent bought nothing, so there is no order, no payment and no money move to re-run.';
 export function whatIfPreset(inc: Incident) {
   const amount = parseFloat(inc.purchase?.amount ?? '');
   const limit = Number.isFinite(amount) ? Math.max(0, Math.round((amount - 10) * 100) / 100) : 0;
   const targets = inc.events.filter((e) => e.kind === 'hold' || e.kind === 'gate').reverse().map((e) => e.id);
-  return { limit, label: `What if the refund limit were $${limit}?`, targets, none: targets.length ? null : NOTHING_PROPOSED };
+  return { limit, label: `What if the refund limit were $${limit}?`, targets, none: inc.decline ? NOTHING_BOUGHT : targets.length ? null : NOTHING_PROPOSED };
 }

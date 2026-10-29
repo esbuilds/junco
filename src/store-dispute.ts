@@ -24,11 +24,15 @@ export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; 
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
 export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; kind?: Kind; scan?: string; dispute_id?: string; error?: string; challenge?: boolean;
   unlocked_at?: string; leased_at?: string; retired_at?: string };
-const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json';
+// A shopping agent that bought nothing (pool.ts agent): what it was asked, why it declined, the listings it saw. No order,
+// so it never enters the pool (the pool feeds dispute filing). id: 'decline-' and the agent's time, digits only.
+export type Decline = { id: string; at: string; instruction: string; budget: string; reason: string; agent: string; listings: string[]; added: string };
+const POOL = '.junco/pool.json', RUNS = '.junco/store-runs.json', DECLINES = '.junco/declines.json';
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 const write = (f: string, v: unknown) => { mkdirSync('.junco', { recursive: true }); writeFileSync(f, JSON.stringify(v, null, 2)); mirror(f, v); };
 export const readPool = () => read<PoolEntry[]>(POOL, []);
 export const readRuns = () => read<Run[]>(RUNS, []);
+export const readDeclines = () => read<Decline[]>(DECLINES, []);
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
 const kindOf = (p: PoolEntry): Kind | null => (p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
@@ -119,6 +123,21 @@ export function addToPool(entries: any[]): { added: number; backfilled: number }
       added: new Date().toISOString() }));
   if (fresh.length || backfilled) write(POOL, [...pool, ...fresh]);
   return { added: fresh.length, backfilled };
+}
+// Same owner-token post as the pool. The id comes from the agent's own time, so a re-post adds nothing.
+export function addDeclines(list: any[]): number {
+  const have = readDeclines(), ids = new Set(have.map((d) => d.id)), s = (v: unknown) => String(v ?? '').slice(0, 1000);
+  const fresh: Decline[] = [];
+  for (const d of list) {
+    const at = typeof d?.at === 'string' && !Number.isNaN(Date.parse(d.at)) ? new Date(d.at).toISOString() : null;
+    const id = at && `decline-${at.replace(/\D/g, '')}`;
+    if (!id || ids.has(id) || !s(d.instruction) || !s(d.reason)) continue;
+    ids.add(id);
+    fresh.push({ id, at: at!, instruction: s(d.instruction), budget: s(d.budget), reason: s(d.reason), agent: s(d.agent),
+      listings: Array.isArray(d.listings) ? d.listings.slice(0, 20).map(s) : [], added: new Date().toISOString() });
+  }
+  if (fresh.length) write(DECLINES, [...have, ...fresh]);
+  return fresh.length;
 }
 
 // D1 leases. A leased case belongs to the session that leased it for 30 minutes from the lease; after that it's a past

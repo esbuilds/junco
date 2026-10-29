@@ -6,7 +6,8 @@
 // recorded request under a changed rule; it never reaches PayPal.
 export type Mode = 'live' | 'recorded' | 'what-if';
 
-export type EventKind = 'purchase' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook';
+// decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal).
+export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
@@ -21,10 +22,12 @@ export type IncidentEvent = {
 };
 
 export type Incident = {
-  id: string;        // the buyer transaction id, the pool's key
+  id: string;        // the buyer transaction id, the pool's key; a decline's is 'decline-<time>' (never 17 uppercase chars)
   title: string;     // e.g. 'Agent bought WKD-01 for "waterproof bag for kayaking"'
   authority: { instruction: string; budget: string; agent: string } | null;          // what the buyer allowed
   purchase: { sku: string; listing: string; reason: string; amount: string; order_id?: string; capture_id?: string } | null;
+  // Set only when the agent bought nothing: its reason and the listings it saw. purchase is then null and counts are all 0.
+  decline?: { reason: string; listings: string[] };
   dispute_id: string | null;
   events: IncidentEvent[];                                                            // oldest first
   counts: { proposed: number; approved: number; executed: number; outcome_unknown: number }; // money moves only

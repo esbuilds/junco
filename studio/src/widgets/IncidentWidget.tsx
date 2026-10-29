@@ -64,13 +64,17 @@ export function IncidentWidget() {
       {error && <div className="jd-result jd-err">{error}</div>}
       {inc && <div className="jd-incident-grid">
         <div className="jd-incident-main">
-          <div className="jd-counts">
+          {!inc.decline && <div className="jd-counts">
             {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
               .map(([k, v]) => <div key={k}><span>{k}</span><strong>{v}</strong></div>)}
-          </div>
+          </div>}
           <dl className="jd-facts">
             <dt>Buyer allowed</dt><dd>{inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</dd>
-            <dt>Bought</dt><dd>{inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</dd>
+            {inc.decline ? <>
+              <dt>Bought</dt><dd>Nothing. No order was placed and no money moved.</dd>
+              <dt>Why it declined</dt><dd>{inc.decline.reason}</dd>
+              <dt>Listings it saw</dt><dd>{inc.decline.listings.join(' | ') || 'not in the records'}</dd>
+            </> : <><dt>Bought</dt><dd>{inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</dd></>}
           </dl>
           <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
             {inc.events.map((e) => { const mode = modeOf(e); return (
@@ -93,7 +97,7 @@ export function IncidentWidget() {
           <div className="jd-stack">
             <button type="button" className="jd-btn" onClick={askLive}>Which actions reached PayPal?</button>
             <button type="button" className="jd-btn" onClick={askMissing}>What's not in the records?</button>
-            <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>
+            {!inc.decline && <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>}
           </div>
           {answer && <p className="jd-answer" role="status">{answer}</p>}
           {calls.length > 0 && <>

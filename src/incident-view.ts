@@ -53,11 +53,13 @@ button{font:500 13px/18px Geist,system-ui,sans-serif;padding:7px 14px;border-rad
 <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· incident receipt</span></p>
 <h1>${esc(inc.title)}</h1>
 <table>
-${row('Incident id', inc.id)}${row('Capture id', inc.purchase?.capture_id ?? 'not recorded')}${row('Order id', inc.purchase?.order_id)}
+${row('Incident id', inc.id)}${row('Capture id', inc.decline ? null : inc.purchase?.capture_id ?? 'not recorded')}${row('Order id', inc.purchase?.order_id)}
 ${row('Item', inc.purchase?.listing)}${row('Amount', inc.purchase?.amount)}
 ${row('Buyer allowed', inc.authority && `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})`)}
+${row('Outcome', inc.decline && 'The agent bought nothing. No order was placed and no money moved.')}${row("Agent's reason", inc.decline?.reason)}
+${row('Listings it saw', inc.decline?.listings.join(' | '))}
 ${row('Dispute', inc.dispute_id)}${row('PayPal refund id', refund)}
-${row('Money moves', `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}
+${row('Money moves', !inc.decline && `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}
 ${row('Events on record', `${inc.events.length}, ${inc.events[0]?.at.slice(0, 10) ?? ''} to ${inc.events.at(-1)?.at.slice(0, 10) ?? ''}`)}
 ${row('Not in the records', inc.missing.join(' '))}
 </table>

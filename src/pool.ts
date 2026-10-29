@@ -61,12 +61,16 @@ if (kind === 'agent' && !vaultId) {
 }
 let last = await newestTxn();
 console.log(`buyer's newest earlier transaction: ${last ?? 'none'}`);
-const entries = [];
+const entries = [], declines = [];
 for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
   if (kind === 'agent') {
     // The agent shops; the store charges the saved PayPal account only for an item within the budget the agent sent.
     const ask = INSTRUCTIONS[tries % INSTRUCTIONS.length], choice = await shop(ask.instruction, ask.budget);
-    if ('declined' in choice) { console.log(`agent bought nothing for "${ask.instruction}": ${choice.declined}`); continue; }
+    if ('declined' in choice) {
+      // Recorded too: the desk shows it as an incident with no order (BLACK BOX), what the agent chose not to buy and why.
+      declines.push({ at: new Date().toISOString(), instruction: ask.instruction, budget: ask.budget, reason: choice.declined, agent: AGENT_NAME, listings: CATALOG.map((c) => listing(c.sku)) });
+      console.log(`agent bought nothing for "${ask.instruction}": ${choice.declined}`); continue;
+    }
     const item = CATALOG.find((c) => c.sku === choice.sku)!;
     if (Number(item.price) > Number(ask.budget)) { console.log(`store refused ${item.sku} at $${item.price}: over the agent's $${ask.budget} budget`); continue; }
     const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { headers: { 'PayPal-Request-Id': crypto.randomUUID() }, json: {
@@ -122,7 +126,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
 }
 await browser.close();
 
-if (!process.env.OWNER_TOKEN) { console.log('No OWNER_TOKEN; add these by hand:', JSON.stringify(entries)); process.exit(0); }
+if (!process.env.OWNER_TOKEN) { console.log('No OWNER_TOKEN; add these by hand:', JSON.stringify({ entries, declines })); process.exit(0); }
 const r = await fetch(`${DESK}/api/pool`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Owner-Token': process.env.OWNER_TOKEN,
-  Authorization: `Basic ${Buffer.from(`owner:${process.env.DESK_PASSWORD}`).toString('base64')}` }, body: JSON.stringify({ entries }) });
+  Authorization: `Basic ${Buffer.from(`owner:${process.env.DESK_PASSWORD}`).toString('base64')}` }, body: JSON.stringify({ entries, declines }) });
 console.log('desk pool:', r.status, await r.text());
