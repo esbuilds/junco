@@ -6,7 +6,7 @@ Every way to connect, the tools JUNCO adds, and the policy file. Back to the [RE
 
 In claude.ai, Settings, Connectors, Add custom connector, enter `https://junco-desk.onrender.com/mcp` (the desk's own server with PayPal's Agent Toolkit; the working path while PayPal's hosted server fails its calls, since Oct 28) or `/mcp/paypal` (PayPal's hosted tools behind the same gate). Claude registers itself, the desk shows a sign-in page, and you sign in as `judge` with the desk password from the Devpost submission's testing instructions. The connector then shows up in Claude on a phone too. Tested Oct 21 2026 from claude.ai on the web and on a phone: the tools listed, `list_disputes` ran, and `create_refund` came back held, marked "Claude connector" on the desk. `npm run check-connector` runs the same sign-in against any desk.
 
-claude.ai now declines to call tools that move money, so from claude.ai use the connector to investigate: the read tools and the incident tools below. To see a money move held for the owner, use a client that calls the tool, such as Claude Code or Claude Desktop with the recipes below.
+claude.ai now declines to call tools that move money, so from claude.ai use the connector to investigate: the read tools and the incident tools below. To see a money move held for the owner, use an agent that calls the tool, such as Claude through the API (`npm run fresh-agent -- --propose` does this against `/mcp`) or Claude Code with the recipes below.
 
 ## Use it from an AI agent (MCP)
 
