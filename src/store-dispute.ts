@@ -40,6 +40,8 @@ export const readRuns = () => read<Run[]>(RUNS, []);
 export const readDeclines = () => read<Decline[]>(DECLINES, []);
 export const readAgentBuys = () => read<AgentBuy[]>(BUYS, []);
 export const addAgentBuy = (b: AgentBuy) => write(BUYS, [...readAgentBuys(), b]);
+// What the store charged on a capture it placed (a visitor's agent buy or a pool agent order, USD), from its own records.
+export const paidOn = (capture: string) => readAgentBuys().find((b) => b.capture_id === capture)?.amount ?? readPool().find((p) => p.agent?.capture_id === capture)?.amount;
 // Every /api/shop attempt that reaches Claude, kept for the caps (a refused or failed charge still cost a call).
 type Try = { at: string; session: string };
 export const readShopTries = () => read<Try[]>(TRIES, []);

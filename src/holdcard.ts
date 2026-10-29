@@ -4,6 +4,7 @@
 // No approve button: whoever is chatting may be the attacker; approval stays with the owner's desk and one-tap link.
 import { z } from 'zod';
 import type { Hold, Policy } from './gate.js';
+import { holdAction } from './onetap.js';
 
 export const HOLD_CARD = 'ui://junco/hold-card';
 const MIME = 'text/html;profile=mcp-app';
@@ -34,7 +35,7 @@ export function addHoldCard(server: any, policy: Policy, readHolds: () => Hold[]
     _meta: { ui: { resourceUri: HOLD_CARD, visibility: ['app'] } },
   }, async ({ hold_id }: { hold_id: string }) => {
     const h = readHolds().find((x) => x.id === hold_id);
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ hold_id, status: h?.status ?? 'missing', ...holdNews(h) }) }] };
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ hold_id, status: h?.status ?? 'missing', ...(h && { action: holdAction(h) }), ...holdNews(h) }) }] };
   });
   for (const [name, t] of Object.entries(server._registeredTools) as [string, any][]) {
     const rule = policy.tools[name];
@@ -49,7 +50,7 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 body{margin:0;font:14px/1.45 Inter,system-ui,sans-serif;color:var(--ink);background:transparent}
 .c{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:12px 14px;background:var(--bg)}
 .c.ok{border-left-color:var(--acc)}.c.no{border-left-color:var(--danger)}
-.k{font-size:12px;color:var(--m);text-transform:uppercase;letter-spacing:.04em}h1{font-size:16px;margin:4px 0}.m{color:var(--m)}.s{font-weight:600;margin-top:8px}
+.k{font-size:12px;color:var(--m);text-transform:uppercase;letter-spacing:.04em}h1{font-size:16px;margin:4px 0}.m{color:var(--m)}.a{font-weight:600}.a:empty{display:none}.s{font-weight:600;margin-top:8px}
 </style></head><body><div class="c" id="c"><div class="k">JUNCO gate</div><div class="m" id="s">Waiting for the result...</div></div><script>
 var n = 0, pending = {}, card = document.getElementById('c');
 function send(method, params) { return new Promise(function (res) { var id = ++n; pending[id] = res; parent.postMessage({ jsonrpc: '2.0', id: id, method: method, params: params }, '*'); }); }
@@ -73,7 +74,7 @@ function show(r) {
     return size();
   }
   card.className = 'c';
-  card.append(line('h1', 'Held for the owner'), line('m', out.reason || ''), line('s', 'Waiting for the owner. Nothing has gone to PayPal.'), line('m', 'Hold ' + out.hold_id + '. The owner approves or rejects it from the desk or a one-tap link; this card updates when they do.'));
+  card.append(line('h1', 'Held for the owner'), line('a', ''), line('m', out.reason || ''), line('s', 'Waiting for the owner. Nothing has gone to PayPal.'), line('m', 'Hold ' + out.hold_id + '. The owner approves or rejects it from the desk or a one-tap link; this card updates when they do.'));
   size(); poll(out.hold_id, 0);
 }
 function poll(id, i) {
@@ -82,9 +83,10 @@ function poll(id, i) {
     send('tools/call', { name: 'junco_hold_status', arguments: { hold_id: id } }).then(function (r) {
       var s; try { s = JSON.parse(textOf(r)); } catch (e) { return poll(id, i + 1); }
       card.querySelector('.s').textContent = s.text;
+      if (s.action) card.querySelector('.a').textContent = s.action; // e.g. "Full refund of $38.00 on payment ..."
       if (s.done) { card.className = 'c ' + (s.status === 'completed' ? 'ok' : 'no'); size(); } else poll(id, i + 1);
     });
-  }, 5000);
+  }, i ? 5000 : 0); // the first read at once: it names the action and the amount
 }
 send('ui/initialize', { appCapabilities: { availableDisplayModes: ['inline'] }, clientInfo: { name: 'junco-hold-card', version: '1.0.0' }, protocolVersion: '2026-01-26' })
   .then(function () { notify('ui/notifications/initialized', {}); size(); });

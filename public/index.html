@@ -178,8 +178,8 @@ async function loadHolds() {
   $('#s-holds').textContent = holds.length;
   $('#holds').innerHTML = holds.map((h) => `
     <div class="hold">
-      <div><strong>${esc(h.method.replace(/_/g, ' '))}</strong> on ${esc(h.args?.dispute_id)}
-        ${h.args?.offer_amount ? ` for ${esc(money(h.args.offer_amount.value, h.args.offer_amount.currency_code))}` : ''}
+      <div><strong>${esc(h.method.replace(/_/g, ' '))}</strong> on ${esc(h.args?.dispute_id ?? (h.args?.capture_id ? `payment ${h.args.capture_id}` : ''))}
+        ${h.args?.offer_amount ? ` for ${esc(money(h.args.offer_amount.value, h.args.offer_amount.currency_code))}` : h.full_refund ? `: ${esc(h.full_refund)}` : ''}
         <div class="why">Held: ${esc(h.reason)}</div>${h.status === 'pending' ? '' : `<div class="why">Status: ${esc(HOLD_STATUS[h.status])}. It won't be sent again.</div>`}</div>
       <div class="row" style="margin:0">${h.status === 'pending' ? `<button class="btn primary" data-approve="${esc(h.id)}">Approve</button><button class="btn danger" data-reject="${esc(h.id)}">Reject</button>` : `<button class="btn" data-settle="${esc(h.id)}">Re-check PayPal</button>`}</div>
     </div>`).join('');

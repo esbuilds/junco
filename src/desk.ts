@@ -3,7 +3,7 @@ import { createServer as httpServer, type IncomingMessage, type ServerResponse }
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
-import { holdPage, linkRefusal, signedLink } from './onetap.js';
+import { fullRefund, holdPage, linkRefusal, signedLink } from './onetap.js';
 import { bearer, challenge as signIn, connectorSessions, oauth, revokeAll } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -58,8 +58,8 @@ async function notifyHold(h: Hold, asker?: string) {
   if (!url) return;
   try {
     const d = h.args?.dispute_id ? (await paypal(ctx, 'GET', `/v1/customer/disputes/${encodeURIComponent(h.args.dispute_id)}`)).body : {};
-    const m = h.args?.offer_amount ?? h.args?.amount ?? d.dispute_amount;
-    const amount = m?.value ? ` (${m.value} ${m.currency_code ?? ''})`.replace(' )', ')') : '';
+    const m = h.args?.offer_amount ?? h.args?.amount ?? d.dispute_amount, full = fullRefund(h); // a refund with no amount: say it's the whole payment
+    const amount = full ? ` (${full.charAt(0).toLowerCase()}${full.slice(1)})` : m?.value ? ` (${m.value} ${m.currency_code ?? ''})`.replace(' )', ')') : '';
     const what = h.method.replace(/_/g, ' ');
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       text: `JUNCO is holding *${what}* on ${target(h.args)}${amount} for your OK${asker ? `, asked by ${asker}` : ''}.\nWhy: ${h.reason}\n${process.env.OWNER_TOKEN ? `<${signedLink(DESK_URL, process.env.OWNER_TOKEN, h.id)}|Approve or reject>, one tap, ${asker ? "decide within 24 hours or it expires and nothing moves" : 'good for 48 hours'}` : `Approve or reject: ${DESK_URL}`}`,
@@ -764,7 +764,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       return json(res, 200, policyView());
     }
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
-    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status)).map(tagged));
+    if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status))
+      .map((h) => ({ ...tagged(h), ...(fullRefund(h) && { full_refund: fullRefund(h) }) }))); // a refund with no amount says so, with how much when known
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
       { const h = await decideHold(p[2], p[3], 'the owner'); return json(res, 200, { ...h, paypal: paypalRefund(h) }); }
     json(res, 404, { error: { message: 'Not found' } });

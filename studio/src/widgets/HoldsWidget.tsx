@@ -35,7 +35,7 @@ export function HoldsWidget() {
     ? <button type="button" className="jd-linkish jd-id" onClick={() => selectCase(h.args.dispute_id)}>{h.args.dispute_id}</button>
     : h.args?.capture_id ? <span className="jd-id">{h.args.capture_id}</span>
     : h.args?.invoice_id ? <span className="jd-id">{h.args.invoice_id}</span> : <span className="jd-muted">the store</span>;
-  const amount = (h: Hold) => { const a = h.args?.offer_amount ?? h.args?.amount; return a?.value ? `${money(Number(a.value), a.currency_code).replace(/[^\d.,]/g, '')} ${a.currency_code}` : '-'; };
+  const amount = (h: Hold) => { const a = h.args?.offer_amount ?? h.args?.amount; return h.full_refund ?? (a?.value ? `${money(Number(a.value), a.currency_code).replace(/[^\d.,]/g, '')} ${a.currency_code}` : '-'); };
 
   return (
     <Panel

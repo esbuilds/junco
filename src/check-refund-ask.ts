@@ -104,6 +104,14 @@ assert.equal(actor.run(as(A), () => buildIncident('CAPA2'))?.refund?.can_ask, tr
 assert.equal(actor.run(as(B), () => buildIncident('CAPA2'))?.refund?.can_ask, false); // not B's
 assert.equal(actor.run(as('o', true), () => buildIncident('CAPA2'))?.refund?.can_ask, true); // the owner may
 console.log('ask: read, proposed, held for the owner with 24 hours, tagged; nothing reached PayPal; the incident shows it all');
+// The owner sees how much: this full refund (no amount, no payment snapshot here) takes the amount from the store's own
+// records, the visitor's agent buy or a pool order, with no PayPal read (Oct 29: hold c600da3f's title had none).
+const { holdAction, fullRefund } = await import('./onetap.js');
+assert.equal(holdAction(h1), 'Full refund of $38.00 on payment CAPA1');
+assert.ok(holdPage(h1, { e: '1', s: 'x' }, 'https://d').includes('<h1>Full refund of $38.00 on payment CAPA1</h1>'));
+assert.equal(fullRefund({ method: 'create_refund', args: { capture_id: 'CAPPOOL' } }), 'Full refund of $62.00'); // a pool order
+assert.equal(paypalCalls, 0);
+console.log('amount: a full refund names how much from the store\'s records, on the one-tap page and its title');
 
 // One per purchase: the second ask shows the first and its hold, with no Claude call.
 const again = await ask(as(A), 'CAPA1', 'please');

@@ -41,8 +41,10 @@ export function landed(method: string, before: Trail, d: any): boolean | null {
 
 // A refund acts on a payment (capture), not a case. Its hold snapshots the capture; approval refuses if anything changed
 // since (any refund moves status or update_time), so a refund an agent asked for twice runs at most once.
-export type CaptureState = { capture_id: string; status: string; update_time: string };
-export const captureState = (c: any): CaptureState => ({ capture_id: c.id, status: c.status, update_time: c.update_time });
+// amount: what the payment captured ("38.00 USD"), so an owner approving a refund with no amount sees how much it is.
+export type CaptureState = { capture_id: string; status: string; update_time: string; amount?: string };
+export const captureState = (c: any): CaptureState => ({ capture_id: c.id, status: c.status, update_time: c.update_time,
+  ...(c.amount?.value && { amount: `${c.amount.value} ${c.amount.currency_code ?? ''}`.trim() }) });
 export function captureStaleReason(h: { case?: any }, c: any): string | null {
   if (c.status === 'REFUNDED') return `payment ${c.id} is already fully refunded`;
   if (!h.case?.update_time) return null;

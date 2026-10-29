@@ -4,6 +4,7 @@
 // The signature stands in for the desk password and the owner cookie, for that one hold only.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { paidOn } from './store-dispute.js';
 
 export const LINK_MS = 48 * 3600_000;
 const sig = (key: string, id: string, exp: number) => createHmac('sha256', key).update(`junco-hold:${id}:${exp}`).digest('base64url').slice(0, 32);
@@ -29,11 +30,21 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.ch
 const target = (a: any) => a?.dispute_id ?? (a?.capture_id ? `payment ${a.capture_id}` : a?.invoice_id ? `invoice ${a.invoice_id}` : '');
 const what = (h: any) => { const m = String(h.method).replace(/^create_/, '').replace(/_/g, ' '); return m.charAt(0).toUpperCase() + m.slice(1); };
 const amount = (h: any) => h.args?.offer_amount?.value ?? h.args?.amount?.value ?? h.args?.amount;
+// A refund with no amount is the whole payment, and the owner approving it still sees how much: from the hold's payment
+// snapshot (taken when it was held) or the store's own order record, never from a new PayPal read.
+const dollars = (s: string) => (/^\d+(\.\d+)?( USD)?$/.test(s) ? `$${s.replace(/ USD$/, '')}` : s);
+export const fullRefund = (h: any): string | null => {
+  if (h?.method !== 'create_refund' || amount(h) != null) return null;
+  const paid: string | undefined = h.case?.amount ?? (h.args?.capture_id ? paidOn(h.args.capture_id) : undefined);
+  return `Full refund${paid ? ` of ${dollars(paid)}` : ''}`;
+};
+// The held action in one line: "Full refund of $38.00 on payment 57G...", "Make dispute offer $40.00 on PP-R-...".
+export const holdAction = (h: any) => `${fullRefund(h) ?? `${what(h)}${amount(h) ? ` $${amount(h)}` : ''}`}${target(h.args) ? ` on ${target(h.args)}` : ''}`;
 
 // The page: what is held and why, and two buttons. `note` is the outcome after a POST, or why the link can't be used.
 export function holdPage(h: any | null, q: { e: string | null; s: string | null }, desk: string, note?: { ok: boolean; text: string }) {
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
-    <h1>${esc(what(h))}${amount(h) ? ` $${esc(amount(h))}` : ''}${target(h.args) ? ` on ${esc(target(h.args))}` : ''}</h1>
+    <h1>${esc(holdAction(h))}</h1>
     <p class="m">Held for you. ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
     ${h.case && 'stage' in h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">When it was held the payment was ${esc(h.case.status)}.</p>` : ''}
     ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: PayPal says this changed since it was held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)} on this payment, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
@@ -71,5 +82,13 @@ if (process.argv[1]?.endsWith('onetap.ts')) {
   assert.ok(page.includes('&#60;x&#62;') && page.includes('method="post"'));
   assert.ok(!holdPage({ method: 'm', args: {}, reason: 'r', status: 'rejected' }, { e, s }, 'https://d').includes('<form'));
   assert.ok(holdPage(null, { e, s }, 'https://d', { ok: false, text: 'this link is not valid' }).includes('this link is not valid'));
-  console.log('one-tap: signed per hold, expiry can\'t be stretched, expired refused, page escapes and offers buttons only while pending');
+  // A refund with no amount is the whole payment: the title says so, with the captured amount from the hold's snapshot.
+  const full = { method: 'create_refund', args: { capture_id: 'CAPTUREWITHSNAP1' }, reason: 'policy: create_refund = hold', status: 'pending', case: { capture_id: 'CAPTUREWITHSNAP1', status: 'COMPLETED', update_time: 't', amount: '38.00 USD' } };
+  assert.ok(holdPage(full, { e, s }, 'https://d').includes('<h1>Full refund of $38.00 on payment CAPTUREWITHSNAP1</h1>'));
+  assert.equal(holdAction({ ...full, case: { ...full.case, amount: '40.00 EUR' } }), 'Full refund of 40.00 EUR on payment CAPTUREWITHSNAP1');
+  assert.equal(holdAction({ method: 'create_refund', args: { capture_id: 'NOTINANYRECORD01' } }), 'Full refund on payment NOTINANYRECORD01'); // amount not on record: still "Full refund"
+  assert.equal(holdAction({ method: 'create_refund', args: { capture_id: 'C1', amount: { value: '5.00', currency_code: 'USD' } } }), 'Refund $5.00 on payment C1');
+  assert.equal(holdAction({ method: 'make_dispute_offer', args: { dispute_id: 'PP-1', offer_amount: { value: '40.00' } } }), 'Make dispute offer $40.00 on PP-1');
+  assert.equal(fullRefund({ method: 'make_dispute_offer', args: {} }), null);
+  console.log('one-tap: signed per hold, expiry can\'t be stretched, expired refused, page escapes and offers buttons only while pending; a full refund says so, with how much');
 }
