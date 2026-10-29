@@ -60,7 +60,7 @@ ${row('Outcome', inc.decline && 'The agent bought nothing. No order was placed a
 ${row('Listings it saw', inc.decline?.listings.join(' | '))}
 ${row('Dispute', inc.dispute_id)}${row('PayPal refund id', refund)}
 ${row('Money moves', !inc.decline && `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}
-${row('Events on record', `${inc.events.length}, ${inc.events[0]?.at.slice(0, 10) ?? ''} to ${inc.events.at(-1)?.at.slice(0, 10) ?? ''}`)}
+${row('Events on record', ((a, b) => `${inc.events.length}, ${a === b ? a : `${a} to ${b}`}`)(inc.events[0]?.at.slice(0, 10) ?? '', inc.events.at(-1)?.at.slice(0, 10) ?? ''))}
 ${row('Not in the records', inc.missing.join(' '))}
 </table>
 <div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true })}<div><div>The whole incident, event by event:</div><div class="u">${esc(pageUrl)}</div></div></div>

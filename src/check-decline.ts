@@ -64,6 +64,7 @@ console.log('incident: purchase null, authority, one RECORDED decline event, no 
 const html = receiptPage(d, `https://desk.example/incident/${ID}`);
 for (const bad of ['undefined', 'null', 'NaN', 'Money moves', 'Capture id', 'not recorded']) assert.ok(!html.includes(bad), `receipt shows ${bad}`);
 assert.ok(html.includes('The agent bought nothing') && html.includes('WKD-02, costs $74') && html.includes('Rolltop dry duffel'));
+assert.ok(html.includes('<th>Events on record</th><td>1, 2026-10-28</td>')); // one date, not "2026-10-28 to 2026-10-28"
 assert.equal(whatIfPreset(d).none, NOTHING_BOUGHT);
 assert.equal(reachedPayPal(d).text, 'Nothing in this incident reached PayPal.');
 assert.ok(!/undefined/.test(notInRecords(d).text));
