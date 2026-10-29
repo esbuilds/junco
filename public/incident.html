@@ -190,6 +190,9 @@ $('#rerun').addEventListener('click', async (ev) => {
 // Ask for your money back: only on your own shopping agent's purchase. The incident says whether this viewer may ask
 // (can_ask, which needs the password), so a signed-out page never posts and never meets a password box.
 const EXPIRED = "The owner didn't decide within 24 hours, so nothing moved.";
+// aiLines repeats src/incident-questions.ts: the AI's markdown as plain lines (checked by check-refund-ask).
+const aiLines = (s) => s.split(/\n+|\s+-\s+(?=\*\*)/) // a list run onto one line: " - **Label:**"
+  .map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/^#+\s*/, '').trim()).filter(Boolean);
 const askText = (a) => {
   const hold = a.hold_id ? ` (hold ${a.hold_id})` : '', until = a.expires ? new Date(a.expires).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const state = a.outcome === 'asking' ? 'The support agent is reading your purchase. Reload in a moment.'
@@ -199,7 +202,7 @@ const askText = (a) => {
     : a.hold_status === 'rejected' ? `The owner rejected it${hold}. Nothing was sent to PayPal.`
     : a.hold_status === 'completed' ? `The owner approved it${hold}, and PayPal made the refund.`
     : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
-  return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<p class="muted">The support agent's reply, in the AI's own words: ${esc(a.ai)}</p>` : ''}`;
+  return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<p class="muted">The support agent's reply, in the AI's own words:<br>${aiLines(a.ai).map(esc).join('<br>')}</p>` : ''}`;
 };
 function renderRefund() {
   const r = inc.refund;

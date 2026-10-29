@@ -2,6 +2,13 @@
 // PayPal). Shared by the desk's server code and Studio; public/incident.html repeats these few lines in plain JS.
 import type { Incident, IncidentEvent, Mode } from './incident-types.js';
 
+// The AI's own words (a refund ask's support agent) are often markdown. Shown as plain text, at display time only: bold,
+// underline and code marks dropped, each list item or paragraph its own line. Never HTML; callers escape as before.
+export const aiLines = (s: string) => s.split(/\n+|\s+-\s+(?=\*\*)/) // a list run onto one line: " - **Label:**"
+  .map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/^#+\s*/, '').trim()).filter(Boolean);
+// One line for a rail summary: a space after a sentence or a label, "; " otherwise.
+export const aiText = (s: string) => aiLines(s).reduce((out, l) => (!out ? l : /[.!?:;]["')]?$/.test(out) ? `${out} ${l}` : `${out}; ${l}`), '');
+
 // The event's own mode (set by src/incident.ts). Events from before it existed fall back to the same rule: PayPal's
 // events and a gate call the gate allowed ("allow:") are LIVE; the desk's own decisions and a case lease are RECORDED.
 // WHAT-IF never appears on an event; whatIf() returns it and the page draws it apart.

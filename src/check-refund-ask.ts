@@ -157,4 +157,26 @@ assert.equal(readHolds().find((h) => h.id === other.id)?.status, 'pending');
 assert.equal(readHolds().find((h) => h.id === dup.hold_id)?.status, 'pending'); // a hold made outside an ask has no expiry either
 await client.close();
 console.log('others: holds made any other way never expire');
+
+// The AI's markdown, as plain text at display time (the stored words unchanged): Oct 29, incident 998856170L368615K
+// showed "- **Listing wording:** ..." raw, run onto one line.
+const { aiLines, aiText } = await import('./incident-questions.js');
+const md = 'I can\'t approve it myself, but here is what I found:\n\n- **Listing wording:** The WKD-03 listing says "For light rain only."\n- **Your message:** `it leaks` in rain.\n\n__Next__: the owner decides.';
+assert.deepEqual(aiLines(md), ["I can't approve it myself, but here is what I found:", 'Listing wording: The WKD-03 listing says "For light rain only."', 'Your message: it leaks in rain.', 'Next: the owner decides.']);
+assert.deepEqual(aiLines('Found: - **A:** one - **B:** two'), ['Found:', 'A: one', 'B: two']); // a list run onto one line
+assert.deepEqual(aiLines('It costs $38 - more than you said.'), ['It costs $38 - more than you said.']); // a plain dash stays
+assert.equal(aiText('- **A:** one\n- **B:** two\n- done.'), 'A: one; B: two; done.');
+const asks = JSON.parse(readFileSync('.junco/refund-asks.json', 'utf8'));
+writeFileSync('.junco/refund-asks.json', JSON.stringify([...asks, { capture_id: 'CAPA3', session: A, at: new Date().toISOString(), reason: '', outcome: 'no refund', ai: md }]));
+const rail = actor.run(as(A), () => buildIncident('CAPA3'))!.events.find((e) => e.id.startsWith('ask:'))!.summary;
+assert.ok(!rail.includes('**') && !rail.includes('- **') && !rail.includes('`') && !rail.includes('__'), rail);
+assert.match(rail, /The AI's own words: "I can't approve it myself, but here is what I found: Listing wording: The WKD-03 listing says "For light rain only\." Your message: it leaks in rain\. Next: the owner decides\."$/);
+assert.equal(JSON.parse(readFileSync('.junco/refund-asks.json', 'utf8')).at(-1).ai, md); // stored as the AI wrote it
+// The page and Studio use the same lines: the page's plain-JS copy matches the helper, and both draw a line per item.
+const src = readFileSync(new URL('./incident-questions.ts', import.meta.url), 'utf8'), pageSrc = readFileSync(new URL('../public/incident.html', import.meta.url), 'utf8');
+const body = (s: string) => s.match(/aiLines = \([^)]*\) => (s\.split[\s\S]*?filter\(Boolean\));/)?.[1].replace(/\s+/g, ' ');
+assert.ok(body(src) && body(src) === body(pageSrc), 'public/incident.html no longer repeats aiLines');
+assert.ok(pageSrc.includes("aiLines(a.ai).map(esc).join('<br>')"));
+assert.ok(readFileSync(new URL('../studio/src/widgets/IncidentWidget.tsx', import.meta.url), 'utf8').includes('aiLines(r.ask.ai).map('));
+console.log('words: the AI\'s markdown shows as plain lines on the rail, the card and Studio; the stored text is unchanged');
 console.log('refund-ask: ok (Claude and PayPal faked, 0 real network calls)');

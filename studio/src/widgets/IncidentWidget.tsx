@@ -2,7 +2,7 @@
 // Read-only apart from the what-if, which re-runs the gate on a recorded request and never reaches PayPal.
 import { useEffect, useRef, useState } from 'react';
 import type { Incident, IncidentSummary, WhatIf } from '../../../src/incident-types';
-import { modeOf, notInRecords, reachedPayPal, whatIfPreset } from '../../../src/incident-questions';
+import { aiLines, modeOf, notInRecords, reachedPayPal, whatIfPreset } from '../../../src/incident-questions';
 import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
@@ -37,7 +37,7 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
       <h3>Ask for your money back</h3>
       {r.ask ? <>
         <p>{askState(r.ask)}</p>
-        {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words: {r.ask.ai}</p>}
+        {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words:{aiLines(r.ask.ai).map((l, i) => <span key={i}><br />{l}</span>)}</p>}
       </> : <>
         <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. Every refund waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves.</p>
         <div className="jd-row">

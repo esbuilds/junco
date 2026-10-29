@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, EXPIRED_TEXT, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
 import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
+import { aiText } from './incident-questions.js';
 import type { Revocation } from './oauth.js';
 
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
@@ -114,7 +115,7 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   const asks = desk ? readRefundAsks().filter((x) => x.capture_id === desk.capture_id && x.outcome !== 'asking') : [];
   for (const x of asks) events.push({ id: `ask:${x.at}`, at: x.at, kind: 'agent', actor: 'support agent (Claude, for the visitor)', source: 'refund-asks',
     summary: `The visitor asked the support agent for a refund${x.reason ? `: "${x.reason.replace(/[.!?]+$/, '')}"` : ''}. ${x.outcome === 'held' ? `It proposed create_refund; the gate held it for the owner as ${x.hold_id}.`
-      : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? ` The AI's own words: "${x.ai}"` : ''}`,
+      : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? ` The AI's own words: "${aiText(x.ai)}"` : ''}`,
     ref: { ...(capture_id && { capture_id }), ...(x.hold_id && { hold_id: x.hold_id }) } });
   // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
   for (const r of readRevocations().filter((r) => r.at > paid))
