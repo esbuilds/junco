@@ -22,7 +22,7 @@ import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.j
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
-import { acceptedText, paypalRefund, receiptPage } from './incident-view.js';
+import { acceptedText, judgesPage, paypalRefund, receiptPage } from './incident-view.js';
 import { buildIncident, listIncidents, whatIf as incidentWhatIf } from './incident.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
@@ -30,7 +30,8 @@ import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
-import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
+import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
+import { isPublic, PUBLIC_SESSION } from './public.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -439,6 +440,8 @@ httpServer(async (req, res) => {
   const mcpPath = url.pathname === '/mcp' || url.pathname === '/mcp/paypal', token = mcpPath ? bearer(req) : null;
   if (token) return actor.run({ owner: token.role === 'owner', session: `connector-${token.client_id}` }, () => route(req, res, url, 'Claude connector'));
   if (mcpPath && !authorized(req)) return signIn(res, DESK_URL, url.pathname, req);
+  // The judges' door: the read-only pages in public.ts open without the password, as a non-owner with no cookie.
+  if (!authorized(req) && isPublic(req.method, url.pathname)) { res.setHeader('X-Robots-Tag', 'noindex'); return actor.run({ owner: false, session: PUBLIC_SESSION }, () => route(req, res, url)); }
   if (!authorized(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="JUNCO desk"' }); return res.end('Password required'); }
   if (url.pathname === '/owner') { // the owner's browser, once: everyone else shares the desk password
     if (!process.env.OWNER_TOKEN || url.searchParams.get('token') !== process.env.OWNER_TOKEN) return json(res, 403, { error: { message: 'Owner token required' } });
@@ -449,7 +452,7 @@ httpServer(async (req, res) => {
 }).listen(Number(process.env.PORT ?? 3000), () => console.log(`JUNCO desk on http://localhost:${process.env.PORT ?? 3000}${AGENT_MODE ? ' (agent mode on)' : ''}`));
 
 async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller?: string) {
-  if (req.method !== 'GET' && url.pathname !== '/api/studio-ai') dropCases(); // any owner action may change a case; the next list is fresh (the assistant only reads)
+  if (req.method !== 'GET' && url.pathname !== '/api/studio-ai' && !isPublic(req.method, url.pathname)) dropCases(); // any owner action may change a case; the next list is fresh (the assistant and the what-if only read)
   // Any MCP client (Claude Code, Claude Desktop, other agents) can use the desk's tools over HTTP, behind the same
   // password and the same gate: a held action shows up on this desk for the owner. Stateless: one gated server per request.
   // /mcp/paypal is PayPal's own hosted MCP server behind that gate, plus JUNCO's dispute tools (hosted.ts).
@@ -682,6 +685,13 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       await actor.exit(selfCheck); return json(res, 200, lastCheck);
     }
     if (req.method === 'GET' && url.pathname === '/api/gate-record') return json(res, 200, gateRecordView()); // v3.14
+    if (req.method === 'GET' && url.pathname === '/judges') { // the judges' door: open without the password (public.ts)
+      const all = await listIncidents(), declines = all.filter((i) => i.id.startsWith('decline-'));
+      const rooms = readChallengeRuns().filter((r) => r.room).slice(-8).reverse()
+        .map((r) => ({ id: r.id, at: r.at, room: r.room!, title: ROOMS[r.room! - 1]?.title ?? '', outcome: roomOutcome(r).text }));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: declines.find((i) => /kayak/i.test(i.title)) ?? declines[0] ?? null, escape: escapeStats(), rooms }));
+    }
     // BLACK BOX: one AI purchase's incident page, its JSON, a printable receipt and the what-if (never reaches PayPal).
     if (req.method === 'GET' && url.pathname === '/api/incidents') return json(res, 200, await listIncidents());
     if (p[0] === 'incident' || (p[0] === 'api' && p[1] === 'incident')) {

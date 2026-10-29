@@ -45,6 +45,7 @@
     "check-decline": "tsx src/check-decline.ts",
     "check-shop": "tsx src/check-shop.ts",
     "check-escape": "tsx src/check-escape.ts",
+    "check-public": "tsx src/check-public.ts",
     "check-ui": "tsx studio/check-ui.ts"
   },
   "keywords": [],

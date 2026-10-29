@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { actor, readAgentBuys, readDeclines, readPool, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
+import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import type { Revocation } from './oauth.js';
 
@@ -35,6 +35,8 @@ const modeOf = (e: Omit<IncidentEvent, 'mode'>): IncidentEvent['mode'] =>
 
 // A visitor's own buys and declines (session set) list only for that session and the owner; anyone with the link opens one.
 const seen = (session?: string) => { if (!session) return true; const a = actor.getStore(); return !!a && (a.owner || a.session === session); };
+// Without the password (the judges' door) a visitor's own run doesn't open even by its link: their typed ask stays private.
+const opens = (session?: string) => !session || actor.getStore()?.session !== PUBLIC_SESSION;
 // The desk placed it for a visitor (agent-buys.json): keyed by the capture id, with no buyer transaction id and no dispute.
 const fromDesk = (b: AgentBuy): PoolEntry => ({ buyer_txn: b.capture_id, amount: b.amount, order_id: b.order_id, agent: b.agent, added: b.added });
 const DESK_BUY = "buyer transaction id: the desk placed this order for a visitor's agent and cannot read the buyer's PayPal activity, so it is keyed by the capture id and cannot be disputed; refunds name the capture and land here";
@@ -141,9 +143,9 @@ export function listIncidents(): IncidentSummary[] {
 // told there was no incident). Two purchases sharing an id is never guessed between: none, said plainly.
 export function buildIncident(id: string): Incident | null {
   const d = readDeclines().find((x) => x.id === id);
-  if (d) return buildDecline(d);
+  if (d) return opens(d.session) ? buildDecline(d) : null;
   const b = readAgentBuys().find((x) => x.capture_id === id || x.order_id === id);
-  if (b) return build(fromDesk(b), true);
+  if (b) return opens(b.session) ? build(fromDesk(b), true) : null;
   const hits = entries().filter((e) => e.buyer_txn === id || e.order_id === id || e.agent?.capture_id === id);
   if (hits.length > 1) throw Object.assign(new Error(`${id} matches ${hits.length} purchases (${hits.map((e) => e.buyer_txn).join(', ')}); ask by buyer transaction id`), { code: 404 });
   return hits[0] ? build(hits[0]) : null;

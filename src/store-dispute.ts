@@ -157,6 +157,7 @@ export function addDeclines(list: any[], session?: string): number {
 // password, the owner has the owner cookie, and anything outside a desk request (PayPal webhooks, timers) is the system.
 export type Actor = { owner: boolean; session: string };
 export const actor = new AsyncLocalStorage<Actor>();
+export { PUBLIC_SESSION } from './public.js'; // the judges' door: someone without the password
 export const LEASE_MS = 30 * 60_000;
 export const leaseUntil = (r: Run) => Date.parse(r.leased_at ?? r.at) + LEASE_MS;
 const holdsLease = (a: Actor, run?: Run) => !!run && run.session === a.session && leaseUntil(run) >= Date.now();

@@ -6,6 +6,7 @@
 
 ## For judges
 
+- **Start at https://junco-desk.onrender.com/judges.** No password is needed to look; the password lets you act. It lists the AI purchases on record with their incident pages and receipts, the kayaking decline, and the Escape room's counter and latest runs, all read-only from the desk's records.
 - **Hosted desk:** https://junco-desk.onrender.com. The password is in the Devpost submission's testing instructions (any username works on the desk).
 - **What is sandbox:** everything. JUNCO runs on PayPal's sandbox with test accounts, and no real money moves. The disputes, offers, refunds, webhooks and the shopping agent's orders are real sandbox calls; the agent pays with a sandbox test buyer's saved PayPal account. The buyer's messages in Break the mandate and the Escape room are simulated, because PayPal's sandbox lets this app file disputes as the buyer and nothing else.
 - **Four things to try, in order:**

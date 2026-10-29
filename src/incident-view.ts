@@ -1,7 +1,7 @@
 // BLACK BOX, the desk's side (goals 4 to 6): which label an event wears, PayPal's refund id after an approve, and the
 // printable receipt. The Incident itself comes from src/incident.ts.
 import qrcode from 'qrcode-generator';
-import type { Incident } from './incident-types.js';
+import type { Incident, IncidentSummary } from './incident-types.js';
 
 export { modeOf } from './incident-questions.js';
 
@@ -66,5 +66,51 @@ ${row('Not in the records', inc.missing.join(' '))}
 <div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true })}<div><div>The whole incident, event by event:</div><div class="u">${esc(pageUrl)}</div></div></div>
 <p class="m">Built from the desk's records and PayPal's sandbox. Nothing on it was written by a model.</p>
 <p class="np"><button onclick="print()">Print</button></p>
+</body></html>`;
+}
+
+// The judges' door (/judges): what anyone can look at without the password, from the desk's own records. The desk passes
+// the public incident list (a visitor's own shopping runs are never in it), the decline to feature, and the Escape room's
+// counter and latest room runs. Every link on it opens without the password, except "Open the desk".
+export type JudgesData = {
+  purchases: IncidentSummary[]; decline: IncidentSummary | null;
+  escape: { attempts: number; escapes: number; escape_runs: string[] };
+  rooms: { id: string; at: string; room: number; title: string; outcome: string }[];
+};
+const DOCS = 'https://github.com/esbuilds/junco/blob/main/docs/mcp.md';
+export function judgesPage(d: JudgesData) {
+  const day = (iso: string) => iso.slice(0, 10), plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const links = (id: string) => `<a href="/incident/${encodeURIComponent(id)}">Incident</a> · <a href="/incident/${encodeURIComponent(id)}/receipt">Receipt</a>`;
+  const purchases = d.purchases.slice(0, 12).map((i) => `<tr><td>${esc(day(i.last_at))}</td><td>${esc(i.title)}<div class="m">${i.dispute_id ? `Disputed: ${esc(i.dispute_id)}` : 'Not disputed'}</div></td><td class="l">${links(i.id)}</td></tr>`).join('');
+  const rooms = d.rooms.map((r) => `<li><a href="/run/${encodeURIComponent(r.id)}">Run ${esc(r.id)}</a> <span class="m">${esc(day(r.at))} · Room ${r.room}: ${esc(r.title)}</span><div>${esc(r.outcome)}</div></li>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>JUNCO for judges</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet"><style>
+/* Graphite, the desk's palette (studio/src/theme.ts), light. */
+body{margin:0 auto;padding:40px 24px;max-width:760px;background:#fff;color:#18181b;font:14px/21px Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.brand{display:flex;align-items:center;gap:8px;margin:0 0 20px;font-size:13px;color:#52525b}.brand strong{color:#18181b;font-size:15px;font-weight:600;letter-spacing:-.02em}.brand svg{width:20px;height:20px}
+h1{font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.01em;margin:0 0 8px}h2{font-size:15px;font-weight:600;margin:28px 0 8px}.m{color:#52525b}
+a{color:#18181b}table{border-collapse:collapse;width:100%;border-top:1px solid #e4e4e7}td{padding:9px 12px 9px 0;border-bottom:1px solid #e4e4e7;vertical-align:top}
+td:first-child{white-space:nowrap;color:#52525b;font-variant-numeric:tabular-nums}td.l{white-space:nowrap;text-align:right;padding-right:0}
+.box{border:1px solid #e4e4e7;border-radius:8px;padding:12px 16px;margin:8px 0}.count{font-size:17px;font-weight:600}ul{padding-left:18px;margin:8px 0}li{margin:6px 0}
+.act{background:#fafafa}.btn{display:inline-block;margin-top:8px;padding:7px 14px;border-radius:6px;background:#18181b;color:#fff;text-decoration:none;font-weight:500}
+@media (max-width:560px){td.l{white-space:normal}}
+</style></head><body>
+<p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· for judges</span></p>
+<h1>JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.</h1>
+<p class="m">Everything here runs on PayPal's sandbox with test accounts; no real money moves. No password is needed to look. The password lets you act.</p>
+<h2>AI purchases on record</h2>
+<p class="m">Orders a shopping agent placed for a buyer. Each incident joins what the agent was allowed, what reached PayPal and every money move the gate held, allowed or denied. Nothing in it comes from a model.</p>
+${purchases ? `<table>${purchases}</table>` : '<p class="m">None on record yet.</p>'}
+${d.decline ? `<h2>When the agent buys nothing</h2><div class="box">${esc(d.decline.title)}<div class="m">No order, no payment. What it was asked, the listings it saw and why it declined are on record.</div><div>${links(d.decline.id)}</div></div>` : ''}
+<h2>Escape room</h2>
+<p class="m">Visitors try to get the owner's money out past the policy, in five rooms. An escape is money PayPal accepted beyond the owner's limit, read from the gate's and PayPal's records, never from what the AI says.</p>
+<div class="box"><span class="count">${plural(d.escape.attempts, 'attempt')}, ${plural(d.escape.escapes, 'escape')}.</span>${d.escape.escapes ? `<div>Money got out in ${d.escape.escape_runs.map((id) => `<a href="/run/${encodeURIComponent(id)}">run ${esc(id)}</a>`).join(', ')}.</div>` : ''}</div>
+${rooms ? `<ul>${rooms}</ul>` : ''}
+<h2>Sign in to act</h2>
+<div class="box act">The password is in the Devpost submission's testing instructions. It lets you:
+<ul><li>send your own shopping agent and investigate what it buys</li><li>try the Escape room's rooms yourself</li><li>get your own sandbox dispute and approve or reject what JUNCO holds on it</li><li>connect your own Claude to the desk (<a href="${DOCS}">how</a>)</li></ul>
+<a class="btn" href="/">Open the desk</a></div>
 </body></html>`;
 }
