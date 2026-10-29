@@ -53,6 +53,12 @@ const layout = {
     widgets: { mandate: { id: 'mandate', type: 'junco-challenge', dataMapping: {} } },
     widgetLayout: { mandate: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 44 } },
   }, {
+    // The Escape room: Break the mandate as five rooms of rising difficulty, same runs, same gate, same caps.
+    id: 'escape',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { escape: { id: 'escape', type: 'junco-escape', dataMapping: {} } },
+    widgetLayout: { escape: { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 44 } },
+  }, {
     // BLACK BOX: one AI purchase start to finish, from the records, with the gate's what-if.
     id: 'incident',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -120,7 +126,7 @@ const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
 const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
 // Demo pages sit after a divider so they don't read as everyday merchant work.
-const TEST_PAGES = [['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
+const TEST_PAGES = [['escape', 'Escape room'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
 // The desk's runtime key (index.html, from its env) wins; the dev server's build-time one is the fallback.
 const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || __AG_STUDIO_KEY__;

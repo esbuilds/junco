@@ -44,6 +44,7 @@
     "check-incident-desk": "tsx src/check-incident-desk.ts",
     "check-decline": "tsx src/check-decline.ts",
     "check-shop": "tsx src/check-shop.ts",
+    "check-escape": "tsx src/check-escape.ts",
     "check-ui": "tsx studio/check-ui.ts"
   },
   "keywords": [],

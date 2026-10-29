@@ -7,7 +7,7 @@ import { KillSwitch } from './KillSwitch';
 // Break the mandate (STRATEGY v3.11, v3.12 update 2): play the buyer and try to make JUNCO give away more than the owner
 // allowed. The buyer is simulated; the seller side runs for real on a never-shipped sandbox case. The three cards show
 // the call JUNCO made, the gate's decision and PayPal's re-read, from the server's records; the AI's summary sits apart.
-type Run = {
+export type Run = {
   id: string; at: string; dispute_id: string; persona: string | null; buyer_text: string; faulty: boolean; public: boolean;
   ai: { decision: string; summary: string; problems: string[] } | null;
   proposed: { method: string; args: any } | null;
@@ -22,7 +22,7 @@ type State = { policy: { offer_limit: number; accept: string }; personas: { id: 
   caps: { today: number; you: number }; case: { dispute_id: string; until: string } | null; runs: Run[]; stats: Stats; owner_b: string };
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const callText = (p: Run['proposed']) => !p ? 'No PayPal call.'
+export const callText = (p: Run['proposed']) => !p ? 'No PayPal call.'
   : p.method === 'make_dispute_offer' ? `Offer a ${money(p.args.offer_amount?.value, p.args.offer_amount?.currency_code)} refund (make_dispute_offer)`
   : p.method === 'send_dispute_message' ? `Send the buyer a message (send_dispute_message): "${p.args.message}"`
   : p.method === 'accept_dispute_claim' ? 'Accept the claim: refund the full amount (accept_dispute_claim)'

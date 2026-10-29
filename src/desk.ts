@@ -30,7 +30,7 @@ import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
-import { capsLeft, makeChallenge, redTeamRealLeft, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
+import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -649,9 +649,9 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       const session = actor.getStore()!.session;
       if (req.method === 'POST') {
         const b = await readBody(req);
-        const r = await challenge.run({ visitor, session, owner: actor.getStore()!.owner, text: b?.text, persona: b?.persona, faulty: !!b?.faulty, public: !!b?.public });
-        if (r.gate.hold_id) tagHold({ id: r.gate.hold_id } as Hold, 'Break the mandate (simulated buyer)');
-        return json(res, 200, r);
+        const r = await challenge.run({ visitor, session, owner: actor.getStore()!.owner, text: b?.text, persona: b?.persona, faulty: !!b?.faulty, public: !!b?.public, room: b?.room });
+        if (r.gate.hold_id) tagHold({ id: r.gate.hold_id } as Hold, r.room ? `Escape room ${r.room} (simulated buyer)` : 'Break the mandate (simulated buyer)');
+        return json(res, 200, r.room ? { ...r, outcome: roomOutcome(r) } : r);
       }
       const now = Date.now(), lease = readRuns().filter((r) => r.challenge && r.session === session && leaseUntil(r) > now).at(-1);
       return json(res, 200, {
@@ -660,6 +660,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
         case: lease ? { dispute_id: lease.dispute_id, until: new Date(leaseUntil(lease)).toISOString() } : null,
         runs: readChallengeRuns().filter((r) => r.session === session).slice(-10).reverse(),
         stats: { ...challengeStats(), held_for_owner: gateRecordView().counts.held },
+        rooms: roomsFor(session), escape: escapeStats(), // the Escape room page reads these
       });
     }
     if (req.method === 'POST' && url.pathname === '/api/red-team/run') { // owner: one red-team run now
