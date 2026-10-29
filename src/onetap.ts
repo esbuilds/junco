@@ -45,7 +45,7 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
       <button name="verb" value="reject" class="r">Reject</button>
     </form>
     <p class="m">Approving re-reads the case on PayPal first. If it has moved on since this was held, nothing is sent.</p>`
-    : !note ? `<p>This hold is already ${esc(h.status)}.</p>` : ''}`;
+    : !note ? `<p>${h.status === 'expired' ? "This hold expired: the owner didn't decide within 24 hours, so nothing moved." : `This hold is already ${esc(h.status)}.`}</p>` : ''}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>JUNCO: a hold for you</title><style>
 :root{color-scheme:light dark;--bg:#f7f5f0;--ink:#1d2421;--m:#5d6662;--acc:#1f5c4a;--danger:#a8322a}

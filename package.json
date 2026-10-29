@@ -46,6 +46,7 @@
     "check-shop": "tsx src/check-shop.ts",
     "check-escape": "tsx src/check-escape.ts",
     "check-public": "tsx src/check-public.ts",
+    "check-refund-ask": "tsx src/check-refund-ask.ts",
     "check-ui": "tsx studio/check-ui.ts"
   },
   "keywords": [],

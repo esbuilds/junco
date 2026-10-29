@@ -4,8 +4,8 @@
 // (check-incident asserts the import list and that a what-if reaches no network).
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
+import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, EXPIRED_TEXT, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
+import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import type { Revocation } from './oauth.js';
 
@@ -41,7 +41,8 @@ const opens = (session?: string) => !session || actor.getStore()?.session !== PU
 const fromDesk = (b: AgentBuy): PoolEntry => ({ buyer_txn: b.capture_id, amount: b.amount, order_id: b.order_id, agent: b.agent, added: b.added });
 const DESK_BUY = "buyer transaction id: the desk placed this order for a visitor's agent and cannot read the buyer's PayPal activity, so it is keyed by the capture id and cannot be disputed; refunds name the capture and land here";
 
-function build(p: PoolEntry, desk = false): Incident {
+// desk: the visitor's AgentBuy when the desk placed the order for their agent (no buyer txn, no dispute, refunds only).
+function build(p: PoolEntry, desk?: AgentBuy): Incident {
   const a = p.agent!, run = desk ? undefined : runOf(p.buyer_txn), dispute_id = run?.dispute_id ?? null;
   const capture_id = a.capture_id || undefined;
   const missing: string[] = [];
@@ -76,11 +77,13 @@ function build(p: PoolEntry, desk = false): Incident {
     if (money) { counts.proposed++; if (APPROVED.includes(h.status)) counts.approved++; if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
     if (!tags[h.id]) missing.push(`who asked for hold ${h.id}: it carries no caller tag`);
     events.push({ id: `hold:${h.id}`, at: h.created, kind: 'hold', actor: who(tags[h.id]), source: 'holds',
-      summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).`, ref: { ...ref, rule: `hold: ${h.reason}` } });
+      summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).${h.expires ? ` If the owner doesn't decide by ${h.expires.slice(0, 16).replace('T', ' ')} UTC, it expires and nothing moves.` : ''}`, ref: { ...ref, rule: `hold: ${h.reason}` } });
     if (h.recheck) events.push({ id: `webhook:${h.id}`, at: h.recheck.at, kind: 'webhook', actor: 'PayPal', source: 'holds',
       summary: `PayPal reported ${h.recheck.event} after this was held${h.recheck.refund ? `, including refund ${h.recheck.refund.id}` : ''}; approval re-reads PayPal first.`,
       ref: { ...ref, ...(h.recheck.refund && { refund_id: h.recheck.refund.id }) } });
     if (h.status === 'pending') continue;
+    // A visitor's refund ask the owner didn't decide in 24 hours (gate.ts): it never ran, at the time it lapsed.
+    if (h.status === 'expired') { events.push({ id: `approval:${h.id}`, at: h.expires ?? h.created, kind: 'approval', actor: 'JUNCO (system)', source: 'holds', ref, summary: EXPIRED_TEXT }); continue; }
     const out = parse(h.result);
     if (h.ran) events.push({ id: `approval:${h.id}`, at: h.ran, kind: 'approval', actor: 'owner', source: 'holds', summary: `The owner approved ${said(h.method, h.args)}.`, ref });
     else {
@@ -107,6 +110,12 @@ function build(p: PoolEntry, desk = false): Incident {
       summary: `${who(m.source)} asked for ${said(m.method, m.args)}; the gate ${m.verdict === 'allow' ? 'allowed' : 'denied'} it (${m.reason})${m.verdict === 'deny' ? ', nothing sent' : m.error ? `, and PayPal refused it: ${m.error.slice(0, 200)}` : ', and PayPal accepted it'}.`,
       ref: { ...(m.args?.dispute_id && { dispute_id: m.args.dispute_id }), ...(m.args?.capture_id && { capture_id: m.args.capture_id }), rule: `${m.verdict}: ${m.reason}` } }); // the verdict leads the rule: the desk's LIVE label reads it
   }
+  // "Ask for your money back": the visitor's ask to the support agent, what it did, and its own words, labelled as the AI's.
+  const asks = desk ? readRefundAsks().filter((x) => x.capture_id === desk.capture_id && x.outcome !== 'asking') : [];
+  for (const x of asks) events.push({ id: `ask:${x.at}`, at: x.at, kind: 'agent', actor: 'support agent (Claude, for the visitor)', source: 'refund-asks',
+    summary: `The visitor asked the support agent for a refund${x.reason ? `: "${x.reason.replace(/[.!?]+$/, '')}"` : ''}. ${x.outcome === 'held' ? `It proposed create_refund; the gate held it for the owner as ${x.hold_id}.`
+      : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? ` The AI's own words: "${x.ai}"` : ''}`,
+    ref: { ...(capture_id && { capture_id }), ...(x.hold_id && { hold_id: x.hold_id }) } });
   // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
   for (const r of readRevocations().filter((r) => r.at > paid))
     events.push({ id: `revoke:${r.at}`, at: r.at, kind: 'gate', actor: 'owner', source: 'revocations',
@@ -117,8 +126,15 @@ function build(p: PoolEntry, desk = false): Incident {
     id: p.buyer_txn, title: `Agent bought ${a.sku} for "${a.instruction}"`,
     authority: { instruction: a.instruction, budget: `${a.budget} USD`, agent: a.agent },
     purchase: { sku: a.sku, listing: a.listing, reason: a.reason, amount: `${p.amount} USD`, ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) },
-    dispute_id, events: events.map((e) => ({ ...e, mode: modeOf(e) })), counts, missing,
+    dispute_id, events: events.map((e) => ({ ...e, mode: modeOf(e) })), counts, missing, ...(desk && { refund: refundView(desk) }),
   };
+}
+// Who may ask now (the purchase's own visitor or the owner, signed in, not asked yet) and the ask with its hold as it stands.
+function refundView(b: AgentBuy): NonNullable<Incident['refund']> {
+  const x = readRefundAsks().find((r) => r.capture_id === b.capture_id && r.outcome !== 'failed'), act = actor.getStore();
+  const h = x?.hold_id ? readHolds().find((y) => y.id === x.hold_id) : undefined;
+  return { can_ask: !x && !!act && act.session !== PUBLIC_SESSION && (act.owner || act.session === b.session),
+    ask: x ? { at: x.at, reason: x.reason, outcome: x.outcome, ai: x.ai ?? null, hold_id: x.hold_id ?? null, hold_status: h?.status ?? null, expires: h?.expires ?? null } : null };
 }
 
 // The agent bought nothing: one RECORDED event, no order, no payment, nothing for the gate (counts stay 0, no what-if).
@@ -135,7 +151,7 @@ function buildDecline(d: Decline): Incident {
 }
 
 export function listIncidents(): IncidentSummary[] {
-  return [...entries().map((p) => build(p)), ...readAgentBuys().filter((b) => seen(b.session)).map((b) => build(fromDesk(b), true)),
+  return [...entries().map((p) => build(p)), ...readAgentBuys().filter((b) => seen(b.session)).map((b) => build(fromDesk(b), b)),
     ...readDeclines().filter((d) => seen(d.session)).map(buildDecline)].map(({ id, title, dispute_id, counts, events }) => ({ id, title, dispute_id, counts, last_at: events.reduce((m, e) => (e.at > m ? e.at : m), '') }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
 }
@@ -145,7 +161,7 @@ export function buildIncident(id: string): Incident | null {
   const d = readDeclines().find((x) => x.id === id);
   if (d) return opens(d.session) ? buildDecline(d) : null;
   const b = readAgentBuys().find((x) => x.capture_id === id || x.order_id === id);
-  if (b) return opens(b.session) ? build(fromDesk(b), true) : null;
+  if (b) return opens(b.session) ? build(fromDesk(b), b) : null;
   const hits = entries().filter((e) => e.buyer_txn === id || e.order_id === id || e.agent?.capture_id === id);
   if (hits.length > 1) throw Object.assign(new Error(`${id} matches ${hits.length} purchases (${hits.map((e) => e.buyer_txn).join(', ')}); ask by buyer transaction id`), { code: 404 });
   return hits[0] ? build(hits[0]) : null;

@@ -51,7 +51,7 @@ export interface Hold {
   id: string; status: string; method: string; reason: string; args?: any; asked_by?: string; paypal?: { id: string; status: string | null } | null; recheck?: { at: string; event: string; refund?: { id: string; at: string } };
 }
 // T2: an approved hold isn't done until PayPal says so. Same wording as the case file.
-export const HOLD_STATUS: Record<string, string> = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
+export const HOLD_STATUS: Record<string, string> = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed', expired: "expired: the owner didn't decide within 24 hours, nothing sent" };
 
 export interface Activity {
   at: string; dispute_id: string; trigger: string; step: string; detail: string;

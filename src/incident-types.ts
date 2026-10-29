@@ -28,6 +28,10 @@ export type Incident = {
   purchase: { sku: string; listing: string; reason: string; amount: string; order_id?: string; capture_id?: string } | null;
   // Set only when the agent bought nothing: its reason and the listings it saw. purchase is then null and counts are all 0.
   decline?: { reason: string; listings: string[] };
+  // Only on a desk visitor's own agent buy: whether this viewer may ask the support agent for a refund (their own purchase,
+  // signed in, not asked yet), and the ask if there is one, with its hold's state now (expired once 24 h pass undecided).
+  refund?: { can_ask: boolean; ask: { at: string; reason: string; outcome: 'asking' | 'held' | 'no refund' | 'failed'; ai: string | null;
+    hold_id: string | null; hold_status: string | null; expires: string | null } | null };
   dispute_id: string | null;
   events: IncidentEvent[];                                                            // oldest first
   counts: { proposed: number; approved: number; executed: number; outcome_unknown: number }; // money moves only

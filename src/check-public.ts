@@ -15,7 +15,7 @@ const closed: [string, string][] = [
   ['GET', '/'], ['GET', '/owner'], ['GET', '/?page=incident'], ['GET', '/api/shop'], ['POST', '/api/shop'], ['GET', '/api/challenge'], ['POST', '/api/challenge'],
   ['GET', '/api/challenge/stats'], ['GET', '/api/start'], ['GET', '/api/status'], ['POST', '/api/status/check'], ['GET', '/api/disputes'], ['GET', '/api/holds'],
   ['POST', '/api/holds/h1/approve'], ['GET', '/api/policy'], ['POST', '/api/policy'], ['POST', '/api/policy/what-if'], ['POST', '/api/pool'], ['POST', '/api/studio-ai'],
-  ['POST', '/api/red-team/run'], ['POST', '/api/connectors/revoke'], ['GET', '/mcp'], ['POST', '/mcp'], ['GET', '/mcp/paypal'], ['POST', '/mcp/paypal'], ['POST', '/mcp/challenge'],
+  ['POST', '/api/refund-ask'], ['GET', '/api/refund-ask'], ['POST', '/api/red-team/run'], ['POST', '/api/connectors/revoke'], ['GET', '/mcp'], ['POST', '/mcp'], ['GET', '/mcp/paypal'], ['POST', '/mcp/paypal'], ['POST', '/mcp/challenge'],
   // near misses on the open paths: other methods, other tails, other depths, encoded slashes
   ['POST', '/judges'], ['POST', '/api/incidents'], ['POST', `/incident/${ID}`], ['POST', `/api/incident/${ID}`], ['PUT', `/api/incident/${ID}/what-if`], ['GET', `/api/incident/${ID}/what-if`],
   ['DELETE', `/api/incident/${ID}`], ['HEAD', '/judges'], ['GET', `/api/incident/${ID}/receipt`], ['GET', `/incident/${ID}/other`], ['GET', `/incident/${ID}/receipt/x`],
@@ -33,11 +33,14 @@ const wall = desk.indexOf("if (!authorized(req)) { res.writeHead(401");
 assert.ok(door > 0 && wall > door, 'the desk no longer opens the judges\' door right before its 401');
 assert.ok(desk.includes("url.pathname !== '/api/studio-ai' && !isPublic(req.method, url.pathname)) dropCases()"));
 // The incident page fetches only open paths, so a signed-out judge never meets the browser's password box.
-const page = readFileSync('public/incident.html', 'utf8'), fetches = [...page.matchAll(/fetch\(`([^`]+)`/g)].map((m) => m[1]);
-assert.deepEqual(fetches.sort(), ['/api/incident/${encodeURIComponent(id)}', '/api/incident/${encodeURIComponent(inc.id)}/what-if']);
-for (const f of fetches) assert.ok(isPublic(f.endsWith('what-if') ? 'POST' : 'GET', f.replace(/\$\{[^}]+\}/, ID)));
+// The one closed path it can post to is the refund ask, and only from a button drawn when the incident says this viewer
+// may ask (refund.can_ask, false for the public), so signed out it never fires.
+const page = readFileSync('public/incident.html', 'utf8'), fetches = [...page.matchAll(/fetch\((?:`([^`]+)`|'([^']+)')/g)].map((m) => m[1] ?? m[2]);
+assert.deepEqual(fetches.sort(), ['/api/incident/${encodeURIComponent(id)}', '/api/incident/${encodeURIComponent(inc.id)}/what-if', '/api/refund-ask']);
+for (const f of fetches.filter((x) => x !== '/api/refund-ask')) assert.ok(isPublic(f.endsWith('what-if') ? 'POST' : 'GET', f.replace(/\$\{[^}]+\}/, ID)));
+assert.ok(!isPublic('POST', '/api/refund-ask') && page.includes("if (r.ask) { $('#refund').innerHTML = askText(r.ask); return; }\n  if (!r.can_ask) return;"));
 assert.ok(page.includes('Desk (sign in to act)'));
-console.log('desk: the door sits before the 401; the incident page fetches only open paths');
+console.log('desk: the door sits before the 401; the incident page fetches only open paths, and posts a refund ask only when it may');
 
 // Records: a pool purchase and a pool decline (public), a visitor's own buy and decline (private to their session).
 globalThis.fetch = (async () => { throw new Error('check-public: no network'); }) as any;

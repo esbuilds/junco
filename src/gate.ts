@@ -65,8 +65,29 @@ export function decide(policy: Policy, method: string, args: any, budgets: Recor
 }
 
 // Holds live in one JSON file, mirrored to Postgres when DATABASE_URL is set (persist.ts). One writer process.
-const store = jsonStore('.junco/holds.json', mirror);
-export const readHolds = (): Hold[] => store.read() as Hold[];
+// Expiry, lazily on read: a hold with `expires` (only a visitor's support-agent refund ask sets one, refund-ask.ts) still
+// pending past it becomes 'expired' the next time anything reads holds, so it never runs: the package approves only
+// pending holds, and the desk, the one-tap link and the gate all read through this store. Other holds never expire.
+const file = jsonStore('.junco/holds.json', mirror);
+export const EXPIRED_TEXT = "The owner didn't decide within 24 hours, so nothing moved.";
+const lapse = (holds: Hold[]) => {
+  const now = new Date().toISOString(), due = holds.filter((h) => h.status === 'pending' && h.expires && h.expires <= now);
+  for (const h of due) { h.status = 'expired'; h.result = JSON.stringify({ settled: `expired at ${h.expires}. ${EXPIRED_TEXT}` }); }
+  if (due.length) file.write(holds);
+  return holds;
+};
+const store = { read: () => lapse(file.read() as Hold[]), write: file.write };
+export const readHolds = (): Hold[] => store.read();
+export const HOLD_TTL_MS = 24 * 3600_000;
+// Gives a hold its 24 hours. Only on a pending hold that has none yet: an identical call made by someone else and joined
+// by the gate keeps its own terms.
+export function setExpiry(id: string, from = Date.now()) {
+  const holds = file.read() as Hold[], h = holds.find((x) => x.id === id);
+  if (!h || h.status !== 'pending' || h.expires) return null;
+  h.expires = new Date(Math.max(from, Date.parse(h.created)) + HOLD_TTL_MS).toISOString();
+  file.write(holds);
+  return h.expires;
+}
 
 // The Gate record (v3.14 item 1): every money move proposed to the gate, from every source, with its verdict and what
 // became of it. Read from the hold store, the challenge runs and this log of the gate's own money decisions; nothing
@@ -86,7 +107,8 @@ export type RecordRow = { at: string; source: string; dispute_id: string | null;
 const OUTCOME: Record<string, string> = { pending: 'held, waiting for the owner', executing: 'approved by the owner, running',
   completed: 'approved by the owner, PayPal accepted it', approved: 'approved by the owner (outcome not recorded)',
   failed: 'approved by the owner, PayPal refused it', unknown: 'approved by the owner, outcome unknown (re-check PayPal)',
-  rejected: 'rejected by the owner, nothing sent', stale: 'stale: the case moved on, nothing sent' };
+  rejected: 'rejected by the owner, nothing sent', stale: 'stale: the case moved on, nothing sent',
+  expired: "expired: the owner didn't decide within 24 hours, nothing sent" };
 const amountText = (args: any, h?: Hold) => { const a = args?.offer_amount ?? args?.amount; return a?.value ? `${a.value} ${a.currency_code ?? ''}`.trim() : (h?.case as CaseState | undefined)?.amount ?? null; };
 // Why a stale hold was refused, from its stored result ("Not run: <why>").
 const staleWhy = (h: Hold) => { try { return JSON.parse(h.result ?? '').error.message.replace(/^Not run: /, ''); } catch { return 'refused at approval'; } };

@@ -12,6 +12,44 @@ export const incidentLabel = (i: IncidentSummary) =>
   `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+// Ask for your money back: on the visitor's own shopping agent purchase only (the incident says whether this viewer may
+// ask). The support agent can only propose; every refund waits for the owner, and expires after 24 hours undecided.
+type Ask = NonNullable<NonNullable<Incident['refund']>['ask']>;
+const askState = (a: Ask) => a.outcome === 'asking' ? 'The support agent is reading your purchase.'
+  : a.outcome !== 'held' ? 'The support agent proposed no refund. Nothing was sent to PayPal.'
+  : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner (hold ${a.hold_id}). Waiting for the owner${a.expires ? `; if they don't decide by ${when(a.expires)}, it expires and nothing moves` : ''}.`
+  : a.hold_status === 'expired' ? `The owner didn't decide within 24 hours, so nothing moved. Hold ${a.hold_id} expired.`
+  : a.hold_status === 'rejected' ? `The owner rejected it (hold ${a.hold_id}). Nothing was sent to PayPal.`
+  : a.hold_status === 'completed' ? `The owner approved it (hold ${a.hold_id}), and PayPal made the refund.`
+  : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
+function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
+  const [why, setWhy] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
+  const r = inc.refund!;
+  if (!r.ask && !r.can_ask) return null;
+  const ask = async () => {
+    setBusy(true); setErr(null);
+    try { await api('/api/refund-ask', { method: 'POST', json: { capture_id: inc.purchase?.capture_id, reason: why } }); onDone(); }
+    catch (e: any) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="jd-shop">
+      <h3>Ask for your money back</h3>
+      {r.ask ? <>
+        <p>{askState(r.ask)}</p>
+        {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words: {r.ask.ai}</p>}
+      </> : <>
+        <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. Every refund waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves.</p>
+        <div className="jd-row">
+          <input type="text" aria-label="Why you want it back (optional)" placeholder="Why you want it back (optional)" maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} style={{ flex: '1 1 220px' }} />
+          <button type="button" className="jd-btn jd-primary" disabled={busy} onClick={ask}>{busy ? 'The support agent is reading your purchase...' : 'Ask the support agent for a refund'}</button>
+        </div>
+      </>}
+      {err && <div className="jd-result jd-err">{err}</div>}
+    </div>
+  );
+}
+
 // Your AI buys, you investigate: the visitor's own shopping agent. A real sandbox order on the test buyer's saved PayPal
 // account (or nothing, if the agent declines), then the incident opens below. Only this visitor and the owner list it.
 type ShopState = { enabled: boolean; left: { you: number; today: number }; max_budget: number };
@@ -50,7 +88,7 @@ export function IncidentWidget() {
   const linked = new URLSearchParams(location.search).get('id');
   const [id, setId] = useState<string | null>(linked);
   useEffect(() => { if (linked) return; const m = list.find((i) => i.dispute_id === selectedCase); if (m) setId(m.id); else if (!id && list[0]) setId(list[0].id); }, [selectedCase, list.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data: inc, error } = usePoll<Incident>(id ? `/api/incident/${encodeURIComponent(id)}` : null, 15000);
+  const { data: inc, error, reload: reloadInc } = usePoll<Incident>(id ? `/api/incident/${encodeURIComponent(id)}` : null, 15000);
   const [limit, setLimit] = useState('30');
   const [w, setW] = useState<WhatIf | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -123,6 +161,7 @@ export function IncidentWidget() {
               </li>
             )}
           </ol>
+          {inc.refund && <RefundBox key={inc.id} inc={inc} onDone={reloadInc} />}
           {inc.missing.length > 0 && <p ref={missingRef} className="jd-muted">Not in the records: {inc.missing.join(' ')}</p>}
         </div>
         <aside className="jd-incident-side">

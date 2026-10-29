@@ -20,6 +20,7 @@ export function holdNews(h: Hold | undefined) {
     unknown: 'Approved by the owner; the outcome is being checked with PayPal.',
     rejected: 'Rejected by the owner. Nothing was sent to PayPal.',
     stale: `${why ?? 'Not run: the case changed since it was held'}. Nothing was sent to PayPal.`,
+    expired: "Expired: the owner didn't decide within 24 hours, so nothing moved.",
   };
   return { done: !['pending', 'executing', 'unknown'].includes(h.status), text: text[h.status] ?? h.status };
 }

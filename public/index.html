@@ -172,7 +172,7 @@ async function loadCases() {
 }
 
 // T2: an approved hold is not done until PayPal says so.
-const HOLD_STATUS = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
+const HOLD_STATUS = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed', expired: "expired: the owner didn't decide within 24 hours, nothing sent" };
 async function loadHolds() {
   const holds = await api('/api/holds');
   $('#s-holds').textContent = holds.length;

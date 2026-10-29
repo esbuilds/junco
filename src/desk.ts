@@ -30,6 +30,7 @@ import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
+import { ASKER, askRefund, type Deps as RefundDeps } from './refund-ask.js';
 import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
@@ -135,6 +136,20 @@ const gateFor = (id: string) => readHolds().find((h) => h.id === id)?.origin ===
   ? (hostedGate ??= createHostedServer(ctx, policy).then((x) => x.holds).catch((e) => { hostedGate = null; throw e; }))
   : Promise.resolve(holds);
 const resolveHold = async (id: string, verb: 'approve' | 'reject' | 'settle') => (await gateFor(id))[verb](id);
+// "Ask for your money back": the support agent gets the desk's own /mcp tools in-process, so every call passes the same
+// gate as any MCP client's, and a held refund reads "asked by a visitor's support agent (simulated buyer)".
+const refundDeps: RefundDeps = {
+  policy: () => policy,
+  captureStatus: async (id) => { const r = await paypal(ctx, 'GET', `/v2/payments/captures/${encodeURIComponent(id)}`); return r.status === 200 ? String(r.body.status) : `unreadable (PayPal ${r.status})`; },
+  connect: async () => {
+    const { server: s } = await createServer(ctx, policy, (h) => { tagHold(h, ASKER); agent.log(h.args?.capture_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from ${ASKER}: ${h.reason}`); void notifyHold(h); }, onMcpWrite('', ASKER));
+    const [a, b] = InMemoryTransport.createLinkedPair(); await s.connect(a);
+    const c = new Client({ name: 'junco-support-agent', version: '1.0.0' }); await c.connect(b);
+    const { tools } = await c.listTools();
+    return { tools, call: async (name, args) => { const r: any = await c.callTool({ name, arguments: args }); return String(r?.content?.[0]?.text ?? JSON.stringify(r)); },
+      close: async () => { await c.close(); await s.close(); } };
+  },
+};
 // The owner's decision, from the desk or a one-tap link: Slack hears how it ended, and it goes in the case's timeline
 // next to the hold it answers. A stale refusal throws (nothing ran); Slack hears that too.
 async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who: string): Promise<Hold> {
@@ -635,6 +650,11 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       const kinds = Object.fromEntries(KINDS.map((k) => [k, { live_left: liveLeft(k), can_run: kindRefusal(visitor, k) }]));
       const rec = recordedRun();
       return json(res, 200, { kinds, mine: mine && view(mine), recent: rec ? [view(rec)] : [] });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/refund-ask') { // Ask for your money back: the visitor's own agent buy only
+      const { session, owner } = actor.getStore()!, b = await readBody(req);
+      try { return json(res, 200, await askRefund(refundDeps, { session, owner, capture_id: String(b?.capture_id ?? ''), reason: b?.reason })); }
+      catch (e: any) { return json(res, e.code ?? 500, { error: { message: e.code ? e.message : 'The support agent failed. Nothing was sent to PayPal.' } }); }
     }
     if (url.pathname === '/api/shop') {
       // Your AI buys, you investigate: the visitor's own shopping agent, a real sandbox order on the saved PayPal account.

@@ -11,11 +11,12 @@ export type Verdict = 'allow' | 'hold' | 'deny';
 // most max_amount (args.amount, args.amount.value or args.offer_amount.value) and applies `over` above it.
 export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
 export type Policy = { default: Verdict; tools: Record<string, Rule> };
-// pending, then rejected or stale (refused at approval), or executing then completed, failed or unknown.
+// pending, then rejected or stale (refused at approval), or executing then completed, failed or unknown. expired: a hold
+// given an `expires` time that was still pending past it (the store that sets it marks it; it never runs).
 // 'approved' only appears on holds stored by older versions.
-export type HoldStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'unknown' | 'approved' | 'rejected' | 'stale';
+export type HoldStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'unknown' | 'approved' | 'rejected' | 'stale' | 'expired';
 export type Hold = { id: string; method: string; args: any; reason: string; created: string; status: HoldStatus; result?: string;
-  case?: any; origin?: string; before?: any; ran?: string }; // ran: when an approved hold started running
+  case?: any; origin?: string; before?: any; ran?: string; expires?: string }; // ran: when an approved hold started running
 export type Store = { read(): Hold[]; write(holds: Hold[]): void };
 export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
 // error: for an allowed call, the error the tool returned (logged after the call), so the log never shows a refused call as done.

@@ -45,6 +45,13 @@ type Try = { at: string; session: string };
 export const readShopTries = () => read<Try[]>(TRIES, []);
 export const addShopTry = (session: string) => write(TRIES, [...readShopTries(), { at: new Date().toISOString(), session }]);
 export const declineId = (at: string) => `decline-${at.replace(/\D/g, '')}`;
+// "Ask for your money back" (refund-ask.ts): a visitor's request to the support agent on their own agent buy, one per
+// purchase. Saved as 'asking' before Claude is called (it counts for the caps), then what the agent did and said.
+export type RefundAsk = { capture_id: string; session: string; at: string; reason: string; outcome: 'asking' | 'held' | 'no refund' | 'failed';
+  hold_id?: string; ai?: string; cost_usd?: number };
+const ASKS = '.junco/refund-asks.json';
+export const readRefundAsks = () => read<RefundAsk[]>(ASKS, []);
+export const saveRefundAsk = (a: RefundAsk) => write(ASKS, [...readRefundAsks().filter((x) => !(x.capture_id === a.capture_id && x.at === a.at)), a]);
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
 const kindOf = (p: PoolEntry): Kind | null => (p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);

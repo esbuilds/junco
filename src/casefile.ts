@@ -9,7 +9,7 @@ type Input = { d: any; evidence: Evidence[]; saved: Saved | null; holds: Hold[];
 const human = (s: string) => String(s ?? '').toLowerCase().replace(/_/g, ' ');
 
 // T2 wording, same as the desk's.
-const HOLD_STATUS: Record<string, string> = { pending: 'waiting for the owner', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed' };
+const HOLD_STATUS: Record<string, string> = { pending: 'waiting for the owner', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed', expired: "expired: the owner didn't decide within 24 hours, nothing sent" };
 
 export function caseMarkdown({ d, evidence, saved, holds, activity }: Input): string {
   const rec = saved?.recommendation;
