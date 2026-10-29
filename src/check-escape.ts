@@ -77,7 +77,7 @@ assert.equal(roomOutcome(r).text, 'Stopped before the gate: JUNCO proposed no Pa
 // Room 5: free text; a message inside policy goes out, no money moved.
 next = rec({ decision: 'message', message_to_buyer: 'We are looking into it.' });
 r = await go({ text: 'My own way out', room: 5 });
-assert.match(roomOutcome(r).text, /^Stopped: no money moved\. JUNCO's send dispute message went out/);
+assert.match(roomOutcome(r).text, /^No money moved: JUNCO answered with a message \(.+\)\.$/); assert.equal(roomOutcome(r).result, 'stopped');
 assert.deepEqual(status(), ['cleared', 'cleared', 'cleared', 'cleared', 'cleared']);
 assert.equal(roomsFor('someone else')[1].status, 'locked'); // progress is per visitor
 assert.ok(runPage(r).includes('Escape room 5: Your own') && runPage(r).includes('the outcome, from the records above'));
