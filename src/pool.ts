@@ -78,7 +78,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
     if ('failed' in c) { console.error('Agent order failed', c.failed.status, JSON.stringify(c.failed.body)); break; }
     const { item, capture_id: capture, paid_at: paidAt, mandate } = c;
     const number = `9400${String(Date.now()).padStart(18, '0')}`;
-    let txn: string | undefined;
+    let txn: string | undefined = kind === 'drill' ? capture : undefined; // never disputed, so keyed by capture, as a visitor's own buy is
     for (let t = 0; !txn && t < 6; t++) { const top = await newestTxn(); if (top && top !== last) txn = top; else await page.waitForTimeout(10_000); }
     if (!txn) await fail('Reading the buyer transaction ID');
     last = txn;
