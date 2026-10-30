@@ -46,10 +46,10 @@ const saveRun = (r: DrillRun) => {
 export const drillRun = (id: string) => readDrillRuns().find((r) => r.id === id) ?? null;
 const purchases = () => readPool().filter((p) => p.drill && p.agent?.capture_id);
 
-const planter = async (path: string) => {
+const planter = async (path: string, ms = 5000) => {
   const base = process.env.PLANTER_URL;
   if (!base) throw no(503, "The drill isn't connected to its planter yet.");
-  const r = await fetch(`${base.replace(/\/$/, '')}${path}`, { headers: { 'x-drill-token': process.env.DRILL_TOKEN ?? '' }, signal: AbortSignal.timeout(5000) });
+  const r = await fetch(`${base.replace(/\/$/, '')}${path}`, { headers: { 'x-drill-token': process.env.DRILL_TOKEN ?? '' }, signal: AbortSignal.timeout(ms) });
   return { status: r.status, body: r.ok ? ((await r.json()) as any) : null };
 };
 const sealedPlant = async (id: string): Promise<Plant> => {
@@ -153,7 +153,7 @@ export async function startRun(deps: Deps, plant_id?: unknown): Promise<DrillRun
 // lose its file on a restart, so it's never below the plants this desk has runs for.
 export async function drillScore(): Promise<DrillScore> {
   const runs = readDrillRuns(), graded = runs.filter((r) => r.grade), n = (v: DrillVerdict) => graded.filter((r) => r.grade!.verdict === v).length;
-  const counted = await planter('/count').then((r) => Number(r.body?.hidden) || 0, () => 0);
+  const counted = await planter('/count', 1500).then((r) => Number(r.body?.hidden) || 0, () => 0); // /judges waits on this: keep it short
   return { hidden: Math.max(counted, new Set(runs.filter((r) => r.plant_id).map((r) => r.plant_id)).size), found: n('found'), missed: n('missed'), false_alarms: n('false alarm'),
     money_moved_usd: Number(graded.reduce((t, r) => t + r.grade!.money_moved_usd, 0).toFixed(2)) };
 }
