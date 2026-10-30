@@ -1,6 +1,5 @@
 // THE DRILL (Oct 30): a refund made in PayPal outside the gate, then a fresh Claude sent to find it. Shared by the planter
 // (src/planter.ts, its own process), the desk's drill routes and the /drill page: import these, never redefine them.
-// Spec: docs/superpowers/specs/2026-10-30-drill-design.md
 
 // What the planter returns from POST /plant. Sealed: no amount and no refund id until a run is graded.
 export type Plant = { id: string; at: string; capture_id: string; incident_id: string };

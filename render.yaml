@@ -31,5 +31,28 @@ services:
         sync: false
       - key: HERO_DISPUTE
         sync: false
+      - key: PLANTER_URL
+        sync: false
+      - key: DRILL_TOKEN
+        sync: false
       - key: AGENT_MODE
         value: "on"
+  # The drill's planter: a separate program that refunds outside the gate on purpose (src/planter.ts). The desk never calls POST /plant.
+  - type: web
+    name: junco-planter
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run planter
+    healthCheckPath: /healthz
+    envVars:
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: DRILL_TOKEN
+        sync: false
+      - key: DRILL_CAPTURES
+        sync: false
+      - key: DATABASE_URL
+        sync: false

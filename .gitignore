@@ -4,6 +4,7 @@ dist/
 __pycache__/
 perplexity-prompt-*.md
 .junco/
+.planter/
 .playwright-mcp/
 STRATEGY.md
 outreach/

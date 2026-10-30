@@ -49,7 +49,9 @@
     "check-public": "tsx src/check-public.ts",
     "check-refund-ask": "tsx src/check-refund-ask.ts",
     "check-fingerprint": "tsx src/check-fingerprint.ts",
-    "check-ui": "tsx studio/check-ui.ts"
+    "check-ui": "tsx studio/check-ui.ts",
+    "check-drill": "tsx src/check-drill.ts",
+    "planter": "tsx src/planter.ts"
   },
   "keywords": [],
   "author": "",
