@@ -39,3 +39,29 @@ assert.deepEqual(down.map((e) => [e.summary, e.mode]), [["PayPal didn't answer (
 const none = await reconcile('CAPNONE', [], async (p) => (p.includes('captures') ? { status: 200, body: { status: 'COMPLETED', links: [{ rel: 'up', href: `${API}/v2/checkout/orders/O` }] } } : { status: 200, body: { purchase_units: [{}] } }));
 assert.equal(none[0].summary, 'PayPal shows no refunds on this payment, and lists the payment as COMPLETED. The desk ran none, so the two agree.');
 console.log("failure: PayPal not answering is one line, not an error; no refunds on either side agree");
+
+// Shapes as PayPal returned them on Oct 30: 5AY and 7CL are PayPal's dispute holds, 88P is the spike's real outside refund.
+const real = (cap: string, status: string, reason: string | null, id: string, rstatus: string, v: string, refunded: string | null) => async (p: string) => (p.includes('captures')
+  ? { status: 200, body: { status, ...(reason && { status_details: { reason } }), links: [{ rel: 'up', href: `${API}/v2/checkout/orders/O${cap}` }] } }
+  : { status: 200, body: { purchase_units: [{ payments: { refunds: [{ id, amount: amt(v), status: rstatus, ...(refunded && { seller_payable_breakdown: { total_refunded_amount: amt(refunded) } }), links: [{ rel: 'up', href: `${API}/v2/payments/captures/${cap}` }] }] } }] } });
+const held = async (cap: string, id: string, v: string, hs: Hold[] = []) => reconcile(cap, hs, real(cap, 'PENDING', 'BUYER_COMPLAINT', id, 'PENDING', v, '0.00'));
+const noRecord = (l: Awaited<ReturnType<typeof reconcile>>) => l.filter((e) => e.summary.includes('no record of'));
+
+const a5 = await held('16J87332GU845950P', '6E9082945T161501K', '59.35');
+assert.equal(a5[0].summary, 'PayPal shows no refunds on this payment apart from a dispute hold, and lists the payment as PENDING: BUYER_COMPLAINT. The desk ran none, so the two agree.');
+assert.equal(a5[1].summary, "PayPal's record reads as a dispute hold of 59.35 USD: entry 6E9082945T161501K is PENDING on a payment held for a buyer complaint, and PayPal records 0.00 USD refunded, so no money has gone back to the buyer. The desk has nothing to match here.");
+assert.equal(a5[1].source, 'PayPal'); assert.equal(a5[1].ref?.refund_id, '6E9082945T161501K'); assert.equal(a5.length, 2);
+assert.equal(noRecord(a5).length, 0, 'a dispute hold reads as a refund the desk has no record of');
+const a7 = await held('1PC92963XA1655418', '9D802017TJ131302P', '36.18', [{ ...hold('853278a7', 'rejected', '10.00'), args: { capture_id: '1PC92963XA1655418', amount: amt('10.00') } }]);
+assert.ok(a7[1].summary.startsWith("PayPal's record reads as a dispute hold of 36.18 USD: entry 9D802017TJ131302P")); assert.equal(noRecord(a7).length, 0);
+console.log('dispute hold: 5AY and 7CL say so with the amount, no money gone back, no mismatch');
+
+const a8 = await reconcile('88P92146U3288611K', [], real('88P92146U3288611K', 'PARTIALLY_REFUNDED', null, '2V173278FH578534S', 'COMPLETED', '1.37', '1.37'));
+assert.equal(a8[0].summary, 'PayPal shows 1 refund on this payment, and lists the payment as PARTIALLY_REFUNDED.');
+assert.equal(a8[1].summary, 'PayPal shows a refund of 1.37 USD (2V173278FH578534S, COMPLETED) that the desk has no record of.');
+// Money PayPal says went back stays a mismatch on a disputed payment, and so does a line with no refunded figure to go on.
+const paid = await reconcile('CAPPAID', [], real('CAPPAID', 'PENDING', 'BUYER_COMPLAINT', 'RFPAID', 'PENDING', '4.00', '4.00'));
+const bare = await reconcile('CAPBARE', [], real('CAPBARE', 'PENDING', 'BUYER_COMPLAINT', 'RFBARE', 'PENDING', '4.00', null));
+const other = await reconcile('CAPELSE', [], real('CAPELSE', 'PENDING', 'ECHECK', 'RFELSE', 'PENDING', '4.00', '0.00'));
+for (const l of [paid, bare, other]) assert.equal(noRecord(l).length, 1, `${l[1].summary}`);
+console.log('outside refund: 88P and near misses of a dispute hold still say the desk has no record of them');

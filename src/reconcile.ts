@@ -4,11 +4,14 @@
 // the connector servers), so this file and incident.ts hold no PayPal client. Reads are cached a minute per capture and
 // give up after 8 s: an incident page view can't hammer PayPal, and a failure is one line, not a broken page.
 // The capture doesn't list its refunds (its only refund link is the POST); its order does, each with an `up` link to it.
+// PayPal's dispute hold (Oct 30): on a disputed payment the order lists a PENDING refund entry for the purchase minus PayPal's
+// fee, with nothing refunded. No money has moved, so it gets its own line and is never counted as a mismatch.
 import type { Hold } from './gate.js';
 import type { IncidentEvent } from './incident-types.js';
 
 export type PayPalGet = (path: string) => Promise<{ status: number; body: any }>;
-type Read = { at: string; status?: string; refunds?: { id: string; amount: any; status: string }[]; error?: string };
+type Refund = { id: string; amount: any; status: string; refunded?: any };
+type Read = { at: string; status?: string; refunds?: Refund[]; error?: string };
 
 const TTL = 60_000;
 const cache = new Map<string, { t: number; read: Promise<Read> }>(); // ponytail: one entry per capture ever read, fine at desk scale
@@ -29,7 +32,7 @@ async function readPayPal(capture_id: string, get: PayPalGet): Promise<Read> {
     const all = (o.body.purchase_units ?? []).flatMap((u: any) => u.payments?.refunds ?? []);
     const mine = all.filter((r: any) => { const u = r.links?.find((l: any) => l.rel === 'up')?.href; return !u || path(u).endsWith(`/captures/${capture_id}`); });
     const why = c.body.status_details?.reason;
-    return { at, status: `${c.body.status}${why ? `: ${why}` : ''}`, refunds: mine.map((r: any) => ({ id: String(r.id), amount: r.amount, status: String(r.status) })) };
+    return { at, status: `${c.body.status}${why ? `: ${why}` : ''}`, refunds: mine.map((r: any) => ({ id: String(r.id), amount: r.amount, status: String(r.status), refunded: r.seller_payable_breakdown?.total_refunded_amount })) };
   };
   let timer: NodeJS.Timeout | undefined;
   const late = new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error('no answer within 8 s')), 8000); });
@@ -49,11 +52,14 @@ export async function reconcile(capture_id: string, holds: Hold[], get: PayPalGe
   const ran = mine.filter((h) => h.status === 'completed'), atPayPal = new Set(pp.refunds.map((r) => r.id));
   const notSent = mine.filter((h) => h.status === 'rejected' || h.status === 'expired');
   const settled = holds.filter((h) => h.status === 'completed' && (h.method === 'accept_dispute_claim' || h.method === 'make_dispute_offer'));
-  const n = pp.refunds.length;
-  const out = [ev('read', 'PayPal', `PayPal shows ${n || 'no'} refund${n === 1 ? '' : 's'} on this payment, and lists the payment as ${pp.status}.${!n && !ran.length ? ' The desk ran none, so the two agree.' : ''}`)];
+  // ponytail: no refunded figure means no hold, so a shape change at PayPal shows up as a mismatch and never hides money moved
+  const disputeHold = (r: Refund) => pp.status === 'PENDING: BUYER_COMPLAINT' && r.status === 'PENDING' && Number(r.refunded?.value) === 0 && !ran.some((x) => refundId(x) === r.id);
+  const n = pp.refunds.filter((r) => !disputeHold(r)).length;
+  const out = [ev('read', 'PayPal', `PayPal shows ${n || 'no'} refund${n === 1 ? '' : 's'} on this payment${n < pp.refunds.length ? ' apart from a dispute hold' : ''}, and lists the payment as ${pp.status}.${!n && !ran.length ? ' The desk ran none, so the two agree.' : ''}`)];
   for (const r of pp.refunds) {
     const h = ran.find((x) => refundId(x) === r.id);
     if (h) { out.push(ev(r.id, 'PayPal + holds', `PayPal shows refund ${r.id} for ${money(r.amount)} (${r.status}). The desk made it: hold ${h.id}, approved by the owner.`, { refund_id: r.id, hold_id: h.id })); continue; }
+    if (disputeHold(r)) { out.push(ev(r.id, 'PayPal', `PayPal's record reads as a dispute hold of ${money(r.amount)}: entry ${r.id} is ${r.status} on a payment held for a buyer complaint, and PayPal records ${money(r.refunded)} refunded, so no money has gone back to the buyer. The desk has nothing to match here.`, { refund_id: r.id })); continue; }
     const same = notSent.find((x) => Number(x.args?.amount?.value) === Number(r.amount?.value));
     out.push(ev(r.id, 'PayPal', `PayPal shows a refund of ${money(r.amount)} (${r.id}, ${r.status}) that the desk has no record of.`
       + (same ? ` Hold ${same.id} asked for the same amount, but it was ${same.status} and never sent.` : '')
