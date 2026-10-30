@@ -13,12 +13,13 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mirror } from './persist.js';
 import type { Ctx } from './disputes.js';
+import type { FingerprintRecord } from './fingerprint.js';
 
 export type Kind = 'unshipped' | 'delivered' | 'agent';
 export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
 // capture_id: the payment's capture (refunds name it); paid_at: when PayPal captured it. Recorded from Oct 28 on (paid_at
-// from Oct 28); older entries lack them until backfilled.
-export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string; paid_at?: string };
+// from Oct 28); older entries lack them until backfilled. mandate: the fingerprint written into PayPal's order (Oct 29 on).
+export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string; paid_at?: string; mandate?: FingerprintRecord };
 export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.

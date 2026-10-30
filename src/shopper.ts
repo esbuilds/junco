@@ -5,6 +5,9 @@
 import { paypal, type Ctx } from './disputes.js';
 import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
 import { addAgentBuy, addDeclines, addShopTry, declineId, readDeclines, readShopTries } from './store-dispute.js';
+import { fingerprint, type FingerprintRecord } from './fingerprint.js';
+
+export const MODEL = 'claude-sonnet-5-5';
 
 export const CATALOG = [
   { sku: 'WKD-01', name: 'Waxed canvas weekender', price: '62.00',
@@ -27,7 +30,7 @@ export type Choice = { sku: string; reason: string } | { declined: string };
 
 export async function shop(instruction: string, budget: string): Promise<Choice> {
   const r = await claude().messages.create({
-    model: 'claude-sonnet-5-5', max_tokens: 600,
+    model: MODEL, max_tokens: 600,
     system: 'You are a shopping agent buying for a person. Buy at most one item from the store catalog that fits their instruction and budget, or decline if nothing fits. Call exactly one tool.',
     tools: [
       { name: 'buy', description: 'Buy one item. reason: one or two sentences to the store on why this item fits the instruction.',
@@ -47,20 +50,26 @@ export const listing = (sku: string) => { const c = CATALOG.find((x) => x.sku ==
 // over the agent's budget is refused before PayPal is called. One merchant-initiated order on the saved PayPal account,
 // captured in the same call.
 type Item = (typeof CATALOG)[number];
-export type Charge = { refused: string } | { failed: { status: number; body: any } } | { item: Item; order_id: string; capture_id: string; paid_at: string };
-export async function charge(ctx: Ctx, sku: string, budget: string, vaultId: string | undefined): Promise<Charge> {
+// The mandate (instruction, budget, model, time) is set before PayPal is called; its fingerprint goes into PayPal's order
+// as custom_id and invoice_id. After the capture, PayPal's copy is read back and kept on the record (fingerprint.ts).
+export type Charge = { refused: string } | { failed: { status: number; body: any } } | { item: Item; order_id: string; capture_id: string; paid_at: string; mandate: FingerprintRecord };
+export async function charge(ctx: Ctx, sku: string, budget: string, vaultId: string | undefined, instruction: string): Promise<Charge> {
   const item = CATALOG.find((c) => c.sku === sku);
   if (!item) return { refused: `store refused ${sku}: not in the catalog` };
   if (Number(item.price) > Number(budget)) return { refused: `store refused ${item.sku} at $${item.price}: over the agent's $${budget} budget` };
+  const at = new Date().toISOString(), fp = fingerprint({ instruction, budget, model: MODEL, at });
   const o = await paypal(ctx, 'POST', '/v2/checkout/orders', { headers: { 'PayPal-Request-Id': crypto.randomUUID() }, json: {
     intent: 'CAPTURE',
-    purchase_units: [{ description: 'Placed by a shopping agent for the buyer', amount: { currency_code: 'USD', value: item.price, breakdown: { item_total: { currency_code: 'USD', value: item.price } } },
+    purchase_units: [{ custom_id: `junco:m:${fp}`, invoice_id: `JUNCO-M-${fp}-${at.replace(/\D/g, '').slice(0, 12)}`, description: 'Placed by a shopping agent for the buyer', amount: { currency_code: 'USD', value: item.price, breakdown: { item_total: { currency_code: 'USD', value: item.price } } },
       items: [{ name: item.name, sku: item.sku, quantity: '1', unit_amount: { currency_code: 'USD', value: item.price } }] }],
     payment_source: { paypal: { vault_id: vaultId, stored_credential: { payment_initiator: 'MERCHANT', usage: 'SUBSEQUENT', usage_pattern: 'IMMEDIATE' } } },
   } });
   const cap = o.body?.purchase_units?.[0]?.payments?.captures?.[0];
   if (!cap?.id) return { failed: o };
-  return { item, order_id: o.body.id, capture_id: cap.id, paid_at: cap.create_time ?? new Date().toISOString() };
+  const back = await paypal(ctx, 'GET', `/v2/checkout/orders/${o.body.id}`); // a read, no money moves
+  const copy = back.body?.purchase_units?.[0] ?? {};
+  return { item, order_id: o.body.id, capture_id: cap.id, paid_at: cap.create_time ?? new Date().toISOString(),
+    mandate: { model: MODEL, at, fingerprint: fp, paypal: { custom_id: copy.custom_id, invoice_id: copy.invoice_id, read_at: new Date().toISOString() } } };
 }
 
 // "Your AI buys, you investigate": a desk visitor's ask and budget, the agent's choice, then a decline or a guarded order.
@@ -96,7 +105,7 @@ export async function visitorShop(ctx: Ctx, v: { session: string; owner: boolean
     return { id: declineId(at), bought: false, text: `Your agent bought nothing: ${choice.declined}` };
   }
   let c: Charge;
-  try { c = await charge(ctx, choice.sku, budget, vault); }
+  try { c = await charge(ctx, choice.sku, budget, vault, instruction); }
   catch { throw no(502, 'The store could not reach PayPal to charge the saved PayPal account. Nothing was bought.'); }
   if ('refused' in c) throw no(400, `The store refused it: your agent picked ${choice.sku}, which costs more than your $${budget} budget. Nothing was bought.`);
   if ('failed' in c) {
@@ -104,6 +113,6 @@ export async function visitorShop(ctx: Ctx, v: { session: string; owner: boolean
     throw no(502, `The store could not charge the saved PayPal account${declined ? ': PayPal declined the payment' : ` (PayPal answered ${c.failed.status})`}. Nothing was bought.`);
   }
   addAgentBuy({ capture_id: c.capture_id, order_id: c.order_id, amount: c.item.price, session: v.session, added: new Date().toISOString(),
-    agent: { instruction, budget, sku: c.item.sku, listing: listing(c.item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: c.capture_id, paid_at: c.paid_at } });
+    agent: { instruction, budget, sku: c.item.sku, listing: listing(c.item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: c.capture_id, paid_at: c.paid_at, mandate: c.mandate } });
   return { id: c.capture_id, bought: true, text: `Your agent bought ${c.item.name} for $${c.item.price}: ${choice.reason}` };
 }

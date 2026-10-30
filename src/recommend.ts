@@ -6,6 +6,8 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4'; // SDK output helper needs zod 4; dispute tools stay on zod 3 to match the toolkit
 import { paypal, type Ctx } from './disputes.js';
 import { carrierText, lookupCarrier } from './carrier.js';
+import { checkAgainstPayPal } from './fingerprint.js';
+import { readAgentBuys, readPool } from './store-dispute.js';
 
 export type Evidence = { id: string; source: string; text: string; quotable?: boolean };
 
@@ -62,6 +64,9 @@ export async function gatherFromPayPal(ctx: Ctx, dispute: any): Promise<Omit<Evi
     if (cap.status !== 200 || !up) continue;
     const order = await paypal(ctx, 'GET', new URL(up).pathname);
     if (order.status !== 200) continue;
+    // An agent order the store recorded: PayPal's custom_id, read now, against the fingerprint its record reproduces.
+    const rec = readPool().find((p) => p.order_id === order.body.id)?.agent ?? readAgentBuys().find((b) => b.order_id === order.body.id)?.agent;
+    if (rec) out.push({ source: `paypal order ${order.body.id}`, text: checkAgainstPayPal(rec, order.body.purchase_units?.[0]?.custom_id).text });
     for (const pu of order.body.purchase_units ?? []) {
       const a = pu.shipping?.address;
       if (pu.items?.length) out.push({ source: `paypal order ${order.body.id}`, text: `Items: ${pu.items.map((i: any) => `${i.quantity} x ${i.name} @ ${i.unit_amount?.value}`).join('; ')}.` });

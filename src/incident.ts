@@ -8,6 +8,7 @@ import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, EXPIRED_TE
 import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import { aiText } from './incident-questions.js';
+import { checkAgainstPayPal } from './fingerprint.js';
 import type { Revocation } from './oauth.js';
 
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
@@ -30,7 +31,7 @@ const entries = () => readPool().filter((p) => p.agent);
 const runOf = (txn: string) => { const rs = readRuns().filter((r) => r.buyer_txn === txn); return rs.find((r) => r.dispute_id) ?? rs.at(-1); };
 
 // LIVE: something PayPal did. A gate allow went straight to PayPal; a deny, a hold and the case lease are the desk's own.
-const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
+const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook', 'paypal_fingerprint']);
 const modeOf = (e: Omit<IncidentEvent, 'mode'>): IncidentEvent['mode'] =>
   e.id.endsWith(':leased') ? 'recorded' : e.kind === 'gate' ? (e.ref?.rule?.startsWith('allow:') ? 'live' : 'recorded') : LIVE.has(e.kind) ? 'live' : 'recorded';
 
@@ -60,6 +61,11 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   const events: Omit<IncidentEvent, 'mode'>[] = [{ id: `purchase:${p.buyer_txn}`, at: paid, kind: 'purchase', actor: 'shopping agent', source: desk ? 'agent-buys' : 'pool',
     summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store${desk ? ' (a desk visitor sent it)' : ''}.`,
     ref: { ...(!desk && { buyer_txn: p.buyer_txn }), ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
+  // PayPal's copy of the mandate fingerprint, as the order read back at capture; this module calls no PayPal (see top).
+  const fp = checkAgainstPayPal(a, a.mandate?.paypal?.custom_id);
+  if (a.mandate) events.push({ id: `paypal_fingerprint:${p.order_id ?? p.buyer_txn}`, at: a.mandate.paypal?.read_at ?? paid, kind: 'paypal_fingerprint', actor: 'PayPal', source: 'PayPal order',
+    summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) } });
+  else missing.push(`mandate fingerprint: ${fp.text.replace(/^N/, 'n')}`);
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
     summary: dispute_id ? `The buyer disputed the order as not as described; PayPal opened ${dispute_id}.` : `Filing the buyer's dispute failed: ${run.error ?? 'no dispute id recorded'}.`,
     ref: { buyer_txn: p.buyer_txn, ...(dispute_id && { dispute_id }) } });

@@ -6,8 +6,9 @@
 // recorded request under a changed rule; it never reaches PayPal.
 export type Mode = 'live' | 'recorded' | 'what-if';
 
-// decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal).
-export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook';
+// decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal). paypal_fingerprint: PayPal's copy of
+// the mandate fingerprint on the order, read back at capture and checked against the store's record (src/fingerprint.ts).
+export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'

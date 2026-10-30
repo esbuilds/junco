@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const pool = readFileSync('src/pool.ts', 'utf8'), desk = readFileSync('src/desk.ts', 'utf8');
-assert.ok(pool.includes('await charge(ctx, choice.sku, ask.budget, vaultId)') && !pool.includes("'/v2/checkout/orders', { headers: { 'PayPal-Request-Id'"), 'pool.ts no longer uses the shared charge()');
+assert.ok(pool.includes('await charge(ctx, choice.sku, ask.budget, vaultId, ask.instruction)') && !pool.includes("'/v2/checkout/orders', { headers: { 'PayPal-Request-Id'"), 'pool.ts no longer uses the shared charge()');
 assert.ok(desk.includes('await visitorShop(ctx, { session, owner, instruction: b?.instruction, budget: b?.budget })'), 'the desk no longer routes /api/shop to visitorShop');
 console.log('wiring: pool.ts charges through charge(); /api/shop calls visitorShop()');
 
@@ -22,6 +22,8 @@ globalThis.fetch = (async (url: any, init?: any) => {
     return new Response(JSON.stringify({ id: 'msg_check', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', stop_reason: 'tool_use', stop_sequence: null,
       content: [{ type: 'tool_use', id: 'tu_check', ...agent }], usage: { input_tokens: 300, output_tokens: 40 } }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
+  // charge() reads the order back after the capture (a GET): PayPal's copy echoes the custom_id and invoice_id it was sent.
+  if (u.startsWith('http://paypal.check/') && init?.method === 'GET') { const pu = orders.at(-1).purchase_units[0]; return new Response(JSON.stringify({ id: 'ORDSHOP1', purchase_units: [{ custom_id: pu.custom_id, invoice_id: pu.invoice_id }] }), { status: 200 }); }
   if (u.startsWith('http://paypal.check/')) { calls.paypal++; orders.push(JSON.parse(init.body)); return new Response(JSON.stringify(paypalAnswer.body), { status: paypalAnswer.status }); }
   throw new Error(`check-shop: no network (${u})`);
 }) as any;
@@ -56,8 +58,8 @@ assert.deepEqual(calls, { claude: 0, paypal: 0 }); assert.equal(shopLeft(A).you,
 console.log('guards: no vault and bad input refused before Claude; nothing counted');
 
 // The store's price guard: the catalog price decides, never the agent; over the budget, PayPal is never called.
-assert.deepEqual(await charge(ctx, 'WKD-02', '70.00', 'VAULTCHECK'), { refused: "store refused WKD-02 at $74.00: over the agent's $70.00 budget" });
-assert.deepEqual(await charge(ctx, 'NOPE', '70.00', 'VAULTCHECK'), { refused: 'store refused NOPE: not in the catalog' });
+assert.deepEqual(await charge(ctx, 'WKD-02', '70.00', 'VAULTCHECK', 'a bag'), { refused: "store refused WKD-02 at $74.00: over the agent's $70.00 budget" });
+assert.deepEqual(await charge(ctx, 'NOPE', '70.00', 'VAULTCHECK', 'a bag'), { refused: 'store refused NOPE: not in the catalog' });
 agent = { name: 'buy', input: { sku: 'WKD-02', reason: 'waterproof' } };
 await fails(shopAs(A, 'a waterproof bag for kayaking', 70), 400, /The store refused it: your agent picked WKD-02, which costs more than your \$70\.00 budget\. Nothing was bought\./);
 assert.equal(calls.paypal, 0); assert.equal(calls.claude, 1);
@@ -79,7 +81,11 @@ assert.equal(inc.dispute_id, null);
 assert.deepEqual(inc.events[0].ref, { order_id: 'ORDSHOP1', capture_id: 'CAPSHOP1' }); // no buyer_txn
 assert.equal(inc.events[0].source, 'agent-buys'); assert.equal(inc.events[0].at, '2026-10-29T18:00:00Z');
 assert.ok(inc.missing.some((m) => /^buyer transaction id: .*keyed by the capture id and cannot be disputed/.test(m)) && !inc.missing.some((m) => /^dispute:/.test(m)));
-console.log('buy: catalog price on the saved account; incident by capture id (or order id), no buyer txn, said as missing');
+// The mandate fingerprint went into PayPal's order and, read back, matches the store's record.
+const fp = readAgentBuys()[0].agent.mandate!.fingerprint;
+assert.match(sent.purchase_units[0].custom_id, new RegExp(`^junco:m:${fp}$`)); assert.match(sent.purchase_units[0].invoice_id, new RegExp(`^JUNCO-M-${fp}-\\d{12}$`));
+assert.match(inc.events.find((e) => e.kind === 'paypal_fingerprint')!.summary, /carries the fingerprint of what the buyer allowed.*reproduces it/);
+console.log('buy: catalog price on the saved account; incident by capture id (or order id), no buyer txn, said as missing; fingerprint at PayPal matches');
 
 // Per-session cap: two runs that reached Claude (the refusal counted too); the third is refused before Claude. The owner skips it.
 const before = calls.claude;

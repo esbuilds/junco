@@ -81,6 +81,8 @@ Dispute this store has a case where a shopping agent did the buying, live in Pay
 
 The checkout record is the store's own, not a mandate signed by PayPal or a card network. JUNCO doesn't use PayPal's Agent Ready or Store Sync, which aren't open in sandbox.
 
+Each agent order also carries a mandate fingerprint: the first 12 hex characters of a SHA-256 over what the buyer allowed (the instruction, the budget, the agent's model and the time it was set). The store writes it into the PayPal order as `custom_id` (`junco:m:<fingerprint>`) and `invoice_id` before capture, and keeps the same inputs on its own record. JUNCO reads PayPal's copy back right after the capture, and again whenever it works a dispute on the order, and compares it with the fingerprint recomputed from the store's record; the incident page, the receipt, `junco_get_incident` and the dispute evidence show the result. A match means PayPal's record of the payment carries the fingerprint of what the buyer allowed, written at capture, before any dispute, and the store's record reproduces it; a record changed afterwards doesn't match, and the incident says so. It is a reference PayPal stored, not a signature. Older orders read as not recorded at PayPal (placed before fingerprints).
+
 ## Investigate an AI purchase
 
 BLACK BOX turns one AI purchase into a record that can be investigated after the agent that made it is gone. It joins what the desk already keeps (the order the shopping agent placed, the dispute, every money move the gate held, allowed or denied, the owner's decision and PayPal's answer) into one incident, and nothing in it comes from a model.
@@ -118,7 +120,7 @@ The same challenge as five rooms of rising difficulty: Fair complaint, Haggler, 
 
 The same scenarios are DisputeBench, which any dispute agent can be scored on. Across its 43 scenarios, no model without JUNCO's checks moved money it shouldn't have. Their mistakes were contests they'd lose and messages that weren't true, such as telling buyers whose orders never shipped that tracking details would follow. That is what the checks catch. Full results are in [docs/eval.md](docs/eval.md).
 
-`.github/workflows/checks.yml` runs the typecheck and the 20 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
+`.github/workflows/checks.yml` runs the typecheck and the 23 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
 
 ## junco-gate
 

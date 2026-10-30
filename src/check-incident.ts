@@ -12,7 +12,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 // By construction: incident.ts and the two modules it reads through import no PayPal client (type-only imports erase).
 const SRC = new URL('.', import.meta.url);
 const imports = (f: string) => [...readFileSync(new URL(f, SRC), 'utf8').matchAll(/^import (?!type )[^;]*?from '([^']+)'/gm)].map((m) => m[1]);
-assert.deepEqual(imports('incident.ts').sort(), ['./gate.js', './incident-questions.js', './store-dispute.js', 'node:fs', 'zod']);
+assert.deepEqual(imports('incident.ts').sort(), ['./fingerprint.js', './gate.js', './incident-questions.js', './store-dispute.js', 'node:fs', 'zod']);
+assert.deepEqual(imports('fingerprint.ts'), ['node:crypto']); // a hash and a compare, no client
 assert.deepEqual(imports('incident-questions.ts'), []); // type imports only: display helpers, no client of anything
 for (const f of ['gate.ts', 'store-dispute.ts']) assert.ok(!imports(f).some((i) => /disputes|server|agent|hosted|recommend/.test(i)), `${f} imports a PayPal client`);
 console.log('imports: incident.ts reaches no PayPal client');

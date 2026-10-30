@@ -71,10 +71,10 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
       declines.push({ at: new Date().toISOString(), instruction: ask.instruction, budget: ask.budget, reason: choice.declined, agent: AGENT_NAME, listings: CATALOG.map((c) => listing(c.sku)) });
       console.log(`agent bought nothing for "${ask.instruction}": ${choice.declined}`); continue;
     }
-    const c = await charge(ctx, choice.sku, ask.budget, vaultId); // the catalog price; over the budget it refuses (shopper.ts)
+    const c = await charge(ctx, choice.sku, ask.budget, vaultId, ask.instruction); // the catalog price; over the budget it refuses (shopper.ts)
     if ('refused' in c) { console.log(c.refused); continue; }
     if ('failed' in c) { console.error('Agent order failed', c.failed.status, JSON.stringify(c.failed.body)); break; }
-    const { item, capture_id: capture, paid_at: paidAt } = c;
+    const { item, capture_id: capture, paid_at: paidAt, mandate } = c;
     const number = `9400${String(Date.now()).padStart(18, '0')}`;
     let txn: string | undefined;
     for (let t = 0; !txn && t < 6; t++) { const top = await newestTxn(); if (top && top !== last) txn = top; else await page.waitForTimeout(10_000); }
@@ -82,7 +82,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
     last = txn;
     entries.push({ buyer_txn: txn, amount: item.price, order_id: c.order_id, tracking: false,
       scan: `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
-      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt } });
+      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt, mandate } });
     console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${c.order_id}, capture ${capture}, buyer transaction ${txn}`);
     continue;
   }

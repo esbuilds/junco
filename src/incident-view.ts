@@ -56,6 +56,7 @@ button{font:500 13px/18px Geist,system-ui,sans-serif;padding:7px 14px;border-rad
 ${row('Incident id', inc.id)}${row('Capture id', inc.decline ? null : inc.purchase?.capture_id ?? 'not recorded')}${row('Order id', inc.purchase?.order_id)}
 ${row('Item', inc.purchase?.listing)}${row('Amount', inc.purchase?.amount)}
 ${row('Buyer allowed', inc.authority && `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})`)}
+${row('PayPal fingerprint', inc.purchase && (inc.events.find((e) => e.kind === 'paypal_fingerprint')?.summary ?? 'Not recorded at PayPal (placed before fingerprints).'))}
 ${row('Outcome', inc.decline && 'The agent bought nothing. No order was placed and no money moved.')}${row("Agent's reason", inc.decline?.reason)}
 ${row('Listings it saw', inc.decline?.listings.join(' | '))}
 ${row('Dispute', inc.dispute_id)}${row('PayPal refund id', refund)}
