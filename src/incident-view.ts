@@ -96,7 +96,7 @@ ${d.decline ? `<h2>When the agent buys nothing</h2><div class="box">${esc(d.decl
 <div class="box"><span class="count">${plural(d.escape.attempts, 'attempt')}, ${plural(d.escape.escapes, 'escape')}.</span>${d.escape.escapes ? `<div>Money got out in ${d.escape.escape_runs.map((id) => `<a href="/run/${encodeURIComponent(id)}">run ${esc(id)}</a>`).join(', ')}.</div>` : ''}</div>
 ${rooms ? `<ul>${rooms}</ul>` : ''}
 ${d.drill ? `<h2>The drill</h2>
-<p class="m">Most gates only stop what goes through them. So a separate program refunds a small amount straight in PayPal, outside the gate, and a fresh Claude with read tools is sent to find it. Sandbox only.</p>
+<p class="m">A gate stops what goes through it. So a separate program refunds a small amount straight in PayPal, outside the gate, and a fresh Claude with read tools is sent to find it. Sandbox only.</p>
 <div class="box"><span class="count">${d.drill.hidden} hidden, ${d.drill.found} found, ${d.drill.missed} missed, ${plural(d.drill.false_alarms, 'false alarm')}.</span><div>Money moved by the investigator: $${d.drill.money_moved_usd.toFixed(2)}.</div><div><a href="/drill">Run the drill</a></div></div>` : ''}
 <h2>Sign in to act</h2>
 <div class="box act">The password is in the Devpost submission's testing instructions. It lets you:

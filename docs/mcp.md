@@ -76,6 +76,23 @@ On both `/mcp` and `/mcp/paypal`, classed `read` in `policy.json`, so the gate p
 
 The same incident is on the desk at `/incident/<id>` (page), `/incident/<id>/receipt` (printable, with a QR code to the page) and `/api/incident/<id>` (JSON), with `/api/incidents` for the list and `POST /api/incident/<id>/what-if` (`event_id`, `max_amount`) for the page's what-if. All of them sit behind the desk password. A decline has nothing for the what-if to re-run, and its page and receipt say it bought nothing.
 
+## Go around the gate (the drill)
+
+The drill isn't an MCP tool, and no tool reaches the planter or a sealed answer. Its routes on the desk are open without the password:
+
+| Route | Does |
+|---|---|
+| `GET /drill` | the page: hide a refund, send a fresh Claude, the answer, the grade and the score |
+| `POST /api/drill/run` | body `{ plant_id? }`: starts one run and returns it. One run per plant; past the cap, or with the AI paused, the latest finished run with `mode: "recorded"` |
+| `GET /api/drill/run/<id>` | the run, to poll until `status` is `done` or `failed` |
+| `GET /api/drill/score` | `hidden`, `found`, `missed`, `false_alarms`, `money_moved_usd` |
+
+A run uses the same read tools listed above, through the desk's own server, reading as the public, so a visitor's private purchases stay out of it.
+
+The planter (`src/planter.ts`, `npm run planter`) is a separate service, because the desk has no path around its gate and the drill doesn't add one. `POST /plant` takes calls from the desk's origin and answers sealed. `GET /sealed/<id>` and `GET /reveal/<id>` need the `x-drill-token` header, and the desk opens the answer after a run's own answer is final. `GET /count` and `GET /healthz` are open.
+
+The planter takes `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `DRILL_TOKEN` and `DRILL_CAPTURES` (comma-separated `capture:incident` pairs), plus optional `DESK_ORIGIN` and `DATABASE_URL`. The desk takes `PLANTER_URL` and the same `DRILL_TOKEN`. `npm run pool -- 3 drill` places drill purchases.
+
 ## Policy file
 
 ```json
