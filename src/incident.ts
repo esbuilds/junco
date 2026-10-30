@@ -9,6 +9,7 @@ import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefun
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import { aiText } from './incident-questions.js';
 import type { Revocation } from './oauth.js';
+import { reconcile, type PayPalGet } from './reconcile.js';
 
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 // agent.ts and desk.ts own these files; read here directly because agent.ts imports the PayPal client.
@@ -167,6 +168,14 @@ export function buildIncident(id: string): Incident | null {
   if (hits.length > 1) throw Object.assign(new Error(`${id} matches ${hits.length} purchases (${hits.map((e) => e.buyer_txn).join(', ')}); ask by buyer transaction id`), { code: 404 });
   return hits[0] ? build(hits[0]) : null;
 }
+// RECONCILIATION (reconcile.ts): PayPal's refunds on the capture against this incident's holds, through the caller's PayPal
+// GET (the desk and the connector servers hand theirs in), so this module still holds no PayPal client.
+export async function reconciled(inc: Incident | null, get?: PayPalGet): Promise<Incident | null> {
+  const cap = inc?.purchase?.capture_id;
+  if (!inc || !cap || !get) return inc;
+  inc.events.push(...await reconcile(cap, readHolds().filter((h) => h.args?.capture_id === cap || (!!inc.dispute_id && h.args?.dispute_id === inc.dispute_id)), get));
+  return inc;
+}
 
 // One changed rule: the amount limit on the recorded call's own tool, or the standing approval (budget) on its dispute.
 // null budget removes it. Only these two, so `after` differs from `before` for one stated reason.
@@ -218,13 +227,14 @@ export function whatIf(eventId: string, change: Change): WhatIf {
     paypal_calls: 0 };
 }
 
-const reply = (f: () => unknown) => {
-  try { return { content: [{ type: 'text' as const, text: JSON.stringify(f() ?? { error: { message: 'No incident with that id; junco_list_incidents lists them' } }) }] }; }
+const reply = async (f: () => unknown) => {
+  try { return { content: [{ type: 'text' as const, text: JSON.stringify(await f() ??{ error: { message: 'No incident with that id; junco_list_incidents lists them' } }) }] }; }
   catch (e: any) { return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify({ error: { message: e.message } }) }] }; }
 };
 
 // The connector's investigation tools. Read only (policy.json classes them read), so the gate passes them straight through.
-export function addIncidentTools(server: any) {
+// get: the server's PayPal GET, for junco_get_incident's reconciliation; without it the incident has none.
+export function addIncidentTools(server: any, get?: PayPalGet) {
   server.registerTool('junco_list_incidents', {
     description: 'List AI purchases this store recorded: orders a shopping agent placed for a buyer with PayPal, newest activity first. '
       + 'Each has an id (the buyer transaction id), a title, the PayPal dispute id if the buyer disputed it, and counts of money moves '
@@ -239,9 +249,10 @@ export function addIncidentTools(server: any) {
       + 'such as a refund id). `missing` lists facts the records do not have; treat them as unknown, never guess them. Event ids starting '
       + 'hold: or gate: are recorded gate decisions you can pass to junco_what_if. Takes the buyer transaction id, the order id or '
       + 'the capture id, or a decline- id: then purchase is null, `decline` holds the agent\'s reason and the listings it saw, '
-      + 'and there is nothing to pass to junco_what_if. Read only.',
+      + 'and there is nothing to pass to junco_what_if. Events of kind reconciliation line up the refunds PayPal shows on the '
+      + 'payment now against the desk\'s holds: matched, at PayPal only, or on the desk only. Read only.',
     inputSchema: { id: z.string().regex(/^[A-Za-z0-9_-]{15,32}$/).describe('The purchase: its buyer transaction id (from junco_list_incidents), its PayPal order id, its capture id, or a decline- id') },
-  }, async ({ id }: { id: string }) => reply(() => buildIncident(id)));
+  }, async ({ id }: { id: string }) => reply(() => reconciled(buildIncident(id), get)));
   server.registerTool('junco_what_if', {
     description: "Re-run JUNCO's gate on one recorded request under one changed rule, to see what would have happened. Give the event id "
       + '(hold:<id> or gate:<time> from junco_get_incident) and exactly one change: max_amount sets the amount limit on that call\'s tool '

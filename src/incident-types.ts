@@ -6,8 +6,9 @@
 // recorded request under a changed rule; it never reaches PayPal.
 export type Mode = 'live' | 'recorded' | 'what-if';
 
-// decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal).
-export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook';
+// decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal). reconciliation: PayPal's refunds on
+// the capture lined up against the desk's holds (src/reconcile.ts), LIVE when PayPal answered.
+export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'reconciliation';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'

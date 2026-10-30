@@ -9,10 +9,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
-// By construction: incident.ts and the two modules it reads through import no PayPal client (type-only imports erase).
+// By construction: incident.ts and the modules it reads through import no PayPal client (type-only imports erase).
 const SRC = new URL('.', import.meta.url);
 const imports = (f: string) => [...readFileSync(new URL(f, SRC), 'utf8').matchAll(/^import (?!type )[^;]*?from '([^']+)'/gm)].map((m) => m[1]);
-assert.deepEqual(imports('incident.ts').sort(), ['./gate.js', './incident-questions.js', './store-dispute.js', 'node:fs', 'zod']);
+assert.deepEqual(imports('incident.ts').sort(), ['./gate.js', './incident-questions.js', './reconcile.js', './store-dispute.js', 'node:fs', 'zod']);
+assert.deepEqual(imports('reconcile.ts'), []); // type imports only: PayPal's GET is handed in by the desk and the servers
 assert.deepEqual(imports('incident-questions.ts'), []); // type imports only: display helpers, no client of anything
 for (const f of ['gate.ts', 'store-dispute.ts']) assert.ok(!imports(f).some((i) => /disputes|server|agent|hosted|recommend/.test(i)), `${f} imports a PayPal client`);
 console.log('imports: incident.ts reaches no PayPal client');
