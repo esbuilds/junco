@@ -465,7 +465,15 @@ assert.ok(html.includes('window.PLANTER_URL="https://planter.example/\\u003c/scr
 for (const want of ['Hide a refund', 'Send a fresh Claude', 'sandbox', 'False alarms', 'Money moved by the investigator', 'RECORDED', 'LIVE']) assert.ok(html.includes(want), `/drill lacks ${want}`);
 for (const bad of ['\u2014', 'game', 'detective', 'case file', 'tamper']) assert.ok(!html.toLowerCase().includes(bad), `/drill says ${bad}`);
 assert.ok(!/innerHTML/.test(html), 'the model\'s words never reach the page as markup');
-console.log('page: the planter URL is escaped, the copy is plain, and the answer is text, never markup');
+// The answer reads as plain lines, from the page's own code, and aiLines stays the helper the incident page uses.
+const body = (t: string) => t.match(/aiLines = \([^)]*\) => (s\.split[\s\S]*?filter\(Boolean\));/)?.[1].replace(/\s+/g, ' ');
+assert.ok(body(html) && body(html) === body(source('src/incident-questions.ts')), 'public/drill.html no longer repeats aiLines');
+const plain = new Function(`${html.match(/const aiLines = [\s\S]*?\nconst plain = .*\n/)?.[0]}; return plain;`)() as (s: string) => string[];
+assert.deepEqual(plain('**Short answer:** yes.\n\n- **Status:** COMPLETED\n  - nested\n\n| Purchase | Refund |\n|---|---|\n| 3GP751369U7519509 | $2.13 |\n\n## Next\n\n---\nIt costs $38 - more than you said.'),
+  ['Short answer: yes.', 'Status: COMPLETED', 'nested', 'Purchase · Refund', '3GP751369U7519509 · $2.13', 'Next', 'It costs $38 - more than you said.']);
+assert.ok(html.includes("plain(run.answer ?? '')"), 'the answer reaches the page through plain()');
+assert.ok(graded(`**Refund ${S.refund_id}** | $1.37 |`).refund_id_named && graded('| refund | **$1.37** |').amount_named, 'grading reads the answer as Claude wrote it');
+console.log('page: the planter URL is escaped, the copy is plain, and the answer is plain lines, never markup');
 
 server.close();
 console.log('drill: ok');

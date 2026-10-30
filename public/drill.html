@@ -11,7 +11,7 @@ button{font:inherit;font-weight:500;padding:7px 14px;border-radius:6px;border:1p
 button:disabled{background:#f4f4f5;border-color:#e4e4e7;color:#71717a;cursor:default}button:focus-visible,a:focus-visible{outline:2px solid #1f5c4a;outline-offset:2px}
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid #e4e4e7;margin-right:6px}
 .tag.live{color:#1f5c4a;border-color:#1f5c4a}.tag.recorded{color:#52525b;background:#f4f4f5}.err{color:#b42318}
-.answer{white-space:pre-wrap;margin:8px 0 0}.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:8px 0}
+.answer{margin:8px 0 0}.answer p{margin:0 0 6px}.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:8px 0}
 .score div{border:1px solid #e4e4e7;border-radius:8px;padding:10px 12px}.score b{display:block;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
 dl{display:grid;grid-template-columns:auto 1fr;gap:2px 16px;margin:8px 0 0}dt{color:#52525b}dd{margin:0}
 </style></head><body>
@@ -36,6 +36,11 @@ const store = { get() { try { return JSON.parse(sessionStorage.getItem('junco-dr
 let plant = store.get();
 const say = (text, bad) => { $('status').textContent = text; $('status').className = bad ? 'err' : 'm'; };
 const fail = async (r) => { try { return (await r.json()).error?.message ?? `The request failed (${r.status}).`; } catch { return `The request failed (${r.status}).`; } };
+// aiLines repeats src/incident-questions.ts: the AI's markdown as plain lines (checked by check-drill).
+const aiLines = (s) => s.split(/\n+|\s+-\s+(?=\*\*)/) // a list run onto one line: " - **Label:**"
+  .map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/^#+\s*/, '').trim()).filter(Boolean);
+// Its tables too: a rule row goes, and a row's cells read across. Display only: the grade reads the answer as Claude wrote it.
+const plain = (s) => aiLines(s).filter((l) => !/^[-|:\s]+$/.test(l)).map((l) => l.replace(/^\|\s*|\s*\|$/g, '').replace(/\s*\|\s*/g, ' · '));
 const pair = (name, value) => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; $('facts').append(dt, dd); };
 
 async function showScore() {
@@ -54,7 +59,7 @@ function show(run) {
   $('state').textContent = run.mode === 'recorded' ? `Today's runs are used up, so this is the latest finished run, from ${run.at.slice(0, 16).replace('T', ' ')} UTC.`
     : run.status === 'running' ? 'A fresh Claude is working. This usually takes under a minute.' : run.status === 'failed' ? "This run didn't finish." : '';
   $('asked').textContent = `Asked: ${run.question}`;
-  $('answer').textContent = run.answer ?? '';
+  $('answer').replaceChildren(...plain(run.answer ?? '').map((l) => { const p = document.createElement('p'); p.textContent = l; return p; }));
   $('incident').href = `/incident/${encodeURIComponent(run.incident_id)}`;
   const g = run.grade;
   $('grade').hidden = run.status !== 'done';
