@@ -509,3 +509,16 @@ textarea { border-radius: 8px; }
 .jd-host .ag-studio-button-filter-widget-item.ag-studio-button-filter-widget-item-active { background: var(--jd-ink) !important; color: var(--jd-surface) !important; border-color: var(--jd-ink) !important; }
 /* Information, not an owner action: neutral, with no attention colour. */
 .jd-note-info { background: var(--jd-surface-2); color: var(--jd-ink); }
+/* Who else?: group rows carry the bucket totals; Never complained wears the one heavy edge. */
+.jd-whoelse .jd-whoelse-group { background: var(--jd-surface-2); font-weight: 600; }
+.jd-whoelse .jd-whoelse-focus .ag-cell:first-child { box-shadow: inset 3px 0 0 var(--jd-ink); }
+.jd-whoelse-toggle { all: unset; cursor: pointer; font-weight: 600; }
+.jd-whoelse-toggle:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
+.jd-whoelse-bad { color: var(--jd-danger); }
+.jd-whoelse-cause { margin: 12px 0; }
+.jd-whoelse-cause p { margin: 4px 0; }
+.jd-whoelse-detail, .jd-whoelse-fix { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--jd-line); overflow-wrap: anywhere; }
+.jd-whoelse-detail h3, .jd-whoelse-fix h3 { margin: 12px 0 4px; font-size: 14px; font-weight: 600; }
+.jd-whoelse-detail h3:first-child, .jd-whoelse-fix h3:first-child { margin-top: 0; }
+.jd-panel mark { background: var(--jd-attn-bg); color: var(--jd-attn-text); padding: 0 1px; }
+.jd-whoelse-text { display: block; width: 100%; margin-top: 8px; padding: 8px 10px; font: inherit; color: var(--jd-ink); background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; box-sizing: border-box; }

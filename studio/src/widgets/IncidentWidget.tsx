@@ -148,6 +148,7 @@ export function IncidentWidget() {
         </select>
         {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">Full page</a>}
         {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}/receipt`} target="_blank" rel="noreferrer">Receipt</a>}
+        {inc?.dispute_id && <a className="jd-linkish" href={`/who-else?seed=${encodeURIComponent(inc.id)}`} target="_blank" rel="noreferrer">Who else?</a>}
       </div>
       {error && <div className="jd-result jd-err">{error}</div>}
       {inc?.records && <Records r={inc.records} />}

@@ -48,6 +48,12 @@ const layout = {
       risk: { xTrack: 0, yTrack: 88, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, booksPage, {
+    // Who else?: the other purchases where the agent made the same mistake, and the owner's plan for them.
+    id: 'who-else',
+    layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+    widgets: { 'who-else': { id: 'who-else', type: 'junco-who-else', dataMapping: {} } },
+    widgetLayout: { 'who-else': { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 60 } },
+  }, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
     id: 'mandate',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -125,7 +131,7 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['books', 'Books'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['books', 'Books'], ['who-else', 'Who else?'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
 // Demo pages sit after a divider so they don't read as everyday merchant work.
 const TEST_PAGES = [['escape', 'Escape room'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 

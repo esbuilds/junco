@@ -9,6 +9,7 @@ import { LedgerWidget } from './LedgerWidget';
 import { GateRecordWidget } from './GateRecordWidget';
 import { MatchingWidget } from './MatchingWidget';
 import { BooksWidget } from './BooksWidget';
+import { WhoElseWidget } from './WhoElseWidget';
 import { OrdersWidget } from './OrdersWidget';
 import { PolicyWidget } from './PolicyWidget';
 import { TryWidget } from './TryWidget';
@@ -37,6 +38,7 @@ const defs = [
   { id: 'junco-gate-record', label: 'Gate record', comp: GateRecordWidget, defaultSize: { width: 12, height: 10 }, minSize: { width: 6, height: 5 } },
   { id: 'junco-matching', label: 'Matching disputes', comp: MatchingWidget, defaultSize: { width: 8, height: 10 }, minSize: { width: 4, height: 5 } },
   { id: 'junco-books', label: 'The Books', comp: BooksWidget, defaultSize: { width: 12, height: 30 }, minSize: { width: 6, height: 10 } },
+  { id: 'junco-who-else', label: 'Who else?', comp: WhoElseWidget, defaultSize: { width: 12, height: 40 }, minSize: { width: 6, height: 10 } },
   { id: 'junco-holds', label: 'Waiting for you', comp: HoldsWidget, defaultSize: { width: 4, height: 6 }, minSize: { width: 3, height: 2 } },
   { id: 'junco-incident', label: 'Incident', comp: IncidentWidget, defaultSize: { width: 7, height: 30 }, minSize: { width: 4, height: 10 } },
   { id: 'junco-start', label: 'Start here', comp: StartRail, defaultSize: { width: 3, height: 14 }, minSize: { width: 3, height: 8 } },

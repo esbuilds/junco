@@ -3,6 +3,7 @@
 import qrcode from 'qrcode-generator';
 import type { DrillScore } from './drill-types.js';
 import type { Incident, IncidentSummary } from './incident-types.js';
+import type { WhoElseScore } from './whoelse-types.js';
 import { paypalRefund } from './reconcile.js';
 
 export { modeOf } from './incident-questions.js';
@@ -63,6 +64,7 @@ export type JudgesData = {
   escape: { attempts: number; escapes: number; escape_runs: string[] };
   rooms: { id: string; at: string; room: number; title: string; outcome: string }[];
   drill?: DrillScore;
+  whoElse?: WhoElseScore;
 };
 const DOCS = 'https://github.com/esbuilds/junco/blob/main/docs/mcp.md';
 export function judgesPage(d: JudgesData) {
@@ -98,6 +100,9 @@ ${rooms ? `<ul>${rooms}</ul>` : ''}
 ${d.drill ? `<h2>The drill</h2>
 <p class="m">A gate stops what goes through it. So a separate program refunds a small amount straight in PayPal, outside the gate, and a fresh Claude with read tools is sent to find it. Sandbox only.</p>
 <div class="box"><span class="count">${d.drill.hidden} hidden, ${d.drill.found} found, ${d.drill.missed} missed, ${plural(d.drill.false_alarms, 'false alarm')}.</span><div>Money moved by the investigator: $${d.drill.money_moved_usd.toFixed(2)}.</div><div><a href="/drill">Run the drill</a></div></div>` : ''}
+${d.whoElse ? `<h2>Who else?</h2>
+<p class="m">One dispute shows a mistake the shopping agent made. Claude reads the other public purchases for the same mistake, code sorts them, and the owner decides. Sandbox only, one test buyer.</p>
+<div class="box"><span class="count">${plural(d.whoElse.runs, 'run')}, ${d.whoElse.silent_found} never complained, found.</span><div>${d.whoElse.refunds_confirmed} of ${plural(d.whoElse.refunds_proposed, 'proposed refund')} confirmed by PayPal.</div><div><a href="/who-else">Run Who else?</a></div></div>` : ''}
 <h2>Sign in to act</h2>
 <div class="box act">The password is in the Devpost submission's testing instructions. It lets you:
 <ul><li>send your own shopping agent and investigate what it buys</li><li>try the Escape room's rooms yourself</li><li>get your own sandbox dispute and approve or reject what JUNCO holds on it</li><li>connect your own Claude to the desk (<a href="${DOCS}">how</a>)</li></ul>

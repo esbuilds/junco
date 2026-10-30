@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
 import { BOOK_FIELDS, FIELDS } from './src/insights';
-import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, policyWords, splitHolds, startProgress } from './src/ui';
+import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noSharedMistake, policyWords, quoteParts, splitHolds, startProgress, toPlan, trialLines, whoElseRows } from './src/ui';
+import type { Bucket, Member, Trial, WhoElseRun } from '../src/whoelse-types';
 import { readFileSync } from 'node:fs';
 
 // Every text pair the desk uses passes WCAG AA (4.5:1) in both colour schemes.
@@ -77,5 +78,37 @@ assert.deepEqual(BOOK_FIELDS.filter((b) => FIELDS.some((f) => f.id === b.id)), [
 
 // Claude refuses a whole turn if two tools share a name, and the desk's list and the assistant's own both have junco_get_incident.
 assert.match(readFileSync(new URL('src/studioAi.ts', import.meta.url), 'utf8'), /paypalTools\.filter\(\(t\) => !junco\.some\(\(j\) => j\.name === t\.name\)\)/, "the assistant's own tools must win over the desk's");
+
+// Who else?: groups in bucket order with totals in cents, the plan only ever from kept silent rows, failures said plainly.
+const member = (id: string, bucket: Bucket, paid: string, refunded: string, capture: string | null = `C${id}`): Member => ({ incident_id: id, capture_id: capture, sku: 'WKD-01', paid, instruction: 'a carry-on bag', reason: 'carry-on-friendly', listing: 'L', bucket, why: 'w', quotes: [], dispute_id: null, payment_status: 'COMPLETED', refunded, remaining: (Number(paid) - Number(refunded)).toFixed(2), fingerprint: 'match' });
+const whoRun: WhoElseRun = { id: 'r', at: '2026-10-30T00:00:00Z', seed: 'a', cause: { summary: 's', quotes: [] }, corrections: [], trials: [], mode: 'live', model: 'm', cost_usd: 0, members: [member('n', 'not_same', '38.00', '0.00'), member('a', 'complained', '62.00', '0.00'), member('b', 'silent', '0.10', '0.00'), member('c', 'silent', '0.20', '0.00'), member('d', 'silent', '62.00', '2.13'), member('e', 'silent', '62.00', '0.00', null)], remedies: [{ capture_id: 'Cd', incident_id: 'd', amount: '59.87', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'pending', refund_id: null, refund_status: null }] };
+const whoRows = whoElseRows(whoRun, new Set(['Cc']), new Set<Bucket>(['not_same']));
+assert.deepEqual(whoRows.map((r) => r.id), ['group:silent', 'b', 'c', 'd', 'e', 'group:complained', 'a', 'group:not_same'], 'Never complained first; a closed group keeps its heading and total');
+assert.equal(whoRows.find((r) => r.id === 'group:not_same')!.paid, 38);
+assert.equal(whoRows[0].paid, 124.3, 'totals add in cents');
+assert.deepEqual(toPlan(whoRun, new Set(['Cc'])).map((m) => m.incident_id), ['b'], 'not dropped, not already held, has a capture');
+assert.equal(whoRows.find((r) => r.id === 'd')!.can_keep, false, 'a held row is settled');
+assert.equal(keptTotal(whoRun, new Set(['Cc'])).remaining, 59.97);
+assert.deepEqual([...whoRows].reverse().sort(inGroups).filter((r) => r.kind === 'group').map((r) => r.bucket), ['silent', 'complained', 'not_same']);
+assert.equal([...whoRows].reverse().sort(inGroups)[0].id, 'group:silent', 'a heading stays on top of its members whatever the sort');
+assert.equal(noSharedMistake(whoRun), false);
+assert.equal(noSharedMistake({ ...whoRun, members: [member('n', 'not_same', '38.00', '0.00')] }), true);
+assert.equal(noSharedMistake({ ...whoRun, members: [] }), false);
+assert.deepEqual(quoteParts('carry-on-friendly dimensions (50x28x25 cm)', [{ field: 'reason', text: 'carry-on-friendly' }, { field: 'reason', text: 'friendly dimensions' }, { field: 'reason', text: 'not there' }, { field: 'listing', text: 'cm' }], 'reason').map((p) => [p.text, p.hit]), [['carry-on-friendly', true], [' dimensions', true], [' (50x28x25 cm)', false]]);
+const trial = (sku: string | null): Trial => ({ at: 't', instruction: 'i', budget: '70', outcome: sku ? 'bought' : 'declined', sku, reason: 'r' });
+assert.deepEqual(trialLines({ ...whoRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial('WKD-01'), trial('WKD-03'), trial(null)] }), ['The agent still bought the corrected bag in 1 of 3.', "1 of 3 bought WKD-03, and that listing hasn't been corrected."]);
+assert.deepEqual(trialLines({ ...whoRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial(null)] }), []);
+
+// Everything visitors read about Who else?: what's true, none of the banned words, and no route that plans or approves on the public page.
+const whoPage = readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8');
+const whoWidget = readFileSync(new URL('src/widgets/WhoElseWidget.tsx', import.meta.url), 'utf8');
+for (const [name, text] of [['public/who-else.html', whoPage], ['WhoElseWidget.tsx', whoWidget]] as const) {
+  assert.match(text, /one sandbox test buyer/, `${name} says one sandbox test buyer`);
+  assert.match(text, /our own script filed the disputes/, `${name} says who filed the disputes`);
+  assert.match(text, /mistake is real/, `${name} says the mistake is real`);
+  assert.match(text, /may not fit/, `${name} says may not fit`);
+  assert.doesNotMatch(text, /recall|—|doesn't fit|\bthe first\b|\bthe only\b/i, `${name} breaks a copy rule`);
+}
+assert.doesNotMatch(whoPage, /\/plan|approve-all|\/correct|\/api\/holds|paypal\.com/, 'the public page has no write but the capped finder');
 
 console.log('check-ui: ok');
