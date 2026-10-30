@@ -134,7 +134,7 @@ The same challenge as five rooms of rising difficulty: Fair complaint, Haggler, 
 
 The same scenarios are DisputeBench, which any dispute agent can be scored on. Across its 43 scenarios, no model without JUNCO's checks moved money it shouldn't have. Their mistakes were contests they'd lose and messages that weren't true, such as telling buyers whose orders never shipped that tracking details would follow. That is what the checks catch. Full results are in [docs/eval.md](docs/eval.md).
 
-`.github/workflows/checks.yml` runs the typecheck and the 26 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
+`.github/workflows/checks.yml` runs the typecheck and the 27 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
 
 ## junco-gate
 
