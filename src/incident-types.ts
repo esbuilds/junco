@@ -12,6 +12,10 @@ export type Mode = 'live' | 'recorded' | 'what-if';
 // outside_refund: PayPal's webhook reported a refund the desk didn't make (the drill, or anyone working in PayPal directly).
 export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund';
 
+// What a reconciliation line found. matched, dispute_hold and settled are not differences; paypal_only and desk_only are;
+// unread means PayPal didn't answer, so nothing is known either way.
+export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread';
+
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
   at: string;        // ISO time from the record
@@ -22,6 +26,7 @@ export type IncidentEvent = {
   summary: string;   // one plain sentence a judge can read
   source: string;    // the record it came from: 'pool', 'store-runs', 'holds', 'gate-log', 'activity', 'PayPal'
   ref?: Partial<Record<'order_id' | 'capture_id' | 'buyer_txn' | 'dispute_id' | 'hold_id' | 'refund_id' | 'run_id' | 'rule', string>>;
+  match?: Match;     // reconciliation lines about one money movement, and a failed read
 };
 
 export type Incident = {

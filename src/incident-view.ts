@@ -2,27 +2,11 @@
 // printable receipt. The Incident itself comes from src/incident.ts.
 import qrcode from 'qrcode-generator';
 import type { Incident, IncidentSummary } from './incident-types.js';
+import { paypalRefund } from './reconcile.js';
 
 export { modeOf } from './incident-questions.js';
+export { paypalRefund };
 
-// PayPal's refund id and status from a hold's stored result. The result is the tool's text: PayPal's JSON, sometimes
-// wrapped (hosted MCP content, or a settle's `was`), sometimes prose. Null when no refund id is in it.
-type Refund = { id: string; status: string | null };
-export function paypalRefund(h: { method: string; result?: string }): Refund | null {
-  if (!/refund/.test(h.method) || !h.result) return null;
-  const parse = (s: string) => { try { return JSON.parse(s); } catch { return undefined; } };
-  const find = (o: any): Refund | null => {
-    if (typeof o === 'string') { const p = parse(o); return p === undefined ? null : find(p); }
-    if (!o || typeof o !== 'object' || o.error) return null;
-    if (typeof o.id === 'string' && !Array.isArray(o)) return { id: o.id, status: typeof o.status === 'string' ? o.status : null };
-    for (const v of Object.values(o)) { const r = find(v); if (r) return r; }
-    return null;
-  };
-  const r = find(h.result);
-  if (r || parse(h.result) !== undefined) return r;
-  const id = h.result.match(/\bid\W{1,4}([0-9A-Z]{10,30})\b/i)?.[1]; // prose: "Refund id: 1AB23..."
-  return id ? { id, status: h.result.match(/\bstatus\W{1,4}([A-Z_]{4,})\b/)?.[1] ?? null } : null;
-}
 // "PayPal made refund 1AB23..., status COMPLETED" after an approve; other actions keep "PayPal accepted it".
 export const acceptedText = (h: { method: string; result?: string }) => {
   const r = paypalRefund(h);

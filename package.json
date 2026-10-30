@@ -39,6 +39,7 @@
     "check-holdcard": "tsx src/check-holdcard.ts",
     "check-incident": "tsx src/check-incident.ts",
     "check-reconcile": "tsx src/check-reconcile.ts",
+    "check-outside-refund": "tsx src/check-outside-refund.ts",
     "check-killswitch": "tsx src/check-killswitch.ts",
     "check-hosted-health": "tsx src/check-hosted-health.ts",
     "check-refund-mcp": "tsx src/check-refund-mcp.ts",

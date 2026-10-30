@@ -24,6 +24,7 @@ import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
 import { acceptedText, judgesPage, paypalRefund, receiptPage } from './incident-view.js';
 import { buildIncident, listIncidents, reconciled, whatIf as incidentWhatIf } from './incident.js';
+import { outsideRefund } from './outside-refund.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
 import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
@@ -43,6 +44,7 @@ const DESK_URL = process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${process.
 // as still waiting after it was settled (Oct 15: a rejected $40 offer stayed "for your OK" in Slack).
 // What a hold acts on, in Slack's words: a dispute, a payment (refunds) or an invoice.
 const target = (a: any) => a?.dispute_id ?? (a?.capture_id ? `payment ${a.capture_id}` : a?.invoice_id ? `invoice ${a.invoice_id}` : a?.order_id ? `order ${a.order_id}` : 'the store');
+const notify = (text: string) => { const url = process.env.HOLD_WEBHOOK_URL; if (url) void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch((e) => console.warn('[notify] failed', e.message)); };
 function notifyDecision(h: Pick<Hold, 'method' | 'args'>, outcome: string) {
   const url = process.env.HOLD_WEBHOOK_URL;
   if (!url) return;
@@ -336,8 +338,9 @@ async function webhook(req: IncomingMessage, res: ServerResponse) {
   const changedAt = event.resource?.update_time ?? event.create_time ?? new Date().toISOString();
   if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED') {
     const capture = String(event.resource?.links?.find((l: any) => l.rel === 'up')?.href ?? '').split('/').pop();
-    if (capture) recheck(flagHolds({ capture_id: capture }, event.event_type, changedAt, { id: String(event.resource.id), at: event.resource.create_time ?? changedAt }));
-    return;
+    if (!capture) return;
+    recheck(flagHolds({ capture_id: capture }, event.event_type, changedAt, { id: String(event.resource.id), at: event.resource.create_time ?? changedAt }));
+    return void outsideRefund(event.resource, capture, { get: (q) => paypal(ctx, 'GET', q), notify, desk: DESK_URL }).catch((e) => console.error('[outside refund]', e.message));
   }
   if (String(event.event_type).startsWith('CUSTOMER.DISPUTE.') && typeof event.resource?.dispute_id === 'string') recheck(flagHolds({ dispute_id: event.resource.dispute_id }, event.event_type, changedAt));
   // Shipment watch: a captured payment starts being watched for tracking.

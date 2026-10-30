@@ -10,6 +10,7 @@ import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './inciden
 import { aiText } from './incident-questions.js';
 import { checkAgainstPayPal } from './fingerprint.js';
 import type { Revocation } from './oauth.js';
+import type { OutsideRefund } from './outside-refund.js';
 import { reconcile, type PayPalGet } from './reconcile.js';
 
 const read = <T>(f: string, d: T): T => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
@@ -18,6 +19,7 @@ type Activity = { at: string; dispute_id: string; trigger: string; step: string;
 const readActivity = () => read<Activity[]>('.junco/activity.json', []);
 const holdTags = () => read<Record<string, string>>('.junco/hold-tags.json', {});
 const readRevocations = () => read<Revocation[]>('.junco/revocations.json', []); // oauth.ts's kill switch log
+const readOutsideRefunds = () => read<OutsideRefund[]>('.junco/outside-refunds.json', []); // outside-refund.ts owns it
 
 // Who proposed a move, from the desk's hold tag or the gate log's source ('desk agent' is JUNCO's own agent).
 const who = (tag?: string) => (!tag ? 'unknown caller' : tag === 'desk agent' ? 'JUNCO agent' : tag);
@@ -32,7 +34,7 @@ const entries = () => readPool().filter((p) => p.agent);
 const runOf = (txn: string) => { const rs = readRuns().filter((r) => r.buyer_txn === txn); return rs.find((r) => r.dispute_id) ?? rs.at(-1); };
 
 // LIVE: something PayPal did. A gate allow went straight to PayPal; a deny, a hold and the case lease are the desk's own.
-const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook', 'paypal_fingerprint']);
+const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook', 'paypal_fingerprint', 'outside_refund']);
 const modeOf = (e: Omit<IncidentEvent, 'mode'>): IncidentEvent['mode'] =>
   e.id.endsWith(':leased') ? 'recorded' : e.kind === 'gate' ? (e.ref?.rule?.startsWith('allow:') ? 'live' : 'recorded') : LIVE.has(e.kind) ? 'live' : 'recorded';
 
@@ -126,6 +128,10 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
     summary: `The visitor asked the support agent for a refund${x.reason ? `: "${x.reason.replace(/[.!?]+$/, '')}"` : ''}. ${x.outcome === 'held' ? `It proposed create_refund; the gate held it for the owner as ${x.hold_id}.`
       : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? ` The AI's own words: "${aiText(x.ai)}"` : ''}`,
     ref: { ...(capture_id && { capture_id }), ...(x.hold_id && { hold_id: x.hold_id }) } });
+  // A refund PayPal's webhook reported that reconciliation found the desk didn't make (outside-refund.ts).
+  for (const x of readOutsideRefunds().filter((x) => x.capture_id === capture_id))
+    events.push({ id: `outside_refund:${x.refund_id}`, at: x.at, kind: 'outside_refund', actor: 'PayPal', source: 'webhook',
+      summary: `PayPal reported a refund of ${x.amount} (${x.refund_id}) the desk didn't make.`, ref: { capture_id: x.capture_id, refund_id: x.refund_id } });
   // The owner's kill switch is desk-wide: every use after the purchase belongs in its story.
   for (const r of readRevocations().filter((r) => r.at > paid))
     events.push({ id: `revoke:${r.at}`, at: r.at, kind: 'gate', actor: 'owner', source: 'revocations',
@@ -181,7 +187,8 @@ export function buildIncident(id: string): Incident | null {
 export async function reconciled(inc: Incident | null, get?: PayPalGet): Promise<Incident | null> {
   const cap = inc?.purchase?.capture_id;
   if (!inc || !cap || !get) return inc;
-  inc.events.push(...await reconcile(cap, readHolds().filter((h) => h.args?.capture_id === cap || (!!inc.dispute_id && h.args?.dispute_id === inc.dispute_id)), get));
+  const mine = (a: any) => a?.capture_id === cap || (!!inc.dispute_id && a?.dispute_id === inc.dispute_id);
+  inc.events.push(...await reconcile(cap, readHolds().filter((h) => mine(h.args)), get, readMoves().filter((m) => mine(m.args))));
   return inc;
 }
 
