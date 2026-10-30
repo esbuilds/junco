@@ -66,10 +66,11 @@ export async function charge(ctx: Ctx, sku: string, budget: string, vaultId: str
   } });
   const cap = o.body?.purchase_units?.[0]?.payments?.captures?.[0];
   if (!cap?.id) return { failed: o };
-  const back = await paypal(ctx, 'GET', `/v2/checkout/orders/${o.body.id}`); // a read, no money moves
-  const copy = back.body?.purchase_units?.[0] ?? {};
+  // A read, no money moves. The money already moved, so a failed read must never lose the capture: no paypal copy then.
+  const back = await paypal(ctx, 'GET', `/v2/checkout/orders/${o.body.id}`).catch(() => undefined);
+  const copy = back && back.status < 300 ? back.body?.purchase_units?.[0] ?? {} : undefined;
   return { item, order_id: o.body.id, capture_id: cap.id, paid_at: cap.create_time ?? new Date().toISOString(),
-    mandate: { model: MODEL, at, fingerprint: fp, paypal: { custom_id: copy.custom_id, invoice_id: copy.invoice_id, read_at: new Date().toISOString() } } };
+    mandate: { model: MODEL, at, fingerprint: fp, ...(copy && { paypal: { custom_id: copy.custom_id, invoice_id: copy.invoice_id, read_at: new Date().toISOString() } }) } };
 }
 
 // "Your AI buys, you investigate": a desk visitor's ask and budget, the agent's choice, then a decline or a guarded order.

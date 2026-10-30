@@ -62,7 +62,9 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
     summary: `${a.agent} bought ${a.sku} for ${p.amount} USD, asked "${a.instruction}" with a ${a.budget} USD budget, paying with the PayPal account the buyer saved for the store${desk ? ' (a desk visitor sent it)' : ''}.`,
     ref: { ...(!desk && { buyer_txn: p.buyer_txn }), ...(p.order_id && { order_id: p.order_id }), ...(capture_id && { capture_id }) } }];
   // PayPal's copy of the mandate fingerprint, as the order read back at capture; this module calls no PayPal (see top).
-  const fp = checkAgainstPayPal(a, a.mandate?.paypal?.custom_id);
+  // No copy kept means that read failed (shopper.ts), which says nothing about what PayPal holds.
+  const fp = a.mandate && !a.mandate.paypal ? { text: "PayPal's copy couldn't be read at capture, so it isn't checked here; JUNCO reads it again when it works a dispute on this order." }
+    : checkAgainstPayPal(a, a.mandate?.paypal?.custom_id);
   if (a.mandate) events.push({ id: `paypal_fingerprint:${p.order_id ?? p.buyer_txn}`, at: a.mandate.paypal?.read_at ?? paid, kind: 'paypal_fingerprint', actor: 'PayPal', source: 'PayPal order',
     summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) } });
   else missing.push(`mandate fingerprint: ${fp.text.replace(/^N/, 'n')}`);

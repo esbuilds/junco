@@ -13,6 +13,7 @@ assert.ok(desk.includes('await visitorShop(ctx, { session, owner, instruction: b
 console.log('wiring: pool.ts charges through charge(); /api/shop calls visitorShop()');
 
 // Fake Claude and PayPal. `agent` is the shopping agent's next tool call; `paypalAnswer` PayPal's next order response.
+let failRead = 0; // the read-back GET throws this many times (a timeout after the capture)
 let agent: { name: string; input: any } = { name: 'decline', input: { reason: 'x' } }, paypalAnswer: { status: number; body: any } = { status: 500, body: {} };
 const calls = { claude: 0, paypal: 0 }, orders: any[] = [];
 globalThis.fetch = (async (url: any, init?: any) => {
@@ -23,7 +24,7 @@ globalThis.fetch = (async (url: any, init?: any) => {
       content: [{ type: 'tool_use', id: 'tu_check', ...agent }], usage: { input_tokens: 300, output_tokens: 40 } }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   // charge() reads the order back after the capture (a GET): PayPal's copy echoes the custom_id and invoice_id it was sent.
-  if (u.startsWith('http://paypal.check/') && init?.method === 'GET') { const pu = orders.at(-1).purchase_units[0]; return new Response(JSON.stringify({ id: 'ORDSHOP1', purchase_units: [{ custom_id: pu.custom_id, invoice_id: pu.invoice_id }] }), { status: 200 }); }
+  if (u.startsWith('http://paypal.check/') && init?.method === 'GET') { if (failRead) { failRead--; throw new Error('check-shop: read-back timed out'); } const pu = orders.at(-1).purchase_units[0]; return new Response(JSON.stringify({ id: 'ORDSHOP1', purchase_units: [{ custom_id: pu.custom_id, invoice_id: pu.invoice_id }] }), { status: 200 }); }
   if (u.startsWith('http://paypal.check/')) { calls.paypal++; orders.push(JSON.parse(init.body)); return new Response(JSON.stringify(paypalAnswer.body), { status: paypalAnswer.status }); }
   throw new Error(`check-shop: no network (${u})`);
 }) as any;
@@ -126,4 +127,13 @@ assert.deepEqual(ids(), []);
 assert.equal(ids({ owner: true, session: 'o' }).length, 3);
 assert.equal(actor.run({ owner: false, session: B }, () => buildIncident('CAPSHOP1'))?.id, 'CAPSHOP1'); // the link opens for anyone
 console.log('privacy: listed for the visitor and the owner only; the page opens by its link');
+
+// The read-back after the capture throws: the buy is still recorded, and the incident says the read failed, not a mismatch.
+agent = { name: 'buy', input: { sku: 'WKD-03', reason: 'light' } }; failRead = 1;
+paypalAnswer = { status: 201, body: { id: 'ORDSHOP2', purchase_units: [{ payments: { captures: [{ id: 'CAPSHOP2', create_time: '2026-10-29T19:00:00Z' }] } }] } };
+assert.equal((await shopAs(A, 'a light bag', 70, true)).bought, true); assert.equal(failRead, 0);
+assert.equal(readAgentBuys().find((b) => b.capture_id === 'CAPSHOP2')?.agent.mandate?.paypal, undefined);
+const unread = buildIncident('CAPSHOP2')!.events.find((e) => e.kind === 'paypal_fingerprint')!.summary;
+assert.match(unread, /couldn't be read at capture/); assert.doesNotMatch(unread, /carries no fingerprint|doesn't match/);
+console.log("read-back fails after the capture: the buy is recorded; the incident says PayPal's copy couldn't be read");
 console.log('shop: ok (Claude and PayPal faked, 0 real network calls)');
