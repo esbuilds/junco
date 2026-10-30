@@ -52,7 +52,7 @@ export type WhoElseRun = {
   id: string;
   at: string;
   seed: string;                 // the incident it started from
-  cause: { summary: string; quotes: Quote[] }; // one sentence, cited to the seed's own records
+  cause: { summary: string; quotes: Quote[] }; // summary: the owner's own note on the seed, word for word; quotes: the seed's records that show it
   members: Member[];            // every purchase looked at, seed included
   remedies: Remedy[];           // empty until the owner plans; one per silent purchase they kept
   corrections: Correction[];
@@ -64,8 +64,13 @@ export type WhoElseRun = {
 
 export type WhoElseScore = { runs: number; purchases_read: number; silent_found: number; refunds_proposed: number; refunds_confirmed: number };
 
-// GET  /api/who-else                      public   { latest: WhoElseRun | null, score: WhoElseScore, left: number }
-// POST /api/who-else/run  { seed }        public   runs the finder, capped; moves no money and makes no hold
+// What the owner says went wrong on one purchase. The model never decides this: PayPal's reason code names no cause, and the
+// sandbox drops the buyer's words. A run needs a note on its seed.
+export type SeedNote = { incident_id: string; title: string; text: string; at: string };
+
+// GET  /api/who-else                      public   { latest: WhoElseRun | null, score: WhoElseScore, left: number, seeds: SeedNote[] }
+// POST /api/who-else/note { seed, text }  owner    sets the note on a seed
+// POST /api/who-else/run  { seed }        public   runs the finder on a seed with a note, capped; moves no money and makes no hold
 // GET  /api/who-else/run/<id>             public   a run, with hold and refund states read fresh
 // POST /api/who-else/run/<id>/plan  { captures: string[] }   owner   one held create_refund per capture, from `silent` only
 // POST /api/who-else/run/<id>/approve-all                    owner   runs each pending hold in order, one by one, through decideHold
