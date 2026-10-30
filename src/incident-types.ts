@@ -9,7 +9,8 @@ export type Mode = 'live' | 'recorded' | 'what-if';
 // decline: the shopping agent chose to buy nothing (RECORDED; nothing reached PayPal). paypal_fingerprint: PayPal's copy of
 // the mandate fingerprint on the order, read back at capture and checked against the store's record (src/fingerprint.ts).
 // reconciliation: PayPal's refunds on the capture lined up against the desk's holds (src/reconcile.ts), LIVE when PayPal answered.
-export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation';
+// outside_refund: PayPal's webhook reported a refund the desk didn't make (the drill, or anyone working in PayPal directly).
+export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
