@@ -38,6 +38,42 @@ export function toRows(cases: CaseRow[]) {
 
 const title = (text: string) => ({ title: { text, enabled: true } });
 
+// The Books: every AI purchase as a second source, so Studio's filters narrow its table the way they narrow Matching. A widget
+// picks fields by name across every source, so these ids stay apart from FIELDS' (check-ui pins it).
+export const BOOK_FIELDS = [
+  { id: 'purchase', name: 'Purchase', format: 'textFormat' },
+  { id: 'title', name: 'Title', format: 'textFormat' },
+  { id: 'at', name: 'Last activity', format: 'textFormat' },
+  { id: 'paid', name: 'Paid', format: 'currencyFormat' },
+  { id: 'paypal_status', name: 'PayPal status', format: 'textFormat' },
+  { id: 'refunds', name: 'Refunds', format: 'textFormat' },
+  { id: 'holds', name: 'Desk holds', format: 'integerFormat' },
+  { id: 'fingerprint', name: 'Fingerprint', format: 'textFormat' },
+  { id: 'reconciliation', name: 'Reconciliation', format: 'textFormat', description: 'Differ: what the desk recorded and what PayPal shows do not line up. A dispute hold is not a difference. Unread: PayPal did not answer.' },
+  { id: 'line', name: 'Why', format: 'textFormat' },
+  { id: 'replay', name: 'Policy replay', format: 'textFormat', description: "WHAT-IF: each recorded money move re-run under today's policy. It never reaches PayPal." },
+  { id: 'replay_detail', name: 'Replay detail', format: 'textFormat' },
+];
+
+export const booksPage = {
+  id: 'books',
+  layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
+  widgets: {
+    bookRecon: { id: 'bookRecon', type: 'button-filter', format: title('Reconciliation'), dataMapping: { value: [{ id: 'books.reconciliation' }] } },
+    bookStatus: { id: 'bookStatus', type: 'button-filter', format: title('PayPal status'), dataMapping: { value: [{ id: 'books.paypal_status' }] } },
+    bookPrint: { id: 'bookPrint', type: 'button-filter', format: title('Fingerprint'), dataMapping: { value: [{ id: 'books.fingerprint' }] } },
+    bookReplay: { id: 'bookReplay', type: 'button-filter', format: title('Policy replay'), dataMapping: { value: [{ id: 'books.replay' }] } },
+    books: { id: 'books', type: 'junco-books', dataMapping: {} },
+  },
+  widgetLayout: {
+    bookRecon: { xTrack: 0, yTrack: 0, xSpan: 2, ySpan: 8 },
+    bookStatus: { xTrack: 2, yTrack: 0, xSpan: 4, ySpan: 8 }, // PayPal's statuses are the longest labels
+    bookPrint: { xTrack: 6, yTrack: 0, xSpan: 3, ySpan: 8 },
+    bookReplay: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 8 },
+    books: { xTrack: 0, yTrack: 8, xSpan: 12, ySpan: 36 },
+  },
+};
+
 export const insightsPage = {
   id: 'insights',
   layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },

@@ -6,10 +6,11 @@ import { KillSwitch } from './widgets/KillSwitch';
 import { CaseBanner } from './widgets/CaseBanner';
 import { StatusLine } from './widgets/StatusLine';
 import { ReplayDrawer } from './widgets/ReplayDrawer';
-import { FIELDS, insightsPage, toRows } from './insights';
+import { BOOK_FIELDS, booksPage, FIELDS, insightsPage, toRows } from './insights';
 import { usePoll } from './store';
 import { aiSetup, aiToolDisplayAll } from './studioAi';
 import type { CaseRow } from './api';
+import type { BooksRow } from '../../src/incident-types';
 import { T, isDark } from './theme';
 import { DESK_LAYOUT_KEY } from './ui';
 import './styles.css';
@@ -46,7 +47,7 @@ const layout = {
       store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 14 },
       risk: { xTrack: 0, yTrack: 88, xSpan: 7, ySpan: 7 },
     },
-  }, insightsPage, {
+  }, insightsPage, booksPage, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
     id: 'mandate',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
@@ -124,7 +125,7 @@ const theme = studioTheme.withParams({
 // STUDIO_AI=1 at build time: the Desk opens with AG Studio's AI assistant (an edit-mode panel). Off: the desk as before.
 const ai = __STUDIO_AI__ ? aiSetup() : undefined;
 
-const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
+const PAGES = [['desk', 'Desk'], ['orders', 'Orders'], ['incident', 'Incidents'], ['books', 'Books'], ['insights', 'Insights'], ['policy', 'Policy']] as const;
 // Demo pages sit after a divider so they don't read as everyday merchant work.
 const TEST_PAGES = [['escape', 'Escape room'], ['mandate', 'Break the mandate'], ['try', 'Try it']] as const;
 
@@ -136,7 +137,7 @@ const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || 
 const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
 // Every panel full width, stacked in reading order (top to bottom, then left to right). PHONE_SPAN: panels that change
 // shape on a phone (the KPI strip goes 2x2; the holds table stacks its rows).
-const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 30 };
+const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 30, bookRecon: 5, bookStatus: 8, bookPrint: 5, bookReplay: 5 }; // Books' filters: full width needs less height, so the table stays near the top
 const stack = (wl: Record<string, { xTrack: number; yTrack: number; xSpan: number; ySpan: number }>) => {
   let y = 0;
   return Object.fromEntries(Object.entries(wl).sort(([, a], [, b]) => a.yTrack - b.yTrack || a.xTrack - b.xTrack)
@@ -156,7 +157,12 @@ export function App() {
   // A new data object restarts Studio's chart queries; the 15 s poll returns a new array every time, so only real
   // changes to the rows count (charts took about 30 s to settle when every poll counted).
   const rowsKey = JSON.stringify(cases.data ?? []);
-  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS }] }), [rowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The Books read PayPal for every purchase, so only their own page polls them.
+  const books = usePoll<BooksRow[]>(page === 'books' ? '/api/books' : null, 60000);
+  const booksKey = JSON.stringify(books.data ?? []);
+  const data = useMemo(() => ({ sources: [{ id: 'disputes', name: 'Disputes', description: "The merchant's PayPal disputes, one row each. A dispute the merchant is about to lose (this week or otherwise) is one that is still open and that JUNCO says to Accept; Days left says how soon. This is the same rule as the desk's At risk this week panel.", data: toRows(cases.data ?? []), fields: FIELDS },
+    { id: 'books', name: 'Books', description: "The store's AI purchases, one row each: what PayPal says beside what the desk recorded. It fills when the Books page is open.", data: books.data ?? [], fields: BOOK_FIELDS }] }), [rowsKey, booksKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const waiting = (!cases.data && !cases.error) ? 'Loading disputes from PayPal...' : page === 'books' && !books.data ? books.error ?? 'Reading the books from PayPal...' : null;
   return (
     <AgStudioProvider licenseKey={studioKey}>
       <div className={owner ? 'jd-app' : 'jd-app jd-visitor'}>
@@ -189,7 +195,7 @@ export function App() {
       <ReplayDrawer />
       <div className="jd-host">
         {/* Studio mounts once the first cases arrive: native widgets (filters, grid) build their first query on mount. */}
-        {!cases.data && !cases.error ? <div className="jd-empty">Loading disputes from PayPal...</div> : <AgStudio
+        {waiting ? <div className="jd-empty">{waiting}</div> : <AgStudio
           key={page}
           // Desk widgets read the desk API themselves; the Insights page runs on this Studio data source.
           data={data as any}

@@ -24,6 +24,7 @@ import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
 import { acceptedText, judgesPage, paypalRefund, receiptPage } from './incident-view.js';
 import { threeRecords } from './incident-questions.js';
+import { books } from './books.js';
 import { buildIncident, listIncidents, reconciled, whatIf as incidentWhatIf } from './incident.js';
 import { outsideRefund } from './outside-refund.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
@@ -743,6 +744,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     }
     // BLACK BOX: one AI purchase's incident page, its JSON, a printable receipt and the what-if (never reaches PayPal).
     if (req.method === 'GET' && url.pathname === '/api/incidents') return json(res, 200, await listIncidents());
+    if (req.method === 'GET' && url.pathname === '/api/books') return json(res, 200, await books((q) => paypal(ctx, 'GET', q))); // behind the password: not in PUBLIC_GET
     if (p[0] === 'incident' || (p[0] === 'api' && p[1] === 'incident')) {
       const id = p[0] === 'incident' ? p[1] : p[2], tail = p[0] === 'incident' ? p[2] : p[3];
       const inc = id ? await buildIncident(id) : null;

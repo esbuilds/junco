@@ -13,8 +13,9 @@ export type Mode = 'live' | 'recorded' | 'what-if';
 export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund';
 
 // What a reconciliation line found. matched, dispute_hold and settled are not differences; paypal_only and desk_only are;
-// unread means PayPal didn't answer, so nothing is known either way. fingerprint_mismatch is the one on a fingerprint event.
-export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread' | 'fingerprint_mismatch';
+// unread means PayPal didn't answer, so nothing is known either way. The fingerprint_ ones sit on a fingerprint event; only
+// a mismatch is a difference, and an event without one is a copy that couldn't be read at capture.
+export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread' | 'fingerprint_match' | 'fingerprint_mismatch' | 'fingerprint_none';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
@@ -25,8 +26,8 @@ export type IncidentEvent = {
   actor: string;     // 'shopping agent', 'JUNCO agent', 'Claude (connector)', 'gate', 'owner', 'PayPal', 'buyer'
   summary: string;   // one plain sentence a judge can read
   source: string;    // the record it came from: 'pool', 'store-runs', 'holds', 'gate-log', 'activity', 'PayPal'
-  ref?: Partial<Record<'order_id' | 'capture_id' | 'buyer_txn' | 'dispute_id' | 'hold_id' | 'refund_id' | 'run_id' | 'rule', string>>;
-  match?: Match;     // reconciliation lines about one money movement, and a failed read
+  ref?: Partial<Record<'order_id' | 'capture_id' | 'buyer_txn' | 'dispute_id' | 'hold_id' | 'refund_id' | 'run_id' | 'rule' | 'payment_status' | 'amount', string>>;
+  match?: Match;     // reconciliation lines about one money movement, a failed read, and fingerprint events
 };
 
 // One purchase side by side (threeRecords in incident-questions.ts), from the incident alone: no model, no extra PayPal read.
@@ -56,6 +57,23 @@ export type Incident = {
 };
 
 export type IncidentSummary = Pick<Incident, 'id' | 'title' | 'dispute_id' | 'counts'> & { last_at: string };
+
+// One AI purchase on the Books (src/books.ts). Keys are the Studio data source's field ids. Names stay apart from the
+// disputes source's, because a widget picks its fields by name across every source.
+export type BooksRow = {
+  purchase: string;     // the incident id
+  title: string;
+  at: string;           // the incident's latest event
+  paid: number;         // USD
+  paypal_status: string; // LIVE: PayPal's status, or 'Unread'
+  refunds: string;      // LIVE: the amounts, 'None', or 'Unread'
+  holds: number;        // RECORDED: the desk's holds on this purchase
+  fingerprint: 'Match' | 'Mismatch' | 'Not recorded' | 'Not read' | 'Before fingerprints';
+  reconciliation: 'Differ' | 'Unread' | 'Agree';
+  line: string;         // the three records' one plain sentence
+  replay: 'Changed today' | 'Same today' | 'No moves'; // WHAT-IF: never reaches PayPal
+  replay_detail: string;
+};
 
 export type WhatIf = {
   mode: 'what-if';

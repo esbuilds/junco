@@ -1,6 +1,6 @@
 // BLACK BOX, the judge's first questions about an incident, answered from the Incident JSON alone (no model, no
 // PayPal). Shared by the desk's server code and Studio; public/incident.html repeats these few lines in plain JS.
-import type { Incident, IncidentEvent, Match, Mode, ThreeRecords } from './incident-types.js';
+import type { BooksRow, Incident, IncidentEvent, Match, Mode, ThreeRecords } from './incident-types.js';
 
 // The AI's own words (a refund ask's support agent) are often markdown. Shown as plain text, at display time only: bold,
 // underline and code marks dropped, each list item or paragraph its own line. Never HTML; callers escape as before.
@@ -14,6 +14,12 @@ export const aiText = (s: string) => aiLines(s).reduce((out, l) => (!out ? l : /
 // WHAT-IF never appears on an event; whatIf() returns it and the page draws it apart.
 const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
 export const modeOf = (e: IncidentEvent): Mode => e.mode ?? ((LIVE.has(e.kind) && !e.id.endsWith(':leased')) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
+
+// The Books' order: differences pinned first, then what went unread, newest first within each. Studio's filters hand back
+// rows in their own order, so the widget sorts with this too.
+const RANK = { Differ: 0, Unread: 1, Agree: 2 };
+type Ranked = Pick<BooksRow, 'reconciliation' | 'at' | 'purchase'>;
+export const byDifference = (a: Ranked, b: Ranked) => RANK[a.reconciliation] - RANK[b.reconciliation] || b.at.localeCompare(a.at) || a.purchase.localeCompare(b.purchase);
 
 // What the AI believed, what the gate recorded and what PayPal says, on one purchase. A dispute hold and a settled dispute's
 // refund aren't differences, and PayPal not answering is never agreement. The AI's and the gate's are the desk's own records,

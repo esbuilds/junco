@@ -2,6 +2,7 @@
 //   npm run check-ui
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
+import { BOOK_FIELDS, FIELDS } from './src/insights';
 import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, policyWords, splitHolds, startProgress } from './src/ui';
 import { readFileSync } from 'node:fs';
 
@@ -70,5 +71,8 @@ assert.equal(policyWords('policy: create_refund = hold'), 'Your policy: refunds 
 assert.equal(policyWords('policy: make_dispute_offer = hold'), 'Your policy: offers wait for you');
 assert.equal(policyWords('policy: add_order_tracking = hold'), 'Your policy: add order tracking waits for you');
 assert.equal(policyWords('offer above the $25.00 auto-offer limit'), 'offer above the $25.00 auto-offer limit'); // anything else as written
+
+// A widget picks its fields by name across every source, so a Books field named like a dispute field would break Matching.
+assert.deepEqual(BOOK_FIELDS.filter((b) => FIELDS.some((f) => f.id === b.id)), []);
 
 console.log('check-ui: ok');

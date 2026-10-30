@@ -68,8 +68,9 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   // No copy kept means that read failed (shopper.ts), which says nothing about what PayPal holds.
   const fp = a.mandate && !a.mandate.paypal ? { text: "PayPal's copy couldn't be read at capture, so it isn't checked here; JUNCO reads it again when it works a dispute on this order." }
     : checkAgainstPayPal(a, a.mandate?.paypal?.custom_id);
+  const found = 'verdict' in fp ? ({ match: 'fingerprint_match', mismatch: 'fingerprint_mismatch', 'not recorded': 'fingerprint_none' } as const)[fp.verdict as 'match'] : undefined;
   if (a.mandate) events.push({ id: `paypal_fingerprint:${p.order_id ?? p.buyer_txn}`, at: a.mandate.paypal?.read_at ?? paid, kind: 'paypal_fingerprint', actor: 'PayPal', source: 'PayPal order',
-    summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) }, ...('verdict' in fp && fp.verdict === 'mismatch' && { match: 'fingerprint_mismatch' as const }) });
+    summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) }, ...(found && { match: found }) });
   else missing.push(`mandate fingerprint: ${fp.text.replace(/^N/, 'n')}`);
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
     summary: dispute_id ? `The buyer disputed the order as not as described; PayPal opened ${dispute_id}.` : `Filing the buyer's dispute failed: ${run.error ?? 'no dispute id recorded'}.`,
@@ -202,6 +203,13 @@ function recorded(eventId: string): { method: string; args: any; verdict: string
   if (kind === 'hold') { const h: Hold | undefined = readHolds().find((x) => x.id === key); return h ? { method: h.method, args: h.args, verdict: 'hold', reason: h.reason } : null; }
   if (kind === 'gate') { const m: Move | undefined = readMoves().find((x) => x.at === key); return m ? { method: m.method, args: m.args, verdict: m.verdict, reason: m.reason } : null; }
   return null;
+}
+
+// The same re-run with nothing changed: what the gate decided then, and what today's policy and standing approvals decide.
+// decide() only, so a lease or kill-switch refusal then shows as what the policy alone says today.
+export function replay(eventId: string) {
+  const r = recorded(eventId);
+  return r && { method: r.method, before: r.verdict, after: decide(loadActivePolicy(), r.method, r.args, readBudgets()).verdict };
 }
 
 // Re-runs decide() (gate.ts) on the recorded request: `before` is what the gate decided then, `after` is today's policy
