@@ -99,7 +99,7 @@ export async function createServer(ctx: Ctx & { readonly accessToken: string }, 
     content: [{ type: 'text' as const, text: await trackingTool.run(ctx, arg) }],
   }));
   addHoldCard(server, policy, readHolds); // S3, as on the hosted server
-  addIncidentTools(server); // BLACK BOX on the toolkit path too: PayPal's hosted calls fail at times (Oct 28), this one doesn't
+  addIncidentTools(server, (p) => paypal(ctx, 'GET', p)); // BLACK BOX on the toolkit path too: PayPal's hosted calls fail at times (Oct 28), this one doesn't
   return { server, policy, holds: gate(server, policy, onHold, caseReader(ctx), undefined, log, captureReader(ctx)) }; // gate last, so it wraps every tool
 }
 
