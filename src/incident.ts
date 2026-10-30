@@ -274,7 +274,8 @@ export function addIncidentTools(server: any, get?: PayPalGet) {
       + 'the capture id, or a decline- id: then purchase is null, `decline` holds the agent\'s reason and the listings it saw, '
       + 'and there is nothing to pass to junco_what_if. Events of kind reconciliation line up the refunds PayPal shows on the '
       + 'payment now against the desk\'s holds: matched, at PayPal only, or on the desk only. A line that reads as a dispute hold '
-      + 'is PayPal holding the payment during a dispute, with no money gone back, and is not a mismatch. Read only.',
+      + 'is PayPal holding the payment during a dispute, with no money gone back, and is not a mismatch. PayPal copies a payment\'s '
+      + 'custom_id and invoice_id onto its refunds, so those fields don\'t show who made a refund. Read only.',
     inputSchema: { id: z.string().regex(/^[A-Za-z0-9_-]{15,32}$/).describe('The purchase: its buyer transaction id (from junco_list_incidents), its PayPal order id, its capture id, or a decline- id') },
   }, async ({ id }: { id: string }) => reply(() => reconciled(buildIncident(id), get)));
   server.registerTool('junco_what_if', {
