@@ -75,4 +75,7 @@ assert.equal(policyWords('offer above the $25.00 auto-offer limit'), 'offer abov
 // A widget picks its fields by name across every source, so a Books field named like a dispute field would break Matching.
 assert.deepEqual(BOOK_FIELDS.filter((b) => FIELDS.some((f) => f.id === b.id)), []);
 
+// Claude refuses a whole turn if two tools share a name, and the desk's list and the assistant's own both have junco_get_incident.
+assert.match(readFileSync(new URL('src/studioAi.ts', import.meta.url), 'utf8'), /paypalTools\.filter\(\(t\) => !junco\.some\(\(j\) => j\.name === t\.name\)\)/, "the assistant's own tools must win over the desk's");
+
 console.log('check-ui: ok');

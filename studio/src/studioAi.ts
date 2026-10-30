@@ -238,8 +238,9 @@ export function aiSetup() {
           ...builtIn.lead, id: 'junco', adapter, maxTurns: 10, name: 'JUNCO',
           description: "JUNCO's dispute assistant: answers about cases from JUNCO's evidence, asks Studio's agents for charts and widgets, and acts on PayPal only through the owner's policy gate.",
           instructions: (ctx, p) => (builtIn.lead.instructions?.(ctx, p) ?? '') + LEAD_NOTE,
+          // The desk's list now carries junco_get_incident too. Claude refuses a turn with two tools of one name, so ours wins.
           tools: (ctx, p) => [...(builtIn.lead.tools?.(ctx, p) ?? []).filter((t) => t.name !== 'delegate_to'),
-            ctx.tools.delegateTo(['data', 'widget', 'page', 'planning']), ...junco, ...paypalTools],
+            ctx.tools.delegateTo(['data', 'widget', 'page', 'planning']), ...junco, ...paypalTools.filter((t) => !junco.some((j) => j.name === t.name))],
         }),
       ],
       primary: 'junco',
