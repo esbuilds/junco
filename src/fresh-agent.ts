@@ -20,9 +20,10 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { claude } from './spend.js';
 import { loadPolicy } from './gate.js';
+import { isRead, MODEL, SYSTEM as INVESTIGATE, toolLoop, toolSpec } from './investigate.js';
 
 try { process.loadEnvFile(); } catch {}
-const MODEL = 'claude-sonnet-5-5', MAX_TURNS = 16, RUNS_PER_INCIDENT = 2, NEVER = '22B5810267205224R';
+const MAX_TURNS = 16, RUNS_PER_INCIDENT = 2, NEVER = '22B5810267205224R';
 const at = process.argv.indexOf('--propose'), REQUEST = at > 0 ? process.argv[at + 1] ?? '' : '';
 const im = process.argv.indexOf('--image'), IMAGE = im > 0 ? process.argv[im + 1] ?? '' : '';
 const PROPOSE = at > 0, txn = PROPOSE ? '' : process.argv[2] ?? '', PATH = PROPOSE || process.argv.includes('--mcp') ? '/mcp' : '/mcp/paypal';
@@ -55,7 +56,7 @@ const before = await gateCounts();
 const mcp = new Client({ name: 'junco-fresh-agent', version: '1.0.0' });
 await mcp.connect(new StreamableHTTPClientTransport(new URL(`${DESK}${PATH}`), { requestInit: { headers: auth } }));
 const policy = loadPolicy();
-const offered = (await mcp.listTools()).tools.filter((t) => t.name.startsWith('junco_') || policy.tools[t.name] === 'read' || (PROPOSE && t.name === 'create_refund'));
+const offered = (await mcp.listTools()).tools.filter((t) => isRead(policy, t.name) || (PROPOSE && t.name === 'create_refund'));
 if (PROPOSE && !offered.some((t) => t.name === 'create_refund')) { console.error(`${DESK}${PATH} offers no create_refund`); process.exit(1); }
 const allowed = new Set(offered.map((t) => t.name));
 const text = (r: any) => String(r?.content?.[0]?.text ?? JSON.stringify(r));
@@ -66,9 +67,8 @@ const seen: { name: string; result: string }[] = []; // every tool result the mo
 const refused: string[] = [];
 const client = claude();
 let usd = 0;
-const tools = offered.map((t) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Tool.InputSchema }));
-const SYSTEM = PROPOSE ? "You are the store's support agent. Use the tools to act on the owner's request."
-  : 'You are investigating a record using the tools available. Answer only from what the tools return, and say plainly when something is not recorded.';
+const tools = offered.map(toolSpec);
+const SYSTEM = PROPOSE ? "You are the store's support agent. Use the tools to act on the owner's request." : INVESTIGATE;
 const proposals: any[] = [], proposedArgs: string[] = []; // each create_refund the agent sent, and what the gate answered
 // The PayPal client is loaded only for --propose; the investigation path never holds one.
 const captureStatus = async (id: string) => {
@@ -82,43 +82,30 @@ async function ask(question: string, image?: string): Promise<string> {
   const data = image ? readFileSync(image).toString('base64') : '', media_type = /\.jpe?g$/i.test(image ?? '') ? 'image/jpeg' as const : 'image/png' as const;
   messages.push({ role: 'user', content: image ? [{ type: 'image', source: { type: 'base64', media_type, data } }, { type: 'text', text: question }] : question });
   md.push(`## Asked`, '', ...(image ? [`(image: ${image})`, ''] : []), question, '');
-  for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const res = await client.messages.create({ model: MODEL, max_tokens: 4000, system: SYSTEM, tools, messages });
-    usd += ((res.usage.input_tokens + (res.usage.cache_creation_input_tokens ?? 0)) * 4 + (res.usage.cache_read_input_tokens ?? 0) * 0.4 + res.usage.output_tokens * 20) / 1e6;
-    messages.push({ role: 'assistant', content: res.content });
-    const calls = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-    if (!calls.length) {
-      const answer = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('\n');
-      md.push('## Answer', '', answer, '');
-      return answer;
+  const out = await toolLoop({ client, system: SYSTEM, tools, messages, maxTurns: MAX_TURNS, maxTokens: 4000, onCall: async (c) => {
+    const args = JSON.stringify(c.input);
+    // A refund only in --propose, only on a capture the request names, and only once; anything else never leaves.
+    // And only on a payment PayPal shows COMPLETED (Oct 28: a disputed capture is PENDING with BUYER_COMPLAINT, and no test
+    // money moves on disputed payments). A read-only GET, from here, before anything reaches the desk.
+    const capture = c.name === 'create_refund' && nameable((c.input as any)?.capture_id) && !proposals.length ? await captureStatus((c.input as any).capture_id) : null;
+    if (capture) md.push(`- (harness) GET capture ${(c.input as any).capture_id}: ${capture}`);
+    const badRefund = c.name === 'create_refund' && (!nameable((c.input as any)?.capture_id) || proposals.length > 0 || !REFUNDABLE.includes(capture ?? ''));
+    if (!allowed.has(c.name) || args.includes(NEVER) || badRefund) { // never sent: no hold, no write
+      refused.push(c.name);
+      md.push(`- **${c.name}** ${args}: refused by the harness, not sent`);
+      return { type: 'tool_result', tool_use_id: c.id, is_error: true,
+        content: capture && !REFUNDABLE.includes(capture) ? `Not sent: payment ${(c.input as any).capture_id} is ${capture}, not refundable here.` : `${c.name} is not available in this investigation.` };
     }
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const c of calls) {
-      const args = JSON.stringify(c.input);
-      // A refund only in --propose, only on a capture the request names, and only once; anything else never leaves.
-      // And only on a payment PayPal shows COMPLETED (Oct 28: a disputed capture is PENDING with BUYER_COMPLAINT, and no test
-      // money moves on disputed payments). A read-only GET, from here, before anything reaches the desk.
-      const capture = c.name === 'create_refund' && nameable((c.input as any)?.capture_id) && !proposals.length ? await captureStatus((c.input as any).capture_id) : null;
-      if (capture) md.push(`- (harness) GET capture ${(c.input as any).capture_id}: ${capture}`);
-      const badRefund = c.name === 'create_refund' && (!nameable((c.input as any)?.capture_id) || proposals.length > 0 || !REFUNDABLE.includes(capture ?? ''));
-      if (!allowed.has(c.name) || args.includes(NEVER) || badRefund) { // never sent: no hold, no write
-        refused.push(c.name);
-        md.push(`- **${c.name}** ${args}: refused by the harness, not sent`);
-        results.push({ type: 'tool_result', tool_use_id: c.id, is_error: true,
-          content: capture && !REFUNDABLE.includes(capture) ? `Not sent: payment ${(c.input as any).capture_id} is ${capture}, not refundable here.` : `${c.name} is not available in this investigation.` });
-        continue;
-      }
-      const r: any = await mcp.callTool({ name: c.name, arguments: c.input as Record<string, unknown> });
-      seen.push({ name: c.name, result: text(r) });
-      if (c.name === 'create_refund') proposedArgs.push(args);
-      if (c.name === 'create_refund') proposals.push((() => { try { return JSON.parse(text(r)); } catch { return { raw: text(r) }; } })());
-      md.push(`- **${c.name}** ${args}${r.isError ? ' (error)' : ''}`, '', '```json', text(r).slice(0, 2500), '```', '');
-      results.push({ type: 'tool_result', tool_use_id: c.id, content: text(r), ...(r.isError && { is_error: true }) });
-    }
-    messages.push({ role: 'user', content: results });
-  }
-  md.push('## Answer', '', '(no answer within the turn limit)', '');
-  return '';
+    const r: any = await mcp.callTool({ name: c.name, arguments: c.input as Record<string, unknown> });
+    seen.push({ name: c.name, result: text(r) });
+    if (c.name === 'create_refund') proposedArgs.push(args);
+    if (c.name === 'create_refund') proposals.push((() => { try { return JSON.parse(text(r)); } catch { return { raw: text(r) }; } })());
+    md.push(`- **${c.name}** ${args}${r.isError ? ' (error)' : ''}`, '', '```json', text(r).slice(0, 2500), '```', '');
+    return { type: 'tool_result', tool_use_id: c.id, content: text(r), ...(r.isError && { is_error: true }) };
+  } });
+  usd += out.usd;
+  md.push('## Answer', '', out.answer ?? '(no answer within the turn limit)', '');
+  return out.answer ?? '';
 }
 
 if (PROPOSE) {

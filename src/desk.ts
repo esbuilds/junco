@@ -35,6 +35,7 @@ import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
 import { ASKER, askRefund, type Deps as RefundDeps } from './refund-ask.js';
 import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { isPublic, PUBLIC_SESSION } from './public.js';
+import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -151,6 +152,21 @@ const refundDeps: RefundDeps = {
     const c = new Client({ name: 'junco-support-agent', version: '1.0.0' }); await c.connect(b);
     const { tools } = await c.listTools();
     return { tools, call: async (name, args) => { const r: any = await c.callTool({ name, arguments: args }); return String(r?.content?.[0]?.text ?? JSON.stringify(r)); },
+      close: async () => { await c.close(); await s.close(); } };
+  },
+};
+// The drill's investigator: the desk's own /mcp tools in-process. drill.ts offers it the read tools and refuses the rest;
+// the gate's callbacks tell the run if anything else ever arrives, so the hold and write paths stay the gate's.
+const drillDeps: DrillDeps = {
+  policy: () => policy,
+  gateCounts: () => { const { proposed, held, allowed, pending } = gateRecordView().counts; return JSON.stringify({ proposed, held, allowed, pending }); },
+  reconciled: async (id) => (await reconciled(buildIncident(id), (q) => paypal(ctx, 'GET', q)))?.events ?? [],
+  connect: async (watch) => {
+    const { server: s } = await createServer(ctx, policy, watch.held, watch.logged);
+    const [a, b] = InMemoryTransport.createLinkedPair(); await s.connect(a);
+    const c = new Client({ name: 'junco-drill', version: '1.0.0' }); await c.connect(b);
+    const { tools } = await c.listTools();
+    return { tools, call: async (name, args) => { const r: any = await c.callTool({ name, arguments: args }); return { text: String(r?.content?.[0]?.text ?? JSON.stringify(r)), isError: !!r?.isError }; },
       close: async () => { await c.close(); await s.close(); } };
   },
 };
@@ -710,12 +726,20 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       await actor.exit(selfCheck); return json(res, 200, lastCheck);
     }
     if (req.method === 'GET' && url.pathname === '/api/gate-record') return json(res, 200, gateRecordView()); // v3.14
+    // The drill: a public page and its runs (public.ts). Hiding a refund goes from the visitor's browser to the planter, never from here.
+    if (req.method === 'GET' && url.pathname === '/drill') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(drillPage()); }
+    if (req.method === 'GET' && url.pathname === '/api/drill/score') return json(res, 200, await drillScore());
+    if (req.method === 'POST' && url.pathname === '/api/drill/run') {
+      try { return json(res, 200, await startRun(drillDeps, (await readBody(req))?.plant_id)); }
+      catch (e: any) { return json(res, e.code ?? 500, { error: { message: e.code ? e.message : "The drill didn't start. Nothing was sent to Claude." } }); }
+    }
+    if (req.method === 'GET' && p[0] === 'api' && p[1] === 'drill' && p[2] === 'run' && p[3] && !p[4]) { const r = drillRun(p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); }
     if (req.method === 'GET' && url.pathname === '/judges') { // the judges' door: open without the password (public.ts)
       const all = await listIncidents(), declines = all.filter((i) => i.id.startsWith('decline-'));
       const rooms = readChallengeRuns().filter((r) => r.room).slice(-8).reverse()
         .map((r) => ({ id: r.id, at: r.at, room: r.room!, title: ROOMS[r.room! - 1]?.title ?? '', outcome: roomOutcome(r).text }));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: declines.find((i) => /kayak/i.test(i.title)) ?? declines[0] ?? null, escape: escapeStats(), rooms }));
+      return res.end(judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: declines.find((i) => /kayak/i.test(i.title)) ?? declines[0] ?? null, escape: escapeStats(), rooms, drill: await drillScore() }));
     }
     // BLACK BOX: one AI purchase's incident page, its JSON, a printable receipt and the what-if (never reaches PayPal).
     if (req.method === 'GET' && url.pathname === '/api/incidents') return json(res, 200, await listIncidents());

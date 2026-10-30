@@ -20,7 +20,8 @@ export const KINDS: Kind[] = ['unshipped', 'delivered', 'agent'];
 // capture_id: the payment's capture (refunds name it); paid_at: when PayPal captured it. Recorded from Oct 28 on (paid_at
 // from Oct 28); older entries lack them until backfilled. mandate: the fingerprint written into PayPal's order (Oct 29 on).
 export type AgentRecord = { instruction: string; budget: string; sku: string; listing: string; reason: string; agent: string; capture_id?: string; paid_at?: string; mandate?: FingerprintRecord };
-export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string };
+// drill: a purchase kept for the drill. It lists as a public incident like any agent order and never joins the dispute pool.
+export type PoolEntry = { buyer_txn: string; amount: string; order_id?: string; tracking?: boolean; scan?: string; agent?: AgentRecord; added: string; drill?: boolean };
 // A run is one filed case. visitor/session/leased_at are set when a visitor leases it; unlocked_at when PayPal first
 // lists merchant actions; retired_at when it aged out of the ready set unleased.
 export type Run = { at: string; visitor: string; session?: string; buyer_txn: string; kind?: Kind; scan?: string; dispute_id?: string; error?: string; challenge?: boolean;
@@ -57,7 +58,7 @@ export const readRefundAsks = () => read<RefundAsk[]>(ASKS, []);
 export const saveRefundAsk = (a: RefundAsk) => write(ASKS, [...readRefundAsks().filter((x) => !(x.capture_id === a.capture_id && x.at === a.at)), a]);
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
-const kindOf = (p: PoolEntry): Kind | null => (p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
+export const kindOf = (p: PoolEntry): Kind | null => (p.drill ? null : p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);
 const unused = (kind: Kind) => readPool().filter((p) => kindOf(p) === kind && !used().has(p.buyer_txn));
 
 // Cases must look their age (Oct 10: a same-day order made JUNCO say "too early to expect delivery", and a delivery
@@ -122,6 +123,13 @@ export function recordedRun(): Run | null {
 // or paid_at takes it from the post (entries filled before those were recorded); nothing else on an existing entry changes.
 const captureOf = (e: any): string | undefined => (typeof e?.agent?.capture_id === 'string' && /^\w{1,40}$/.test(e.agent.capture_id) ? e.agent.capture_id : undefined);
 // ISO UTC only (PayPal's create_time or toISOString), stored normalized so it sorts as text with the desk's other times.
+// What the fingerprint check reads, and nothing else off the post. Without a well-formed one the order has no mandate on record.
+const mandateOf = (e: any): FingerprintRecord | undefined => {
+  const m = e?.agent?.mandate, p = m?.paypal;
+  if (typeof m?.model !== 'string' || typeof m.at !== 'string' || !/^[0-9a-f]{12}$/.test(m.fingerprint ?? '')) return undefined;
+  const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : undefined);
+  return { model: m.model.slice(0, 100), at: m.at.slice(0, 40), fingerprint: m.fingerprint, ...(typeof p?.read_at === 'string' && { paypal: { custom_id: str(p.custom_id), invoice_id: str(p.invoice_id), read_at: p.read_at.slice(0, 40) } }) };
+};
 const paidOf = (e: any): string | undefined => {
   const t = e?.agent?.paid_at;
   return typeof t === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(t) && !Number.isNaN(Date.parse(t)) ? new Date(t).toISOString() : undefined;
@@ -141,8 +149,8 @@ export function addToPool(entries: any[]): { added: number; backfilled: number }
     .map((e) => ({ buyer_txn: e.buyer_txn, amount: Number(e.amount).toFixed(2), order_id: e.order_id, tracking: !!e.tracking,
       ...(typeof e.scan === 'string' && (e.tracking || e.agent) && { scan: e.scan.slice(0, 500) }),
       ...(e.agent && { agent: { ...Object.fromEntries(['instruction', 'budget', 'sku', 'listing', 'reason', 'agent'].map((k) => [k, String(e.agent[k] ?? '').slice(0, 1000)])),
-        ...(captureOf(e) && { capture_id: captureOf(e) }), ...(paidOf(e) && { paid_at: paidOf(e) }) } as AgentRecord }),
-      added: new Date().toISOString() }));
+        ...(captureOf(e) && { capture_id: captureOf(e) }), ...(paidOf(e) && { paid_at: paidOf(e) }), ...(mandateOf(e) && { mandate: mandateOf(e) }) } as AgentRecord }),
+      ...(e.drill === true && { drill: true }), added: new Date().toISOString() }));
   if (fresh.length || backfilled) write(POOL, [...pool, ...fresh]);
   return { added: fresh.length, backfilled };
 }

@@ -6,6 +6,7 @@
 //   npm run pool -- 3 agent      orders a Claude shopping agent places for the buyer (src/shopper.ts), paid merchant-initiated
 //                                with the PayPal account the buyer saved for the store (AGENT_VAULT_ID; made on first run),
 //                                plus the store's delivery record; disputed later as not as described
+//   npm run pool -- 3 drill      the same orders, marked for the drill: public incidents that are never disputed
 // Needs SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env, plus OWNER_TOKEN (same value as on the desk).
 // One order at a time; on a failed step it saves a screenshot to .junco/pool-fail.png and stops.
 import { createRequire } from 'node:module';
@@ -16,7 +17,8 @@ import { AGENT_NAME, CATALOG, INSTRUCTIONS, charge, listing, shop } from './shop
 const { chromium } = createRequire(new URL('../studio/package.json', import.meta.url))('playwright');
 const ctx = await sandboxCtx();
 const [n = '1', kind = ''] = process.argv.slice(2);
-if (!['delivered', 'unshipped', 'agent'].includes(kind)) { console.error('usage: npm run pool -- <n> delivered|unshipped|agent'); process.exit(1); }
+if (!['delivered', 'unshipped', 'agent', 'drill'].includes(kind)) { console.error('usage: npm run pool -- <n> delivered|unshipped|agent|drill'); process.exit(1); }
+const byAgent = kind === 'agent' || kind === 'drill';
 const email = process.env.SANDBOX_BUYER_EMAIL, password = process.env.SANDBOX_BUYER_PASSWORD;
 if (!email || !password) { console.error('Set SANDBOX_BUYER_EMAIL and SANDBOX_BUYER_PASSWORD in .env'); process.exit(1); }
 const DESK = process.env.DESK_URL ?? 'https://junco-desk.onrender.com';
@@ -46,7 +48,7 @@ const newestTxn = async () => {
 };
 // The buyer saves PayPal for the store once (a vault setup token they approve); the agent's orders then charge it.
 let vaultId = process.env.AGENT_VAULT_ID;
-if (kind === 'agent' && !vaultId) {
+if (byAgent && !vaultId) {
   const st = await paypal(ctx, 'POST', '/v3/vault/setup-tokens', { json: { payment_source: { paypal: {
     usage_type: 'MERCHANT', usage_pattern: 'IMMEDIATE', description: 'JUNCO demo store: let your shopping agent pay with PayPal',
     experience_context: { return_url: 'https://example.com/return', cancel_url: 'https://example.com/cancel', vault_instruction: 'ON_PAYER_APPROVAL' } } } } });
@@ -63,7 +65,7 @@ let last = await newestTxn();
 console.log(`buyer's newest earlier transaction: ${last ?? 'none'}`);
 const entries = [], declines = [];
 for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
-  if (kind === 'agent') {
+  if (byAgent) {
     // The agent shops; the store charges the saved PayPal account only for an item within the budget the agent sent.
     const ask = INSTRUCTIONS[tries % INSTRUCTIONS.length], choice = await shop(ask.instruction, ask.budget);
     if ('declined' in choice) {
@@ -82,7 +84,7 @@ for (let i = 0, tries = 0; i < Number(n) && tries < Number(n) * 3; tries++) {
     last = txn;
     entries.push({ buyer_txn: txn, amount: item.price, order_id: c.order_id, tracking: false,
       scan: `USPS ${number}: Delivered, front door, SAN JOSE, CA 95131 (John Doe, 2211 N First St), ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
-      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt, mandate } });
+      agent: { instruction: ask.instruction, budget: ask.budget, sku: item.sku, listing: listing(item.sku), reason: choice.reason, agent: AGENT_NAME, capture_id: capture, paid_at: paidAt, mandate }, ...(kind === 'drill' && { drill: true }) });
     console.log(`${++i}/${n}: agent bought ${item.sku} for "${ask.instruction}" (${choice.reason}); order ${c.order_id}, capture ${capture}, buyer transaction ${txn}`);
     continue;
   }

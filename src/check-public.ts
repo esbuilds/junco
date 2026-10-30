@@ -1,6 +1,7 @@
 // The judges' door, offline: exactly which paths open without the desk password (public.ts), that every other path stays
-// behind it, that the desk wires the door in before its 401, that the incident page only fetches open paths (no browser
-// password box), that a visitor's own shopping runs never open for the public, and what /judges shows.
+// behind it, that the desk wires the door in before its 401, that the incident page and the drill page only fetch open paths
+// (no browser password box), that a visitor's own shopping runs never open for the public, and what /judges shows. The drill's
+// run route is the one open route that calls Claude; check-drill pins its caps.
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,7 +10,8 @@ import { isPublic, PUBLIC_GET, PUBLIC_POST, PUBLIC_SESSION } from './public.js';
 
 const ID = 'AAAAAAAAAAAAAAAA1';
 const open: [string, string][] = [['GET', '/judges'], ['GET', '/api/incidents'], ['GET', `/incident/${ID}`], ['GET', `/incident/${ID}/receipt`],
-  ['GET', `/api/incident/${ID}`], ['GET', '/incident/decline-20261029162810201'], ['GET', '/run/c5b289d1'], ['POST', `/api/incident/${ID}/what-if`]];
+  ['GET', `/api/incident/${ID}`], ['GET', '/incident/decline-20261029162810201'], ['GET', '/run/c5b289d1'], ['POST', `/api/incident/${ID}/what-if`],
+  ['GET', '/drill'], ['GET', '/api/drill/score'], ['POST', '/api/drill/run'], ['GET', '/api/drill/run/0f2c6d1e-aaaa-4bbb-8ccc-123456789abc']];
 const closed: [string, string][] = [
   // the desk, Studio and everything that acts, spends or reads PayPal
   ['GET', '/'], ['GET', '/owner'], ['GET', '/?page=incident'], ['GET', '/api/shop'], ['POST', '/api/shop'], ['GET', '/api/challenge'], ['POST', '/api/challenge'],
@@ -21,6 +23,8 @@ const closed: [string, string][] = [
   ['DELETE', `/api/incident/${ID}`], ['HEAD', '/judges'], ['GET', `/api/incident/${ID}/receipt`], ['GET', `/incident/${ID}/other`], ['GET', `/incident/${ID}/receipt/x`],
   ['GET', '/judges/x'], ['GET', '/api/incidents/x'], ['GET', '/run/x/y'], ['GET', '/incident/a%2F..%2Fapi'], ['GET', '/incident/'], ['GET', '/run/'], ['GET', `//incident/${ID}`],
   ['GET', `/incident/${'x'.repeat(65)}`], ['GET', '/judges?x=1#'],
+  ['POST', '/drill'], ['GET', '/drill/x'], ['GET', '/api/drill'], ['POST', '/api/drill'], ['GET', '/api/drill/run'], ['POST', '/api/drill/run/x'], ['PUT', '/api/drill/run'],
+  ['POST', '/api/drill/score'], ['GET', '/api/drill/run/x/y'], ['GET', `/api/drill/run/${'x'.repeat(65)}`],
 ];
 for (const [m, p] of open) assert.ok(isPublic(m, p), `${m} ${p} should open`);
 for (const [m, p] of closed) assert.ok(!isPublic(m, p), `${m} ${p} must stay behind the password`);
@@ -40,7 +44,11 @@ assert.deepEqual(fetches.sort(), ['/api/incident/${encodeURIComponent(id)}', '/a
 for (const f of fetches.filter((x) => x !== '/api/refund-ask')) assert.ok(isPublic(f.endsWith('what-if') ? 'POST' : 'GET', f.replace(/\$\{[^}]+\}/, ID)));
 assert.ok(!isPublic('POST', '/api/refund-ask') && page.includes("if (r.ask) { $('#refund').innerHTML = askText(r.ask); return; }\n  if (!r.can_ask) return;"));
 assert.ok(page.includes('Desk (sign in to act)'));
-console.log('desk: the door sits before the 401; the incident page fetches only open paths, and posts a refund ask only when it may');
+// The drill page: open paths on the desk, and the planter from the visitor's browser.
+const drill = readFileSync('public/drill.html', 'utf8'), drillFetches = [...drill.matchAll(/fetch\((?:`([^`]+)`|'([^']+)')/g)].map((m) => m[1] ?? m[2]);
+assert.deepEqual(drillFetches.sort(), ['${window.PLANTER_URL}/plant', '/api/drill/run', '/api/drill/run/${encodeURIComponent(id)}', '/api/drill/score'].sort());
+for (const f of drillFetches.filter((x) => x.startsWith('/'))) assert.ok(isPublic(f === '/api/drill/run' ? 'POST' : 'GET', f.replace(/\$\{[^}]+\}/, ID)));
+console.log('desk: the door sits before the 401; the incident and drill pages fetch only open paths, and a refund ask posts only when it may');
 
 // Records: a pool purchase and a pool decline (public), a visitor's own buy and decline (private to their session).
 globalThis.fetch = (async () => { throw new Error('check-public: no network'); }) as any;
@@ -72,8 +80,9 @@ console.log('records: the public list and links show prepared purchases and pool
 // /judges from the public list.
 const all = actor.run(pub, listIncidents);
 const html = judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: all.find((i) => i.id.startsWith('decline-')) ?? null,
-  escape: { attempts: 3, escapes: 0, escape_runs: [] }, rooms: [{ id: 'c5b289d1', at: '2026-10-29T17:05:00.000Z', room: 1, title: 'Fair complaint', outcome: 'No money moved: JUNCO answered with a message (policy: send_dispute_message = allow).' }] });
-for (const want of [`/incident/${ID}"`, `/incident/${ID}/receipt"`, '/incident/decline-20261029162810201"', '/run/c5b289d1"', '3 attempts, 0 escapes.', 'Sign in to act', 'href="/"', "PayPal's sandbox with test accounts", 'No password is needed to look', 'noindex'])
+  escape: { attempts: 3, escapes: 0, escape_runs: [] }, rooms: [{ id: 'c5b289d1', at: '2026-10-29T17:05:00.000Z', room: 1, title: 'Fair complaint', outcome: 'No money moved: JUNCO answered with a message (policy: send_dispute_message = allow).' }],
+  drill: { hidden: 4, found: 3, missed: 0, false_alarms: 0, money_moved_usd: 0 } });
+for (const want of [`/incident/${ID}"`, `/incident/${ID}/receipt"`, '/incident/decline-20261029162810201"', '/run/c5b289d1"', '3 attempts, 0 escapes.', '4 hidden, 3 found, 0 missed, 0 false alarms.', 'Money moved by the investigator: $0.00', 'href="/drill"', 'Sign in to act', 'href="/"', "PayPal's sandbox with test accounts", 'No password is needed to look', 'noindex'])
   assert.ok(html.includes(want), `/judges lacks ${want}`);
 for (const bad of ['undefined', 'null', 'secret', 'CAPVISITOR1', '—']) assert.ok(!html.includes(bad), `/judges shows ${bad}`);
 // Every link on it opens without the password, except the desk itself.
