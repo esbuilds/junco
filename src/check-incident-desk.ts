@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { acceptedText, modeOf, paypalRefund, receiptPage } from './incident-view.js';
-import { NOTHING_PROPOSED, notInRecords, reachedPayPal, whatIfPreset } from './incident-questions.js';
+import { NOTHING_PROPOSED, notInRecords, reachedPayPal, threeRecords, whatIfPreset } from './incident-questions.js';
 import type { Incident, IncidentEvent } from './incident-types.js';
 
 const refund = (result: string, method = 'create_refund') => paypalRefund({ method, result });
@@ -64,4 +64,83 @@ assert.deepEqual([quiet.limit, quiet.targets, quiet.none], [0, [], NOTHING_PROPO
 const pageJs = readFileSync('public/incident.html', 'utf8');
 assert.ok(pageJs.includes(NOTHING_PROPOSED) && pageJs.includes('(amount - 10)') && pageJs.includes('const modeOf = (e) => e.mode ?? (') && pageJs.includes("/^allow:/") && pageJs.includes("!e.id.endsWith(':leased')")); // the page's plain-JS copy keeps step
 console.log('questions: LIVE events highlighted, missing listed or counted, what-if preset at the amount less $10, nothing proposed said plainly');
+
+// Three records: one purchase side by side, from the incident alone. Summaries as reconcile.ts writes them for real payments.
+const line = (id: string, summary: string, match?: IncidentEvent['match'], mode: IncidentEvent['mode'] = 'live'): IncidentEvent =>
+  ({ id: `reconciliation:${id}`, at: '2026-10-30T12:51:07.657Z', kind: 'reconciliation', mode, actor: 'JUNCO (system)', source: 'PayPal', summary, ...(match && { match }) });
+const OUTSIDE = 'PayPal shows a refund of 1.37 USD (2V173278FH578534S, COMPLETED) that the desk has no record of.';
+const read = (n: string, status: string) => line('read', `PayPal shows ${n} on this payment, and lists the payment as ${status}.`);
+const shape = (over: Partial<Incident>): Incident => ({ ...inc, dispute_id: null, missing: [], counts: { proposed: 0, approved: 0, executed: 0, outcome_unknown: 0 }, events: [], ...over });
+const col = (r: ReturnType<typeof threeRecords>, i: number, label: string) => r!.columns[i].rows.filter((x) => x.label === label).map((x) => x.value);
+
+const outside = threeRecords(shape({ events: [
+  { id: 'outside_refund:2V173278FH578534S', at: '2026-10-30T12:47:05.000Z', kind: 'outside_refund', mode: 'live', actor: 'PayPal', source: 'webhook', summary: "PayPal reported a refund of 1.37 USD (2V173278FH578534S) the desk didn't make." },
+  read('1 refund', 'PARTIALLY_REFUNDED'), line('2V173278FH578534S', OUTSIDE, 'paypal_only')] }))!;
+assert.equal(outside.agree, false);
+assert.equal(outside.line, `The records differ. ${OUTSIDE}`);
+assert.deepEqual(outside.columns.map((c) => [c.title, c.mode]), [['What the AI believed', 'recorded'], ['What the gate recorded', 'recorded'], ['What PayPal says', 'live']]);
+assert.deepEqual(outside.columns[0].rows.map((r) => [r.label, r.value]), [['Asked', 'a dry bag under 40'], ['Budget', '40.00 USD'], ['Bought', 'WKD-01 for 34.00 USD'], ['Its reason', 'waterproof']]);
+assert.deepEqual(col(outside, 1, 'Proposed'), ['0']);
+assert.deepEqual(col(outside, 1, 'Holds'), ['None']);
+assert.deepEqual(col(outside, 2, 'Refund'), [OUTSIDE]);
+assert.deepEqual(col(outside, 2, 'Webhook'), ["PayPal reported a refund of 1.37 USD (2V173278FH578534S) the desk didn't make."]);
+assert.deepEqual(col(outside, 2, 'Fingerprint'), ['Not recorded at PayPal (placed before fingerprints).']);
+
+const HOLD = "PayPal's record reads as a dispute hold of 59.35 USD: entry 6E9082945T161501K is PENDING on a payment held for a buyer complaint, and PayPal records 0.00 USD refunded, so no money has gone back to the buyer. The desk has nothing to match here.";
+const held = threeRecords(shape({ dispute_id: 'PP-R-COU-10194957', events: [read('no refunds', 'PENDING: BUYER_COMPLAINT'), line('6E9082945T161501K', HOLD, 'dispute_hold')] }))!;
+assert.equal(held.agree, true, 'a dispute hold is not a difference');
+assert.equal(held.line, "The three records agree. PayPal's dispute hold on this payment isn't a difference: no money has gone back.");
+assert.deepEqual(col(held, 2, 'Dispute hold'), [HOLD]);
+
+const made = threeRecords(shape({ counts: { proposed: 1, approved: 1, executed: 1, outcome_unknown: 0 }, events: [
+  { id: 'hold:04d179a8', at: '2026-10-28T16:09:30.941Z', kind: 'hold', mode: 'recorded', actor: 'MCP client', source: 'holds', summary: 'MCP client asked for create refund of 10.00 USD.', ref: { hold_id: '04d179a8' } },
+  { id: 'approval:04d179a8', at: '2026-10-28T16:11:39.252Z', kind: 'approval', mode: 'recorded', actor: 'owner', source: 'holds', summary: 'The owner approved create refund of 10.00 USD.', ref: { hold_id: '04d179a8' } },
+  { id: 'paypal:04d179a8', at: '2026-10-28T16:11:39.252Z', kind: 'paypal', mode: 'live', actor: 'PayPal', source: 'holds', summary: 'PayPal created refund 8EV94782FY6329802 (COMPLETED).', ref: { hold_id: '04d179a8', refund_id: '8EV94782FY6329802' } },
+  { id: 'hold:853278a7', at: '2026-10-28T16:07:35.915Z', kind: 'hold', mode: 'recorded', actor: 'MCP client', source: 'holds', summary: 'MCP client asked for create refund of 10.00 USD.', ref: { hold_id: '853278a7' } },
+  { id: 'approval:853278a7', at: '2026-10-28T16:07:35.915Z', kind: 'approval', mode: 'recorded', actor: 'owner', source: 'holds', summary: 'The owner rejected it; nothing was sent to PayPal (time not recorded).', ref: { hold_id: '853278a7' } },
+  { id: 'hold:waiting1', at: '2026-10-28T16:07:35.915Z', kind: 'hold', mode: 'recorded', actor: 'MCP client', source: 'holds', summary: 'MCP client asked for create refund of 2.00 USD.', ref: { hold_id: 'waiting1' } },
+  read('1 refund', 'PARTIALLY_REFUNDED'), line('8EV94782FY6329802', 'PayPal shows refund 8EV94782FY6329802 for 10.00 USD (COMPLETED). The desk made it: hold 04d179a8, approved by the owner.', 'matched')] }))!;
+assert.equal(made.agree, true);
+assert.equal(made.line, 'The three records agree.');
+assert.deepEqual(col(made, 1, 'Holds'), []);
+assert.deepEqual([col(made, 1, 'Hold 04d179a8'), col(made, 1, 'Hold 853278a7'), col(made, 1, 'Hold waiting1')],
+  [['PayPal created refund 8EV94782FY6329802 (COMPLETED).'], ['The owner rejected it; nothing was sent to PayPal (time not recorded).'], ['Waiting for the owner.']]);
+
+const down = line('read', "PayPal didn't answer (socket hang up), so the refunds on this payment were not checked against the desk.", 'unread', 'recorded');
+const unread = threeRecords(shape({ events: [down] }))!;
+assert.equal(unread.agree, null, 'nothing read is never an agreement');
+assert.equal(unread.line, "PayPal didn't answer, so the three records can't be compared right now.");
+assert.equal(unread.columns[2].mode, 'recorded');
+assert.deepEqual(col(unread, 2, 'Payment'), [down.summary]);
+const noRead = threeRecords(shape({ events: [] }))!;
+assert.equal(noRead.agree, null);
+assert.equal(noRead.line, "PayPal wasn't read for this purchase, so the three records can't be compared.");
+
+const MISMATCH = "PayPal's record of this payment carries fingerprint abc. The store's record does not reproduce it, so it doesn't match.";
+const fp: IncidentEvent = { id: 'paypal_fingerprint:O1', at: '2026-10-30T12:06:58.018Z', kind: 'paypal_fingerprint', mode: 'live', actor: 'PayPal', source: 'PayPal order', summary: MISMATCH, match: 'fingerprint_mismatch' };
+const forged = threeRecords(shape({ events: [fp, read('no refunds', 'COMPLETED')] }))!;
+assert.equal(forged.agree, false);
+assert.equal(forged.line, `The records differ. ${MISMATCH}`);
+assert.deepEqual(col(forged, 2, 'Fingerprint'), [MISMATCH]);
+assert.equal(threeRecords(shape({ events: [fp, down] }))!.agree, false, 'a mismatch stands even when the refunds went unread');
+
+const gone = 'The desk says hold hgone ran a refund of 8.00 USD (PayPal refund RFGONE), but PayPal doesn\'t show it on this payment.';
+assert.equal(threeRecords(shape({ events: [read('no refunds', 'COMPLETED'), line('hgone', gone, 'desk_only')] }))!.line, `The records differ. ${gone}`);
+assert.equal(threeRecords(shape({ events: [read('1 refund', 'REFUNDED'), line('RFS', 'A refund from the settled dispute.', 'settled')] }))!.agree, true, 'a settled dispute explains its refund');
+const lost = threeRecords(shape({ counts: { proposed: 1, approved: 1, executed: 0, outcome_unknown: 1 }, events: [read('no refunds', 'COMPLETED')] }))!;
+assert.equal(lost.agree, false);
+assert.equal(lost.line, "The records differ. The gate doesn't know how 1 money move ended.");
+assert.deepEqual(col(lost, 1, 'Outcome unknown'), ['1']);
+assert.equal(threeRecords({ ...inc, purchase: null, decline: { reason: 'x', listings: [] } }), null, 'a decline has no payment to compare');
+assert.ok(forged.columns.every((c) => c.mode === 'live' || c.mode === 'recorded'));
+console.log('three records: agree or differ and how; a dispute hold is no difference; unread is never agreement; a forged fingerprint is');
+
+const widget = readFileSync('studio/src/widgets/IncidentWidget.tsx', 'utf8'), deskSrc = readFileSync('src/desk.ts', 'utf8');
+assert.ok(/records: threeRecords\(/.test(deskSrc), 'the desk adds them to the incident JSON');
+assert.ok(!readFileSync('src/incident.ts', 'utf8').includes('threeRecords'), "junco_get_incident doesn't carry a verdict for a fresh Claude");
+assert.ok(pageJs.includes('inc.records') && /inc\??\.records/.test(widget));
+assert.ok(/class="mode \$\{c\.mode\}"/.test(pageJs) && /jd-mode jd-mode-\$\{c\.mode\}/.test(widget), 'each column wears the LIVE or RECORDED label the rail uses');
+assert.ok(/dl\(c\.rows\.map/.test(pageJs) && /esc\(c\.title\)/.test(pageJs) && /esc\(inc\.records\.line\)/.test(pageJs), 'the page escapes the records');
+assert.match(pageJs, /@media \(max-width: 760px\)[^\n]*\.records-cols \{ grid-template-columns: minmax\(0, 1fr\)/);
+console.log('three records on the pages: the same JSON, labelled, escaped, one column on a phone');
 console.log('incident-desk: ok');

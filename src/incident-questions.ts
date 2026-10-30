@@ -1,6 +1,6 @@
 // BLACK BOX, the judge's first questions about an incident, answered from the Incident JSON alone (no model, no
 // PayPal). Shared by the desk's server code and Studio; public/incident.html repeats these few lines in plain JS.
-import type { Incident, IncidentEvent, Mode } from './incident-types.js';
+import type { Incident, IncidentEvent, Match, Mode, ThreeRecords } from './incident-types.js';
 
 // The AI's own words (a refund ask's support agent) are often markdown. Shown as plain text, at display time only: bold,
 // underline and code marks dropped, each list item or paragraph its own line. Never HTML; callers escape as before.
@@ -14,6 +14,38 @@ export const aiText = (s: string) => aiLines(s).reduce((out, l) => (!out ? l : /
 // WHAT-IF never appears on an event; whatIf() returns it and the page draws it apart.
 const LIVE = new Set<IncidentEvent['kind']>(['purchase', 'payment', 'dispute', 'paypal', 'webhook']);
 export const modeOf = (e: IncidentEvent): Mode => e.mode ?? ((LIVE.has(e.kind) && !e.id.endsWith(':leased')) || (e.kind === 'gate' && !!e.ref?.rule?.startsWith('allow:')) ? 'live' : 'recorded');
+
+// What the AI believed, what the gate recorded and what PayPal says, on one purchase. A dispute hold and a settled dispute's
+// refund aren't differences, and PayPal not answering is never agreement. The AI's and the gate's are the desk's own records,
+// so RECORDED; PayPal's is LIVE only when it answered this read.
+const ROW: Partial<Record<Match, string>> = { matched: 'Refund', settled: 'Refund', paypal_only: 'Refund', dispute_hold: 'Dispute hold', desk_only: 'Not at PayPal' };
+export function threeRecords(inc: Incident): ThreeRecords | null {
+  const p = inc.purchase, c = inc.counts;
+  if (!p) return null;
+  const read = inc.events.find((e) => e.id === 'reconciliation:read'), fp = inc.events.find((e) => e.kind === 'paypal_fingerprint');
+  const lines = inc.events.filter((e) => e.kind === 'reconciliation' && e !== read), answered = !!read && read.match !== 'unread';
+  const differ = [...lines.filter((e) => e.match === 'paypal_only' || e.match === 'desk_only').map((e) => e.summary), ...(fp?.match === 'fingerprint_mismatch' ? [fp.summary] : []),
+    ...(c.outcome_unknown ? [`The gate doesn't know how ${c.outcome_unknown} money move${c.outcome_unknown === 1 ? '' : 's'} ended.`] : [])];
+  const held = lines.some((e) => e.match === 'dispute_hold');
+  const line = differ.length ? `The records differ. ${differ.join(' ')}`
+    : !read ? "PayPal wasn't read for this purchase, so the three records can't be compared."
+    : !answered ? "PayPal didn't answer, so the three records can't be compared right now."
+    : `The three records agree.${held ? " PayPal's dispute hold on this payment isn't a difference: no money has gone back." : ''}`;
+  const holds = inc.events.filter((e) => e.kind === 'hold').map((e) => {
+    const id = e.ref?.hold_id, end = inc.events.find((x) => x.id === `paypal:${id}`) ?? inc.events.find((x) => x.id === `approval:${id}`);
+    return { label: `Hold ${id}`, value: end?.summary ?? 'Waiting for the owner.' };
+  });
+  return { agree: differ.length ? false : answered ? true : null, line, columns: [
+    { title: 'What the AI believed', mode: 'recorded', rows: [{ label: 'Asked', value: inc.authority?.instruction ?? 'not in the records' }, { label: 'Budget', value: inc.authority?.budget ?? 'not in the records' },
+      { label: 'Bought', value: `${p.sku} for ${p.amount}` }, { label: 'Its reason', value: p.reason }] },
+    { title: 'What the gate recorded', mode: 'recorded', rows: [{ label: 'Proposed', value: String(c.proposed) }, { label: 'Approved', value: String(c.approved) }, { label: 'Executed', value: String(c.executed) },
+      ...(c.outcome_unknown ? [{ label: 'Outcome unknown', value: String(c.outcome_unknown) }] : []), ...(holds.length ? holds : [{ label: 'Holds', value: 'None' }])] },
+    { title: 'What PayPal says', mode: answered ? 'live' : 'recorded', rows: [{ label: 'Payment', value: read?.summary ?? 'Not read.' },
+      ...lines.map((e) => ({ label: ROW[e.match!] ?? 'Line', value: e.summary })),
+      ...inc.events.filter((e) => e.kind === 'outside_refund').map((e) => ({ label: 'Webhook', value: e.summary })),
+      { label: 'Fingerprint', value: fp?.summary ?? 'Not recorded at PayPal (placed before fingerprints).' }] },
+  ] };
+}
 
 // "Which actions reached PayPal?": the LIVE events, to highlight.
 export function reachedPayPal(inc: Incident) {

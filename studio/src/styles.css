@@ -384,6 +384,16 @@ select:hover, input:hover { border-color: var(--jd-faint); }
 textarea { border-radius: 8px; }
 
 /* Incident page (UI polish): timeline left, questions and the what-if right; LIVE, RECORDED and WHAT-IF never look alike. */
+.jd-records { margin-top: 12px; }
+.jd-records-line { margin: 0 0 8px; font-weight: 500; overflow-wrap: anywhere; }
+.jd-records-differ { padding-left: 10px; border-left: 3px solid var(--jd-attn); color: var(--jd-attn-text); }
+.jd-records-cols { display: grid; gap: 12px; align-items: start; }
+@container (min-width: 720px) { .jd-records-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.jd-records-col { min-width: 0; padding: 12px; border: 1px solid var(--jd-line); border-radius: 8px; overflow-wrap: anywhere; }
+.jd-records-col h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
+.jd-records-col dl { margin: 0; }
+.jd-records-col dt { color: var(--jd-muted); }
+.jd-records-col dd { margin: 0 0 8px; }
 .jd-incident-grid { display: grid; gap: 24px; margin-top: 12px; }
 @container (min-width: 900px) { .jd-incident-grid { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); } }
 .jd-incident-side { display: grid; align-content: start; gap: 8px; }

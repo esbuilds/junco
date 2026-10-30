@@ -23,6 +23,7 @@ import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
 import { caseHtml, caseMarkdown } from './casefile.js';
 import { acceptedText, judgesPage, paypalRefund, receiptPage } from './incident-view.js';
+import { threeRecords } from './incident-questions.js';
 import { buildIncident, listIncidents, reconciled, whatIf as incidentWhatIf } from './incident.js';
 import { outsideRefund } from './outside-refund.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
@@ -724,7 +725,10 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       if (!inc) return json(res, 404, { error: { message: 'No such incident' } });
       if (req.method === 'GET' && p[0] === 'incident' && !tail) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync('public/incident.html')); }
       if (req.method === 'GET' && p[0] === 'incident' && tail === 'receipt') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(receiptPage(inc, `${DESK_URL}/incident/${encodeURIComponent(inc.id)}`)); }
-      if (req.method === 'GET' && p[0] === 'api' && !tail) return json(res, 200, await reconciled(inc, (q) => paypal(ctx, 'GET', q))); // with PayPal's refunds lined up against the desk's
+      if (req.method === 'GET' && p[0] === 'api' && !tail) { // with PayPal's refunds lined up against the desk's
+        const r = (await reconciled(inc, (q) => paypal(ctx, 'GET', q)))!;
+        return json(res, 200, { ...r, records: threeRecords(r) });
+      }
       if (req.method === 'POST' && p[0] === 'api' && tail === 'what-if') {
         const b = await readBody(req), limit = Number(b?.max_amount);
         if (!Number.isFinite(limit) || limit < 0 || limit > 10_000) return json(res, 400, { error: { message: 'max_amount must be a number from 0 to 10000' } });

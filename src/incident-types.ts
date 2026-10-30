@@ -13,8 +13,8 @@ export type Mode = 'live' | 'recorded' | 'what-if';
 export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund';
 
 // What a reconciliation line found. matched, dispute_hold and settled are not differences; paypal_only and desk_only are;
-// unread means PayPal didn't answer, so nothing is known either way.
-export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread';
+// unread means PayPal didn't answer, so nothing is known either way. fingerprint_mismatch is the one on a fingerprint event.
+export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread' | 'fingerprint_mismatch';
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
@@ -27,6 +27,14 @@ export type IncidentEvent = {
   source: string;    // the record it came from: 'pool', 'store-runs', 'holds', 'gate-log', 'activity', 'PayPal'
   ref?: Partial<Record<'order_id' | 'capture_id' | 'buyer_txn' | 'dispute_id' | 'hold_id' | 'refund_id' | 'run_id' | 'rule', string>>;
   match?: Match;     // reconciliation lines about one money movement, and a failed read
+};
+
+// One purchase side by side (threeRecords in incident-questions.ts), from the incident alone: no model, no extra PayPal read.
+// A column is what was recorded or what PayPal answers, so WHAT-IF can never be one.
+export type ThreeRecords = {
+  agree: boolean | null; // null: PayPal wasn't read, so nothing can be compared
+  line: string;          // one plain sentence: they agree, or how they differ
+  columns: { title: string; mode: Exclude<Mode, 'what-if'>; rows: { label: string; value: string }[] }[];
 };
 
 export type Incident = {
@@ -44,6 +52,7 @@ export type Incident = {
   events: IncidentEvent[];                                                            // oldest first
   counts: { proposed: number; approved: number; executed: number; outcome_unknown: number }; // money moves only
   missing: string[]; // facts the records don't have, said plainly; never filled in by a model
+  records?: ThreeRecords | null; // the desk's incident JSON only; null on a decline. Connector tools don't carry it
 };
 
 export type IncidentSummary = Pick<Incident, 'id' | 'title' | 'dispute_id' | 'counts'> & { last_at: string };

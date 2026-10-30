@@ -62,6 +62,14 @@
   .mode.recorded { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
   .mode.what-if { border: 1px dashed var(--whatif); color: var(--whatif); }
   .refs { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .records { padding: 0 24px 16px; }
+  .records-line { margin: 0 0 8px; font-weight: 500; overflow-wrap: anywhere; }
+  .records-line.differ { padding-left: 10px; border-left: 3px solid var(--warn); color: var(--warn); }
+  .records-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .records-cols .card + .card { margin-top: 0; }
+  .records-cols h2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .records-cols dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .records-cols dd { margin-bottom: 8px; }
   .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
   label { font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
   /* The recorded-request options are long event summaries: the select fills its card and ends in an ellipsis instead of
@@ -72,7 +80,7 @@
   .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .btn:disabled { opacity: .6; cursor: default; }
   .err { color: var(--danger); font-weight: 600; }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px 24px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px 16px; } header { padding: 16px 16px 8px; } }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px 24px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px 16px; } header { padding: 16px 16px 8px; } .records { padding: 0 16px 16px; } .records-cols { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
 <body>
@@ -85,6 +93,7 @@
 <div class="stats" id="counts" aria-label="Money moves"></div>
 <div class="ask" aria-label="Ask the records"><button id="q-live">Which actions reached PayPal?</button><button id="q-missing">What's not in the records?</button><button id="q-whatif">What if the refund limit were lower?</button></div>
 <p id="answer" class="muted" aria-live="polite"></p>
+<section class="records" id="records" aria-label="Three records" hidden></section>
 <main>
   <section class="card" aria-labelledby="rail-h"><h2 id="rail-h">What happened</h2>
     <p class="muted" style="margin-top:0">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
@@ -126,6 +135,9 @@ function render() {
     .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   // A decline: the agent bought nothing, so there are no money moves to count and nothing for the what-if to re-run.
   $('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
+  $('#records').hidden = !inc.records;
+  if (inc.records) $('#records').innerHTML = `<p class="records-line${inc.records.agree === false ? ' differ' : ''}">${esc(inc.records.line)}</p><div class="records-cols">`
+    + inc.records.columns.map((c) => `<div class="card"><h2><span class="mode ${c.mode}">${LABEL[c.mode]}</span>${esc(c.title)}</h2>${dl(c.rows.map((r) => [r.label, r.value]))}</div>`).join('') + '</div>';
   $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
     Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
   const a = inc.authority, p = inc.purchase;

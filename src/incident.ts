@@ -69,7 +69,7 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   const fp = a.mandate && !a.mandate.paypal ? { text: "PayPal's copy couldn't be read at capture, so it isn't checked here; JUNCO reads it again when it works a dispute on this order." }
     : checkAgainstPayPal(a, a.mandate?.paypal?.custom_id);
   if (a.mandate) events.push({ id: `paypal_fingerprint:${p.order_id ?? p.buyer_txn}`, at: a.mandate.paypal?.read_at ?? paid, kind: 'paypal_fingerprint', actor: 'PayPal', source: 'PayPal order',
-    summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) } });
+    summary: fp.text, ref: { ...(p.order_id && { order_id: p.order_id }) }, ...('verdict' in fp && fp.verdict === 'mismatch' && { match: 'fingerprint_mismatch' as const }) });
   else missing.push(`mandate fingerprint: ${fp.text.replace(/^N/, 'n')}`);
   if (run) events.push({ id: `dispute:${dispute_id ?? run.at}`, at: run.at, kind: 'dispute', actor: 'buyer', source: 'store-runs',
     summary: dispute_id ? `The buyer disputed the order as not as described; PayPal opened ${dispute_id}.` : `Filing the buyer's dispute failed: ${run.error ?? 'no dispute id recorded'}.`,

@@ -1,7 +1,7 @@
 // BLACK BOX in Studio: one AI purchase's incident, from the same Incident JSON as the desk's incident page.
 // Read-only apart from the what-if, which re-runs the gate on a recorded request and never reaches PayPal.
-import { useEffect, useRef, useState } from 'react';
-import type { Incident, IncidentSummary, WhatIf } from '../../../src/incident-types';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import type { Incident, IncidentSummary, ThreeRecords, WhatIf } from '../../../src/incident-types';
 import { aiLines, modeOf, notInRecords, reachedPayPal, whatIfPreset } from '../../../src/incident-questions';
 import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
@@ -11,6 +11,23 @@ import { Panel } from './Panel';
 export const incidentLabel = (i: IncidentSummary) =>
   `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// What the AI believed, what the gate recorded and what PayPal says, from the incident JSON (no model, no extra PayPal read).
+function Records({ r }: { r: ThreeRecords }) {
+  return (
+    <section className="jd-records" aria-label="Three records">
+      <p className={r.agree === false ? 'jd-records-line jd-records-differ' : 'jd-records-line'}>{r.line}</p>
+      <div className="jd-records-cols">
+        {r.columns.map((c) => (
+          <div key={c.title} className="jd-records-col">
+            <h3><span className={`jd-mode jd-mode-${c.mode}`}>{c.mode.toUpperCase()}</span>{c.title}</h3>
+            <dl>{c.rows.map((x, i) => <Fragment key={i}><dt>{x.label}</dt><dd>{x.value}</dd></Fragment>)}</dl>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 // Ask for your money back: on the visitor's own shopping agent purchase only (the incident says whether this viewer may
 // ask). The support agent can only propose; every refund waits for the owner, and expires after 24 hours undecided.
@@ -133,6 +150,7 @@ export function IncidentWidget() {
         {id && <a className="jd-linkish" href={`/incident/${encodeURIComponent(id)}/receipt`} target="_blank" rel="noreferrer">Receipt</a>}
       </div>
       {error && <div className="jd-result jd-err">{error}</div>}
+      {inc?.records && <Records r={inc.records} />}
       {inc && <div className="jd-incident-grid">
         <div className="jd-incident-main">
           {!inc.decline && <div className="jd-counts">
