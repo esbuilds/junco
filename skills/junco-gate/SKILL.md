@@ -17,7 +17,7 @@ JUNCO is an owner's policy in front of PayPal's tools. In this session it runs a
 The hook refused the call and gave you a hold id. That means:
 
 1. Nothing was sent to PayPal. No money moved.
-2. The owner runs exactly that call, once, with `junco-gate approve <id> --toolkit` in the project folder, or rejects it with `junco-gate reject <id>`. You cannot approve it.
+2. The owner, at their own terminal, runs exactly that call, once, with `junco-gate approve <id> --toolkit` in the project folder, or rejects it with `junco-gate reject <id>`. You cannot approve it: the command only runs for a person at a terminal, and this plugin refuses that command, and any change to `policy.json` or `.junco/`, from this session. Don't try; say what the owner can do.
 3. Do not call the same tool again for the same action. The gate would not make a second hold; it would point you back to the first.
 4. Tell the user the hold id, what was held (tool, amount, capture or dispute) and that it is waiting for the owner. Quote the hold's reason.
 

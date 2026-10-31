@@ -7,7 +7,7 @@ PayPal ships a plugin for coding agents, [paypal/AI-Toolkit](https://github.com/
 1. Install PayPal's plugin and set the sandbox token it asks for (`PAYPAL_SANDBOX_ACCESS_TOKEN`).
 2. Load JUNCO's plugin from a checkout of this repo: `claude --plugin-dir /path/to/junco` (the marketplace path, `/plugin marketplace add esbuilds/junco` then `/plugin install junco@junco`, needs the repo public; see Open).
 3. In any folder, ask Claude Code to refund a sandbox capture. The call comes back held with an id. Nothing reached PayPal.
-4. Run `junco-gate approve <id> --toolkit` in that folder (from the repo: `cd packages/junco-gate && npm run build && npm link`). The gate re-reads the payment, runs exactly the held call through PayPal's own local MCP server (`@paypal/mcp`), and prints PayPal's refund id.
+4. At your own terminal, run `junco-gate approve <id> --toolkit` in that folder (from the repo: `cd packages/junco-gate && npm run build && npm link`). It shows the exact call and asks you to type the hold id. Then the gate re-reads the payment, runs exactly the held call through PayPal's own local MCP server (`@paypal/mcp`), and prints PayPal's refund id.
 
 Reads (`get_order`, `get_dispute`, `list_disputes`) and allowed writes within their limits (a dispute message, an offer of at most 25 USD, within the 100 USD day) get no decision from JUNCO: Claude Code's own permission prompt still applies, and the call goes to PayPal's server exactly as it would without JUNCO.
 
@@ -32,6 +32,14 @@ Every hook run is its own process. State is files in the project folder, the sam
 - **The daily total across processes.** Two hooks can run at once, so the check and the reservation happen under a lock (`mkdir`, atomic) around `.junco/daily-total.json`; `check-plugin` fires eight offers at once and exactly as many pass as fit under 100 USD. A reservation is given back only when PayPal definitely refused the call (a 4xx, by the same rule the desk uses); a 5xx, no answer, or a success keeps it. The total is what was approved in advance, never money out.
 - **Slack.** With `HOLD_WEBHOOK_URL` set in the shell that runs Claude Code, each new hold posts one line with the id and the approve command.
 - **The skill.** `skills/junco-gate/SKILL.md` tells Claude what a hold means: nothing moved, the owner decides, don't ask again, tell the user the id.
+
+## The boundary
+
+What this stops: the model's PayPal tool calls, and its plain routes around the gate. `junco-gate approve` refuses, before it reads a token or connects to anything, unless a person is at a terminal (stdin and stdout are a TTY) and types the hold id; Claude Code's Bash tool has no TTY. The same hook refuses, from the editor, a Bash command that runs the approve command or could change `policy.json` or `.junco/`, and a Write, Edit, MultiEdit or NotebookEdit on those files. That string match is a speed bump, not a boundary; the TTY rule is the line.
+
+This is not an OS boundary. PayPal's plugin needs `PAYPAL_SANDBOX_ACCESS_TOKEN` in the environment the agent runs in, so anything running as the same user with that token can call PayPal's REST API directly, fake a terminal, or write a script that does either. The hook sees tool calls, not processes. A stronger setup keeps the write token away from the agent: give the agent a read-only token, or none, and keep the token that refunds with the owner's own `junco-gate`.
+
+What fails open: Claude Code treats a hook's non-2 exit and a timed-out hook as non-blocking, so a crash before the bundle's main() runs (a broken bundle; `check-plugin` rebuilds and runs it) or a run past the 20 s timeout (the hook waits at most 3 s for its lock and 3 s for Slack) would let a call through. Everything inside main() fails closed: hook input that isn't JSON, a missing or unreadable policy, a thrown error.
 
 ## Limits
 

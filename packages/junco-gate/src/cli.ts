@@ -13,6 +13,7 @@
 import { parseArgs } from 'node:util';
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -47,6 +48,22 @@ if (cmd === 'reject') { // sends nothing, so it needs no upstream
   h.status = 'rejected'; store.write(holds);
   console.log(`${h.id} rejected`);
   process.exit(0);
+}
+if (cmd === 'approve') {
+  if (!holdId) { say('junco-gate approve <hold id>'); process.exit(1); }
+  // The owner's line: an approval is typed by a person at a terminal, checked before any token is read or anything is
+  // connected. An agent's shell (Claude Code's Bash tool has no TTY) is refused here, and no flag turns that off. Someone who
+  // already runs as this user with the token can fake a terminal or call PayPal directly; see docs/plugin.md, "The boundary".
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.log(`Not approved: junco-gate approve needs a person at a terminal, and this is not one. Hold ${holdId} stays as it is.`);
+    process.exit(2);
+  }
+  const pending = store.read().find((x) => x.id === holdId);
+  if (!pending || pending.status !== 'pending') { console.log(pending ? `Hold ${holdId} is already ${pending.status}` : `No hold ${holdId}`); process.exit(1); }
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const typed = await rl.question(`Hold ${pending.id}: ${pending.method} ${JSON.stringify(pending.args)}\nWhy held: ${pending.reason}\nType the hold id to run exactly this call once, or anything else to leave it pending: `);
+  rl.close();
+  if (typed.trim() !== pending.id) { console.log(`Not approved: hold ${pending.id} stays pending.`); process.exit(1); }
 }
 
 const url: string = o.upstream ?? (o.paypal ? 'https://mcp.sandbox.paypal.com/sse' : o.toolkit ? `npx -y ${TOOLKIT}` : '');

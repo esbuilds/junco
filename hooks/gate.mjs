@@ -79,7 +79,19 @@ function locked(path, fn) {
   }
 }
 var refuse = (reason) => process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } }));
-var heldText = (h, cwd, again) => `JUNCO held this call${again ? " (it was already held)" : ""}: ${h.reason}. Hold ${h.id}: ${h.method} ${JSON.stringify(h.args).slice(0, 160)}. Nothing was sent to PayPal. The owner runs exactly this call with: junco-gate approve ${h.id} --toolkit (in ${cwd}), or rejects it with: junco-gate reject ${h.id}. Do not call this tool again for the same action. Tell the user the hold id and that it is waiting for the owner.`;
+var heldText = (h, cwd, again) => `JUNCO held this call${again ? " (it was already held)" : ""}: ${h.reason}. Hold ${h.id}: ${h.method} ${JSON.stringify(h.args).slice(0, 160)}. Nothing was sent to PayPal. The owner, at their own terminal, runs exactly this call with: junco-gate approve ${h.id} --toolkit (in ${cwd}), or rejects it with: junco-gate reject ${h.id}. You cannot approve it: that command only runs for a person at a terminal, and this plugin refuses it, and any change to policy.json or .junco/, from this session. Do not call this tool again for the same action. Tell the user the hold id and that it is waiting for the owner.`;
+function guardRoutes(name, input) {
+  const i = input.tool_input ?? {};
+  if (name === "Bash") {
+    const cmd = String(i.command ?? "");
+    if (/\bjunco-gate\b[^\n;&|]*\bapprove\b/.test(cmd)) return refuse("Not run: approving a JUNCO hold is the owner's, typed at their terminal. Tell the user the hold id instead.");
+    const touches = /(^|[\s/'"=])(\.junco(\/|\b)|policy\.json)/.test(cmd), readOnly = /^\s*(cat|ls|head|tail|jq|grep|wc|stat|junco-gate\s+holds)\b[^>|<`$]*$/.test(cmd);
+    if (touches && !readOnly) return refuse("Not run: policy.json and the .junco/ records are the owner's, and this command could change them. Reading them with cat, ls, head, tail, jq or grep is fine.");
+    return;
+  }
+  const path = String(i.file_path ?? i.notebook_path ?? i.path ?? "");
+  if (/(^|\/)policy\.json$/.test(path) || /(^|\/)\.junco(\/|$)/.test(path)) return refuse(`Not written: ${path} is the owner's (JUNCO's policy or records). Tell the user what you wanted to change.`);
+}
 async function notify(h, cwd) {
   const url = process.env.HOLD_WEBHOOK_URL;
   if (!url) return;
@@ -95,10 +107,24 @@ Approve with: junco-gate approve ${h.id} --toolkit`;
 async function main() {
   let raw = "";
   for await (const c of process.stdin) raw += c;
-  const input = readJsonText(raw);
+  let input;
+  try {
+    input = JSON.parse(raw);
+    if (!input || typeof input !== "object") throw new Error("not an object");
+  } catch {
+    refuse("JUNCO could not read this tool call (the hook input was not JSON), so it was not sent.");
+    return;
+  }
   const name = input.tool_name ?? "";
+  if (!name.startsWith("mcp__")) {
+    if (input.hook_event_name === "PreToolUse") guardRoutes(name, input);
+    return;
+  }
   const method = name.slice(name.lastIndexOf("__") + 2);
-  if (!name.startsWith("mcp__") || !method) return;
+  if (!method) {
+    if (input.hook_event_name === "PreToolUse") refuse(`JUNCO could not name the tool in ${name}, so it was not sent.`);
+    return;
+  }
   const cwd = input.cwd || process.cwd();
   const root = process.env.CLAUDE_PLUGIN_ROOT;
   const policyPath = [join(cwd, "policy.json"), root ? join(root, "policy.json") : ""].find((p) => p && existsSync(p));

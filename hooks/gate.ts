@@ -7,8 +7,14 @@
 //   is stored exactly as asked and refused with its hold id; nothing reaches PayPal until the owner runs
 //   `junco-gate approve <id>`. A call the policy denies is refused. The same call asked again never makes a second hold.
 //   PostToolUse: an allowed call that PayPal definitely refused (a 4xx) gives its daily-total reservation back.
+//   On Bash, Write, Edit, MultiEdit and NotebookEdit: the plain routes around the gate are refused (running `junco-gate approve`,
+//   changing policy.json or .junco/). See guardRoutes for what that is and isn't.
 // Dependency-free on purpose: the plugin cache has no node_modules, so `npm run build:plugin` bundles this file into
 // hooks/gate.mjs, which is what hooks/hooks.json runs. check-plugin fails if the bundle is stale.
+// What fails closed and what fails open. Everything inside main() fails closed: hook input that isn't JSON, a missing or
+// unreadable policy, a thrown error, each ends in a deny. Two paths fail open, because Claude Code treats a hook's non-2 exit
+// and a timed-out hook as non-blocking: a crash before main() runs (a broken bundle; check-plugin rebuilds and runs it), and
+// a run past the 20 s timeout in hooks.json (this hook waits at most 3 s for the lock and 3 s for Slack).
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -45,8 +51,26 @@ const refuse = (reason: string) =>
 
 const heldText = (h: Hold, cwd: string, again: boolean) =>
   `JUNCO held this call${again ? ' (it was already held)' : ''}: ${h.reason}. Hold ${h.id}: ${h.method} ${JSON.stringify(h.args).slice(0, 160)}. `
-  + `Nothing was sent to PayPal. The owner runs exactly this call with: junco-gate approve ${h.id} --toolkit (in ${cwd}), or rejects it with: junco-gate reject ${h.id}. `
+  + `Nothing was sent to PayPal. The owner, at their own terminal, runs exactly this call with: junco-gate approve ${h.id} --toolkit (in ${cwd}), or rejects it with: junco-gate reject ${h.id}. `
+  + 'You cannot approve it: that command only runs for a person at a terminal, and this plugin refuses it, and any change to policy.json or .junco/, from this session. '
   + 'Do not call this tool again for the same action. Tell the user the hold id and that it is waiting for the owner.';
+
+// The plain routes around the gate, refused from the editor: running the approve command, or changing policy.json or the
+// .junco/ records. A string match is a speed bump, not a boundary. The real line is that `junco-gate approve` refuses without
+// a person at a terminal, and a script the agent writes could still try anything this user can do with the token. Claude
+// Code's own permission prompt for Bash and file writes still applies after this hook says nothing.
+function guardRoutes(name: string, input: Input) {
+  const i = input.tool_input ?? {};
+  if (name === 'Bash') {
+    const cmd = String(i.command ?? '');
+    if (/\bjunco-gate\b[^\n;&|]*\bapprove\b/.test(cmd)) return refuse("Not run: approving a JUNCO hold is the owner's, typed at their terminal. Tell the user the hold id instead.");
+    const touches = /(^|[\s/'"=])(\.junco(\/|\b)|policy\.json)/.test(cmd), readOnly = /^\s*(cat|ls|head|tail|jq|grep|wc|stat|junco-gate\s+holds)\b[^>|<`$]*$/.test(cmd);
+    if (touches && !readOnly) return refuse("Not run: policy.json and the .junco/ records are the owner's, and this command could change them. Reading them with cat, ls, head, tail, jq or grep is fine.");
+    return;
+  }
+  const path = String(i.file_path ?? i.notebook_path ?? i.path ?? '');
+  if (/(^|\/)policy\.json$/.test(path) || /(^|\/)\.junco(\/|$)/.test(path)) return refuse(`Not written: ${path} is the owner's (JUNCO's policy or records). Tell the user what you wanted to change.`);
+}
 
 async function notify(h: Hold, cwd: string) {
   const url = process.env.HOLD_WEBHOOK_URL;
@@ -59,10 +83,13 @@ async function notify(h: Hold, cwd: string) {
 async function main() {
   let raw = '';
   for await (const c of process.stdin) raw += c;
-  const input: Input = readJsonText(raw);
+  let input: Input;
+  try { input = JSON.parse(raw); if (!input || typeof input !== 'object') throw new Error('not an object'); }
+  catch { refuse('JUNCO could not read this tool call (the hook input was not JSON), so it was not sent.'); return; } // fail closed
   const name = input.tool_name ?? '';
+  if (!name.startsWith('mcp__')) { if (input.hook_event_name === 'PreToolUse') guardRoutes(name, input); return; }
   const method = name.slice(name.lastIndexOf('__') + 2);
-  if (!name.startsWith('mcp__') || !method) return; // not a tool this hook is for: no decision
+  if (!method) { if (input.hook_event_name === 'PreToolUse') refuse(`JUNCO could not name the tool in ${name}, so it was not sent.`); return; }
   const cwd = input.cwd || process.cwd();
   const root = process.env.CLAUDE_PLUGIN_ROOT;
   const policyPath = [join(cwd, 'policy.json'), root ? join(root, 'policy.json') : ''].find((p) => p && existsSync(p));
@@ -144,4 +171,5 @@ async function main() {
 
 function readJsonText<T = any>(s: string): T { try { return JSON.parse(s); } catch { return {} as T; } }
 
+// Anything thrown ends in a deny (fail closed), written as JSON so Claude Code reads it as a decision rather than an error.
 main().catch((e) => { console.error(`[junco] ${e.message}`); refuse(`JUNCO's gate failed (${e.message}), so this call was not sent to PayPal.`); process.exit(0); });

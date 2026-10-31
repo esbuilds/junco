@@ -20,16 +20,23 @@ assert.ok(entry && entry.source === './' && entry.version === plugin.version, 'm
 for (const p of [...entry.hooks, ...entry.skills]) assert.ok(existsSync(p), `${p} is listed in marketplace.json but missing`);
 assert.match(readFileSync('skills/junco-gate/SKILL.md', 'utf8'), /^---\nname: junco-gate\ndescription: /, 'the skill needs its frontmatter');
 
-// The matcher: PayPal's plugin's tools (mcp__plugin_paypal_paypal-sandbox__*) and a server added by hand as `paypal`, nothing else.
+// The matchers: PayPal's plugin's tools (mcp__plugin_paypal_paypal-sandbox__*) and a server added by hand as `paypal` on both
+// events, plus the editor's own Bash and file-writing tools on PreToolUse for the routes around the gate. Every handler runs
+// the bundle in exec form with a timeout.
 const hooks = JSON.parse(readFileSync('hooks/hooks.json', 'utf8'));
+const handler = [{ type: 'command', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/hooks/gate.mjs'], timeout: 20 }];
 for (const ev of ['PreToolUse', 'PostToolUse']) {
-  const m = hooks.hooks[ev];
-  assert.equal(m?.length, 1, `${ev} needs one matcher`);
-  const re = new RegExp(m[0].matcher);
+  const m = hooks.hooks[ev].find((x: any) => x.matcher.startsWith('^mcp__'));
+  assert.ok(m, `${ev} needs the PayPal matcher`);
+  const re = new RegExp(m.matcher);
   for (const t of ['mcp__plugin_paypal_paypal-sandbox__create_refund', 'mcp__plugin_paypal_paypal-sandbox__get_order', 'mcp__paypal__create_refund']) assert.ok(re.test(t), `${ev} must match ${t}`);
   for (const t of ['Bash', 'Edit', 'mcp__plugin_junco_desk__create_refund', 'mcp__paypal-other__create_refund', 'mcp__junco__create_refund']) assert.ok(!re.test(t), `${ev} must not match ${t}`);
-  assert.deepEqual(m[0].hooks, [{ type: 'command', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/hooks/gate.mjs'] }], `${ev} runs the bundle in exec form`);
+  assert.deepEqual(m.hooks, handler, `${ev} runs the bundle in exec form`);
 }
+assert.equal(hooks.hooks.PostToolUse.length, 1);
+const guard = hooks.hooks.PreToolUse.find((x: any) => x.matcher === 'Bash|Write|Edit|MultiEdit|NotebookEdit');
+assert.ok(guard && hooks.hooks.PreToolUse.length === 2, 'PreToolUse needs the guard on Bash and the file-writing tools');
+assert.deepEqual(guard.hooks, handler);
 
 // The bundle: what hooks.json runs is the committed file, so it must equal a fresh build and import only node: built-ins.
 const fresh = join(mkdtempSync(join(tmpdir(), 'junco-bundle-')), 'gate.mjs');
@@ -48,12 +55,29 @@ const proj = mkdtempSync(join(tmpdir(), 'junco-proj-'));
 const env = { PATH: process.env.PATH!, CLAUDE_PLUGIN_ROOT: root }; // no PayPal credentials, no webhook
 const tool = (m: string) => `mcp__plugin_paypal_paypal-sandbox__${m}`;
 const gate = join(root, 'hooks/gate.mjs');
-function run(event: string, method: string, input: any, extra: Record<string, unknown> = {}, e: Record<string, string> = env, cwd = proj) {
-  const body = { hook_event_name: event, tool_name: tool(method), tool_input: input, cwd, session_id: 's1', tool_use_id: `tu-${Math.random().toString(36).slice(2, 8)}`, ...extra };
+function runTool(event: string, toolName: string, input: any, extra: Record<string, unknown> = {}, e: Record<string, string> = env, cwd = proj) {
+  const body = { hook_event_name: event, tool_name: toolName, tool_input: input, cwd, session_id: 's1', tool_use_id: `tu-${Math.random().toString(36).slice(2, 8)}`, ...extra };
   const r = spawnSync('node', [gate], { cwd, env: e, encoding: 'utf8', input: JSON.stringify(body) });
   assert.equal(r.status, 0, r.stderr);
   return { out: r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null, err: r.stderr };
 }
+const run = (event: string, method: string, input: any, extra: Record<string, unknown> = {}, e: Record<string, string> = env, cwd = proj) => runTool(event, tool(method), input, extra, e, cwd);
+
+// Hook input that isn't JSON fails closed.
+const bad = spawnSync('node', [gate], { cwd: proj, env, encoding: 'utf8', input: 'not json' });
+assert.equal(bad.status, 0); assert.equal(JSON.parse(bad.stdout).hookSpecificOutput.permissionDecision, 'deny');
+
+// The routes around the gate from the editor: the approve command, and changes to policy.json or .junco/, are refused; reads
+// and unrelated commands get no decision.
+for (const c of ['junco-gate approve 1234abcd --toolkit', 'cd /tmp && junco-gate --holds x approve 1234abcd', "echo '[]' > .junco/holds.json", "sed -i '' 's/hold/allow/' policy.json", 'cat policy.json | sed s/hold/allow/ > policy.json', 'rm -rf .junco', 'node -e "require(\'fs\').writeFileSync(\'.junco/holds.json\',\'[]\')"'])
+  assert.equal(runTool('PreToolUse', 'Bash', { command: c }).out?.permissionDecision, 'deny', `Bash must be refused: ${c}`);
+for (const c of ['cat .junco/holds.json', 'ls .junco', 'jq . policy.json', 'junco-gate holds', 'junco-gate reject 1234abcd', 'npm test', 'git status'])
+  assert.equal(runTool('PreToolUse', 'Bash', { command: c }).out, null, `Bash must pass: ${c}`);
+for (const [t, input] of [['Write', { file_path: `${proj}/policy.json`, content: '{}' }], ['Edit', { file_path: `${proj}/.junco/holds.json`, old_string: 'pending', new_string: 'completed' }], ['MultiEdit', { file_path: 'policy.json', edits: [] }], ['NotebookEdit', { notebook_path: `${root}/.junco/x.ipynb` }], ['Write', { file_path: `${root}/policy.json`, content: '{}' }]] as const)
+  assert.equal(runTool('PreToolUse', t, input).out?.permissionDecision, 'deny', `${t} must be refused: ${JSON.stringify(input)}`);
+for (const [t, input] of [['Write', { file_path: `${proj}/src/a.ts`, content: '' }], ['Edit', { file_path: `${proj}/README.md`, old_string: 'a', new_string: 'b' }]] as const)
+  assert.equal(runTool('PreToolUse', t, input).out, null, `${t} must pass: ${JSON.stringify(input)}`);
+assert.equal(runTool('PostToolUse', 'Bash', { command: 'junco-gate approve 1234abcd' }).out, null, 'the guard only decides before a call');
 const holds = (): any[] => JSON.parse(readFileSync(join(proj, '.junco/holds.json'), 'utf8'));
 const total = (): any => JSON.parse(readFileSync(join(proj, '.junco/daily-total.json'), 'utf8'));
 const lastLog = (): any => JSON.parse(readFileSync(join(proj, '.junco/gate-log.jsonl'), 'utf8').trim().split('\n').at(-1)!);
@@ -73,6 +97,13 @@ assert.match(r.out.permissionDecisionReason, new RegExp(`Hold ${h.id}: create_re
 assert.match(r.out.permissionDecisionReason, /Nothing was sent to PayPal/);
 assert.match(r.out.permissionDecisionReason, new RegExp(`junco-gate approve ${h.id} --toolkit`));
 assert.equal(lastLog().hold_id, h.id);
+
+// The owner's line: `junco-gate approve` without a person at a terminal refuses before reading a token or connecting anywhere,
+// and the hold stays pending. No PayPal variables are set here, so a token error would show if it got that far.
+const cli = spawnSync('node_modules/.bin/tsx', ['packages/junco-gate/src/cli.ts', 'approve', h.id, '--toolkit', '--holds', join(proj, '.junco/holds.json')], { encoding: 'utf8', input: `${h.id}\n`, env: { PATH: process.env.PATH! } });
+assert.equal(cli.status, 2, cli.stdout + cli.stderr);
+assert.match(cli.stdout, /needs a person at a terminal/); assert.doesNotMatch(cli.stdout + cli.stderr, /PAYPAL_|token|npx/);
+assert.equal(holds()[0].status, 'pending');
 
 // The same call again: no second hold, the same id back.
 r = run('PreToolUse', 'create_refund', refund);
@@ -161,6 +192,7 @@ assert.equal(posts.length, 1); assert.match(JSON.parse(posts[0]).text, new RegEx
 // Docs: the plugin page says plainly that PayPal's own server fails today and names the issue; the README points at it.
 const doc = readFileSync('docs/plugin.md', 'utf8');
 assert.match(doc, /paypal\/agent-toolkit#119/); assert.match(doc, /can fail|fails/);
+assert.match(doc, /not an OS boundary/); assert.match(doc, /fails? open/);
 assert.match(readFileSync('README.md', 'utf8'), /docs\/plugin\.md/);
 
-console.log(`check-plugin: matcher, fresh ${bundle.length}-byte bundle with node: imports only, clean copy with no node_modules, ${holds().length} holds none doubled, ${fit} of 8 parallel offers fit under the day at ${(total().cents / 100).toFixed(2)}, release on a 4xx only, project policy first, webhook line, docs: pass`);
+console.log(`check-plugin: matchers, fresh ${bundle.length}-byte bundle with node: imports only, clean copy with no node_modules, bad input and the routes around the gate refused, approve refused off a terminal, ${holds().length} holds none doubled, ${fit} of 8 parallel offers fit under the day at ${(total().cents / 100).toFixed(2)}, release on a 4xx only, project policy first, webhook line, docs: pass`);
