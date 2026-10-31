@@ -27,6 +27,7 @@ import { acceptedText, judgesPage, paypalRefund, receiptPage } from './incident-
 import { threeRecords } from './incident-questions.js';
 import { books } from './books.js';
 import { buildIncident, listIncidents, reconciled, whatIf as incidentWhatIf } from './incident.js';
+import { forget } from './reconcile.js';
 import { outsideRefund } from './outside-refund.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
@@ -194,6 +195,7 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
     if (asked && verb === 'approve' && /^Not run/.test(e.message)) notifyDecision(asked, `refused at approval. ${e.message}`);
     throw e;
   });
+  if (h.args?.capture_id) forget(h.args.capture_id); // the next read is PayPal's, not a copy from before this refund ran
   if (verb === 'settle') return h;
   const done = verb === 'reject' ? `rejected by ${who}, nothing sent` : h.status === 'completed' ? `approved by ${who}, and ${acceptedText(h)}`
     : `approved by ${who}, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}`;
