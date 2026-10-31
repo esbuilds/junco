@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { fullRefund, holdPage, linkRefusal, signedLink } from './onetap.js';
-import { demoDecide, demoOffer, demoRows, demoShow, type DemoDeps } from './demo-approver.js';
+import { decideHoldAs, demoDecide, demoOffer, demoRows, demoShow, type DemoDeps } from './demo-approver.js';
 import { bearer, challenge as signIn, connectorSessions, oauth, revokeAll } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -39,7 +39,7 @@ import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roo
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
 import { approveAll, correct, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
-import { actor, addDeclines, addToPool, DEMO_APPROVER, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addDeclines, addToPool, decidedField, DEMO_APPROVER, isChallenge, LEASE_VISITOR, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
@@ -199,7 +199,7 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
     : `approved by ${who}, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}`;
   notifyDecision(h, `${done}.`);
   const demo = who === DEMO_APPROVER; // a visitor's decision goes on its own purchase, never in the owner's name
-  agent.log(h.args?.dispute_id ?? h.args?.order_id ?? (demo ? h.args?.capture_id : 'owner'), demo ? 'demo approver' : 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
+  agent.log(h.args?.dispute_id ?? h.args?.order_id ?? (demo ? h.args?.capture_id : 'owner'), demo ? 'demo approver' : who === LEASE_VISITOR ? LEASE_VISITOR : 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
     `${h.method.replace(/_/g, ' ')} ${done}${verb === 'approve' && h.status !== 'completed' ? `: ${(h.result ?? '').slice(0, 200)}` : ''}`);
   return h;
 }
@@ -212,12 +212,13 @@ const demoDeps: DemoDeps = { key: () => process.env.OWNER_TOKEN,
 function gateRecordView() {
   const rows = demoRows(gateRecord(readHolds(), readChallengeRuns(), readMoves(), (h) => (tagged(h) as any).asked_by));
   const n = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
-  return { counts: { proposed: rows.length, held: n((r) => !!r.hold_id), approved: n((r) => /^approved by the owner/.test(r.outcome)), demo_approved: n((r) => /^approved by the demo approver/.test(r.outcome)),
+  const leased = n((r) => /^approved by a visitor/.test(r.outcome));
+  return { counts: { proposed: rows.length, held: n((r) => !!r.hold_id), approved: n((r) => /^approved by the owner/.test(r.outcome)), demo_approved: n((r) => /^approved by the demo approver/.test(r.outcome)), ...(leased && { leased_approved: leased }),
     rejected: n((r) => /^rejected/.test(r.outcome)), stale: n((r) => /^stale/.test(r.outcome)), pending: n((r) => /^held, waiting/.test(r.outcome)),
     allowed: n((r) => r.verdict === 'allow'), denied: n((r) => r.verdict === 'deny'), gate_only: n((r) => r.verdict === 'gate-only'),
     past_limit: challengeStats().past_limit }, daily_total: dailyTotalView(policy), rows };
 }
-const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map(tagged);
+const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map((h) => ({ ...tagged(h), ...decidedField(h.id) }));
 
 // The Studio assistant's PayPal tools: the same gated MCP server every other agent gets, nothing more. A held action is
 // tagged with who asked, so the owner sees "asked by the dashboard assistant" on the hold. The tag lives beside the gate.
@@ -845,7 +846,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status))
       .map((h) => ({ ...tagged(h), ...(fullRefund(h) && { full_refund: fullRefund(h) }) }))); // a refund with no amount says so, with how much when known
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
-      { const h = await decideHold(p[2], p[3], 'the owner'); return json(res, 200, { ...h, paypal: paypalRefund(h) }); }
+      { const verb = p[3], h = await decideHoldAs(p[2], verb, (who) => decideHold(p[2], verb, who)); return json(res, 200, { ...h, ...decidedField(h.id), paypal: paypalRefund(h) }); }
     json(res, 404, { error: { message: 'Not found' } });
   } catch (e: any) {
     if (isClaudeDown(e)) return json(res, 503, { error: { message: pausedText() }, paused: true }); // read-only mode (v3.14)

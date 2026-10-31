@@ -2,7 +2,7 @@
 // component under the call's row). A held action can be approved or rejected here, through the same hold path as
 // Waiting for you: the desk re-reads the case first and only the owner may decide on shared cases.
 import { useState } from 'react';
-import { api, human, HOLD_STATUS, type Hold } from '../api';
+import { api, holdWords, human, type Hold } from '../api';
 
 export type GateData = { gate: 'held' | 'refused' | 'allowed' | 'failed'; hold_id?: string; reason?: string; paypal?: string };
 
@@ -38,7 +38,7 @@ export function GateCard({ name, args, status, result }: { name: string; args: a
       {g.gate === 'held' && !decided && <div className="jd-muted">Nothing was sent to PayPal.</div>}
       {g.gate === 'allowed' && <div className="jd-muted">Within the owner's policy, so it went to PayPal.</div>}
       {g.gate === 'held' && g.hold_id && (decided
-        ? <div>{HOLD_STATUS[decided.status] ?? decided.status}</div>
+        ? <div>{holdWords(decided)}</div>
         : <div className="jd-row">
             <button type="button" className="jd-btn jd-primary" disabled={busy} onClick={() => decide('approve')}>Approve</button>
             <button type="button" className="jd-btn jd-danger" disabled={busy} onClick={() => decide('reject')}>Reject</button>

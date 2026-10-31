@@ -236,7 +236,7 @@ function render(c, flash) {
 
     <h3>Evidence</h3>
     <ol class="evidence">${c.evidence.map((e) => `<li data-id="${esc(e.id)}"><span class="id">${esc(e.id)}</span><div>${esc(e.text)}<div class="src">${esc(e.source)}</div></div></li>`).join('')}</ol>
-    ${c.holds?.length ? `<h3>Gate history</h3>${c.holds.map((h) => `<div class="muted">${esc(h.method.replace(/_/g, ' '))}: held because ${esc(h.reason)}, then ${esc(HOLD_STATUS[h.status] ?? h.status)}</div>`).join('')}` : ''}
+    ${c.holds?.length ? `<h3>Gate history</h3>${c.holds.map((h) => `<div class="muted">${esc(h.method.replace(/_/g, ' '))}: held because ${esc(h.reason)}, then ${esc(h.status === 'rejected' && h.decided_by ? `rejected by ${h.decided_by}` : HOLD_STATUS[h.status] ?? h.status)}</div>`).join('')}` : ''}
   `;
   const hl = (id, on) => document.querySelectorAll(`ol.evidence li[data-id="${CSS.escape(id)}"]`).forEach((li) => li.classList.toggle('hl', on));
   document.querySelectorAll('.cite').forEach((el) => {

@@ -58,12 +58,18 @@ export const readRefundAsks = () => read<RefundAsk[]>(ASKS, []);
 export const saveRefundAsk = (a: RefundAsk) => write(ASKS, [...readRefundAsks().filter((x) => !(x.capture_id === a.capture_id && x.at === a.at)), a]);
 // "Approve it yourself" (demo-approver.ts): a visitor's decision on the one hold from their own refund ask, saved before
 // PayPal is called. This is what spends the link and counts for the caps, and how every record tells it from the owner's.
+// leased: a visitor deciding a hold on the case they lease, through /api/holds. Spends no link and counts for no cap. A hold
+// with no record reads as the owner's, which is all that decisions from before this record can say.
 export const DEMO_APPROVER = 'the demo approver (a desk visitor)';
-export type DemoDecision = { hold_id: string; capture_id: string; session: string; at: string; verb: 'approve' | 'reject' };
+export const LEASE_VISITOR = 'a visitor on their leased case';
+export type DemoDecision = { hold_id: string; capture_id?: string; session: string; at: string; verb: 'approve' | 'reject'; leased?: boolean };
 const DEMOS = '.junco/demo-approvals.json';
 export const readDemoDecisions = () => read<DemoDecision[]>(DEMOS, []);
 export const saveDemoDecision = (d: DemoDecision) => write(DEMOS, [...readDemoDecisions(), d]);
-export const decidedBy = (hold: string) => (readDemoDecisions().some((d) => d.hold_id === hold) ? DEMO_APPROVER : 'the owner');
+export const dropDemoDecision = (hold: string) => write(DEMOS, readDemoDecisions().filter((d) => d.hold_id !== hold));
+export const decidedBy = (hold: string) => { const d = readDemoDecisions().find((x) => x.hold_id === hold); return !d ? 'the owner' : d.leased ? LEASE_VISITOR : DEMO_APPROVER; };
+// Who decided, on a hold the desk sends out: nothing at all when it was the owner, so the owner's output doesn't change.
+export const decidedField = (hold: string) => { const by = decidedBy(hold); return by === 'the owner' ? {} : { decided_by: by }; };
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
 export const kindOf = (p: PoolEntry): Kind | null => (p.drill ? null : p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);

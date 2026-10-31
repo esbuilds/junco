@@ -11,7 +11,7 @@ import { readHolds, type Hold } from './gate.js';
 import { acceptedText } from './incident-view.js';
 import { holdAction } from './onetap.js';
 import { ASKER } from './refund-ask.js';
-import { DEMO_APPROVER, PUBLIC_SESSION, readAgentBuys, readDemoDecisions, readRefundAsks, saveDemoDecision } from './store-dispute.js';
+import { actor, decidedBy, decideRefusal, DEMO_APPROVER, dropDemoDecision, LEASE_VISITOR, PUBLIC_SESSION, readAgentBuys, readDemoDecisions, readRefundAsks, saveDemoDecision } from './store-dispute.js';
 
 export const DEMO_PATH = '/demo-approve';
 export const YOU_ARE = "You are the demo approver for this one sandbox refund. You can't approve anything else.";
@@ -33,9 +33,10 @@ export function demoTarget(id: string) {
   return own ? { hold, ask, buy } : null;
 }
 
-const used = (id: string) => readDemoDecisions().some((d) => d.hold_id === id);
+const demos = () => readDemoDecisions().filter((d) => !d.leased);
+const used = (id: string) => demos().some((d) => d.hold_id === id);
 function capRefusal(session: string, now = Date.now()) {
-  const today = new Date(now).toISOString().slice(0, 10), approvals = readDemoDecisions().filter((d) => d.verb === 'approve' && d.at.startsWith(today));
+  const today = new Date(now).toISOString().slice(0, 10), approvals = demos().filter((d) => d.verb === 'approve' && d.at.startsWith(today));
   if (approvals.filter((d) => d.session === session).length >= PER_VISITOR) return `You've had your demo approval for today (${PER_VISITOR} a visitor). Nothing was sent to PayPal.`;
   if (approvals.length >= PER_DAY()) return "The desk has had its demo approvals for today. This one still waits for the owner. Nothing was sent to PayPal.";
   return null;
@@ -94,11 +95,21 @@ export async function demoDecide(deps: DemoDeps, id: string, q: Q, verb: 'approv
   } catch (e: any) { return page(409, id, q, { ok: false, text: e.message }); }
 }
 
+// /api/holds decides for the owner and for a visitor on a case they lease (decideRefusal), and the gate can't say which, so
+// the visitor's decision is recorded here before PayPal is called. Only one that will really be tried: a refused visitor, a
+// hold already decided or a settle records nothing, and a decision that left the hold pending takes its record back, so a
+// later decision by the owner still reads as the owner's. Anything else is exactly the owner's path.
+export async function decideHoldAs(id: string, verb: 'approve' | 'reject' | 'settle', decide: (who: string) => Promise<Hold>) {
+  const a = actor.getStore(), h = readHolds().find((x) => x.id === id), dispute = h?.args?.dispute_id;
+  if (!a || a.owner || verb === 'settle' || h?.status !== 'pending' || !dispute || decideRefusal(dispute)) return decide('the owner');
+  saveDemoDecision({ hold_id: id, session: a.session, at: new Date().toISOString(), verb, leased: true });
+  try { return await decide(LEASE_VISITOR); }
+  catch (e) { if (readHolds().find((x) => x.id === id)?.status === 'pending') dropDemoDecision(id); throw e; }
+}
+
 // The outcome on a Gate record row, and which count it belongs in. gate.ts words every decision as the owner's.
-export const demoRows = <R extends { hold_id?: string; outcome: string }>(rows: R[]): R[] => {
-  const mine = new Set(readDemoDecisions().map((d) => d.hold_id));
-  return rows.map((r) => (r.hold_id && mine.has(r.hold_id) ? { ...r, outcome: r.outcome.replace('by the owner', `by ${DEMO_APPROVER}`) } : r));
-};
+export const demoRows = <R extends { hold_id?: string; outcome: string }>(rows: R[]): R[] =>
+  rows.map((r) => (r.hold_id && decidedBy(r.hold_id) !== 'the owner' ? { ...r, outcome: r.outcome.replace('by the owner', `by ${decidedBy(r.hold_id)}`) } : r));
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ENDED: Record<string, string> = { expired: 'This hold expired: nobody decided within 24 hours, so nothing moved.', rejected: 'This hold was rejected, so nothing was sent to PayPal.', stale: 'This hold was not run, so nothing was sent to PayPal.' };

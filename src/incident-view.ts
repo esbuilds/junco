@@ -46,7 +46,7 @@ ${row('PayPal fingerprint', inc.purchase && (inc.events.find((e) => e.kind === '
 ${row('Outcome', inc.decline && 'The agent bought nothing. No order was placed and no money moved.')}${row("Agent's reason", inc.decline?.reason)}
 ${row('Listings it saw', inc.decline?.listings.join(' | '))}
 ${row('Dispute', inc.dispute_id)}${row('PayPal refund id', refund)}
-${row('Money moves', !inc.decline && `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.demo_approved ? `${inc.counts.demo_approved} approved by the demo approver, ` : ''}${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}
+${row('Money moves', !inc.decline && `${inc.counts.proposed} proposed, ${inc.counts.approved} approved, ${inc.counts.demo_approved ? `${inc.counts.demo_approved} approved by the demo approver, ` : ''}${inc.counts.leased_approved ? `${inc.counts.leased_approved} approved by a visitor on their leased case, ` : ''}${inc.counts.executed} executed, ${inc.counts.outcome_unknown} outcome unknown`)}
 ${row('Events on record', ((a, b) => `${inc.events.length}, ${a === b ? a : `${a} to ${b}`}`)(inc.events[0]?.at.slice(0, 10) ?? '', inc.events.at(-1)?.at.slice(0, 10) ?? ''))}
 ${row('Not in the records', inc.missing.join(' '))}
 </table>
@@ -89,7 +89,7 @@ td:first-child{white-space:nowrap;color:#52525b;font-variant-numeric:tabular-num
 <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· for judges</span></p>
 <h1>JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.</h1>
 <p class="m">Everything here runs on PayPal's sandbox with test accounts; no real money moves. No password is needed to look. The password lets you act.</p>
-<p class="m">This demo has two exceptions to the owner's OK, both a visitor's own test: holds on a case they lease, and the one refund on their own demo purchase, labelled as the demo approver.</p>
+<p class="m">This demo has two exceptions to the owner's OK, each a visitor's own test and each recorded as theirs: holds on a case they lease, and the one refund on their own demo purchase.</p>
 <h2>AI purchases on record</h2>
 <p class="m">Orders a shopping agent placed for a buyer. Each incident joins what the agent was allowed, what reached PayPal and every money move the gate held, allowed or denied. Nothing in it comes from a model.</p>
 ${purchases ? `<table>${purchases}</table>` : '<p class="m">None on record yet.</p>'}

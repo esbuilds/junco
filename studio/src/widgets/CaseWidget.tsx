@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ACTION_LABEL, api, claimSupport, DECISION_LABEL, human, QUOTE_NOTE, UNQUOTED_NOTE, money, REASONS, STATUS, dueText, type CaseDetail, type Decision, HOLD_STATUS, SUPPORT_NOTE } from '../api';
+  ACTION_LABEL, api, claimSupport, DECISION_LABEL, human, QUOTE_NOTE, UNQUOTED_NOTE, money, REASONS, STATUS, dueText, type CaseDetail, type Decision, holdWords, SUPPORT_NOTE } from '../api';
 import { startReplay, useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
 
@@ -288,7 +288,7 @@ export function CaseWidget() {
           <h3>Gate history</h3>
           {c.holds.map((h) => (
             <div key={h.id} className="jd-muted">
-              {human(h.method)}{h.asked_by ? ` (asked by the ${h.asked_by})` : ''}: held because {h.reason}, then {HOLD_STATUS[h.status] ?? h.status}
+              {human(h.method)}{h.asked_by ? ` (asked by the ${h.asked_by})` : ''}: held because {h.reason}, then {holdWords(h)}
             </div>
           ))}
         </>

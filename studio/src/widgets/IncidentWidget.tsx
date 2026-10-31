@@ -164,7 +164,7 @@ export function IncidentWidget() {
       {inc && <div className="jd-incident-grid">
         <div className="jd-incident-main">
           {!inc.decline && <div className="jd-counts">
-            {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
+            {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ...(inc.counts.demo_approved ? [['Approved by the demo approver', inc.counts.demo_approved] as const] : []), ...(inc.counts.leased_approved ? [['Approved by a visitor on their leased case', inc.counts.leased_approved] as const] : []), ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
               .map(([k, v]) => <div key={k}><span>{k}</span><strong>{v}</strong></div>)}
           </div>}
           <dl className="jd-facts">

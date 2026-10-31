@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, EXPIRED_TEXT, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { actor, decidedBy, DEMO_APPROVER, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
+import { actor, decidedBy, DEMO_APPROVER, LEASE_VISITOR, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import { aiText } from './incident-questions.js';
 import { checkAgainstPayPal } from './fingerprint.js';
@@ -90,7 +90,7 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   for (const h of readHolds().filter((h) => mine(h.args))) {
     const money = MONEY.includes(h.method), ref = { hold_id: h.id, ...(h.args?.dispute_id && { dispute_id: h.args.dispute_id }), ...(h.args?.capture_id && { capture_id: h.args.capture_id }) };
     const d = decider(h.id);
-    if (money) { counts.proposed++; if (APPROVED.includes(h.status)) { if (d.by === DEMO_APPROVER) counts.demo_approved = (counts.demo_approved ?? 0) + 1; else counts.approved++; } if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
+    if (money) { counts.proposed++; if (APPROVED.includes(h.status)) { if (d.by === DEMO_APPROVER) counts.demo_approved = (counts.demo_approved ?? 0) + 1; else if (d.by === LEASE_VISITOR) counts.leased_approved = (counts.leased_approved ?? 0) + 1; else counts.approved++; } if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
     if (!tags[h.id]) missing.push(`who asked for hold ${h.id}: it carries no caller tag`);
     events.push({ id: `hold:${h.id}`, at: h.created, kind: 'hold', actor: who(tags[h.id]), source: 'holds',
       summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).${h.expires ? ` If the owner doesn't decide by ${h.expires.slice(0, 16).replace('T', ' ')} UTC, it expires and nothing moves.` : ''}`, ref: { ...ref, rule: `hold: ${h.reason}` } });

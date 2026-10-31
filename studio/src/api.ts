@@ -50,9 +50,13 @@ export interface SavedRec { recommendation: Recommendation | null; problems: str
 export interface Hold {
   id: string; status: string; method: string; reason: string; args?: any; asked_by?: string; paypal?: { id: string; status: string | null } | null; recheck?: { at: string; event: string; refund?: { id: string; at: string } };
   full_refund?: string; // a refund with no amount: "Full refund of $38.00" (or "Full refund" when the amount isn't on record)
+  decided_by?: string; // only when it wasn't the owner: a visitor on their leased case
 }
 // T2: an approved hold isn't done until PayPal says so. Same wording as the case file.
 export const HOLD_STATUS: Record<string, string> = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed', expired: "expired: the owner didn't decide within 24 hours, nothing sent" };
+
+// A hold's status in words. A rejection names who rejected it when that wasn't the owner.
+export const holdWords = (h: Pick<Hold, 'status' | 'decided_by'>) => (h.status === 'rejected' && h.decided_by ? `rejected by ${h.decided_by}` : HOLD_STATUS[h.status] ?? h.status);
 
 export interface Activity {
   at: string; dispute_id: string; trigger: string; step: string; detail: string;

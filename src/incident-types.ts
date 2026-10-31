@@ -53,8 +53,9 @@ export type Incident = {
     demo?: { url: string | null; qr: string | null; why: string | null; expires: string } };
   dispute_id: string | null;
   events: IncidentEvent[];                                                            // oldest first
-  // Money moves only. approved is the owner's and the policy's; demo_approved, only when there is one, is the demo approver's.
-  counts: { proposed: number; approved: number; executed: number; outcome_unknown: number; demo_approved?: number };
+  // Money moves only. approved is the owner's and the policy's. Only when there is one: demo_approved is the demo approver's,
+  // leased_approved a visitor's on the case they lease.
+  counts: { proposed: number; approved: number; executed: number; outcome_unknown: number; demo_approved?: number; leased_approved?: number };
   missing: string[]; // facts the records don't have, said plainly; never filled in by a model
   records?: ThreeRecords | null; // the desk's incident JSON only; null on a decline. Connector tools don't carry it
 };

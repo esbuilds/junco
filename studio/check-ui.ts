@@ -2,6 +2,7 @@
 //   npm run check-ui
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
+import { HOLD_STATUS, holdWords } from './src/api';
 import { BOOK_FIELDS, FIELDS } from './src/insights';
 import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noOtherPurchase, policyWords, quoteParts, splitHolds, startProgress, toPlan, trialLines, whoElseRows } from './src/ui';
 import type { Bucket, Member, Trial, WhoElseRun } from '../src/whoelse-types';
@@ -78,6 +79,12 @@ assert.deepEqual(BOOK_FIELDS.filter((b) => FIELDS.some((f) => f.id === b.id)), [
 
 // Claude refuses a whole turn if two tools share a name, and the desk's list and the assistant's own both have junco_get_incident.
 assert.match(readFileSync(new URL('src/studioAi.ts', import.meta.url), 'utf8'), /paypalTools\.filter\(\(t\) => !junco\.some\(\(j\) => j\.name === t\.name\)\)/, "the assistant's own tools must win over the desk's");
+
+// A rejection names who rejected it when that wasn't the owner; the owner's words don't change, and the desk sends no field then.
+assert.equal(holdWords({ status: 'rejected' }), 'rejected by owner');
+assert.equal(holdWords({ status: 'rejected', decided_by: 'a visitor on their leased case' }), 'rejected by a visitor on their leased case');
+assert.equal(holdWords({ status: 'completed', decided_by: 'a visitor on their leased case' }), HOLD_STATUS.completed);
+assert.equal(holdWords({ status: 'something new' }), 'something new');
 
 // Who else?: groups in bucket order with totals in cents, the plan only ever from kept silent rows, failures said plainly.
 const member = (id: string, bucket: Bucket, paid: string, refunded: string, capture: string | null = `C${id}`): Member => ({ incident_id: id, capture_id: capture, sku: 'WKD-01', paid, instruction: 'a carry-on bag', reason: 'carry-on-friendly', listing: 'L', bucket, why: 'w', quotes: [], dispute_id: null, payment_status: 'COMPLETED', refunded, remaining: (Number(paid) - Number(refunded)).toFixed(2), fingerprint: 'match' });

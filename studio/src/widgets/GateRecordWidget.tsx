@@ -6,7 +6,7 @@ import { Panel } from './Panel';
 // assistant, MCP clients, PayPal's hosted server, Break the mandate, the red team), with the gate's verdict and what
 // became of it. All of it read from the hold store, the gate's log and the run records on the server; nothing from the model.
 type Row = { at: string; source: string; dispute_id: string | null; method: string; amount: string | null; verdict: string; outcome: string; hold_id?: string; run_id?: string; reason: string };
-type Record = { counts: { proposed: number; held: number; approved: number; demo_approved: number; rejected: number; stale: number; pending: number; allowed: number; denied: number; gate_only: number; past_limit: number }; daily_total?: { approved_in_advance: string; max: number; calls: number } | null; rows: Row[] };
+type Record = { counts: { proposed: number; held: number; approved: number; demo_approved: number; leased_approved?: number; rejected: number; stale: number; pending: number; allowed: number; denied: number; gate_only: number; past_limit: number }; daily_total?: { approved_in_advance: string; max: number; calls: number } | null; rows: Row[] };
 
 const VERDICT: { [k: string]: string } = { hold: 'Held for the owner', allow: 'Allowed by policy', deny: 'Denied', 'gate-only': 'Gate-only test' };
 
@@ -20,7 +20,7 @@ export function GateRecordWidget() {
       {data?.daily_total && <div className="jd-sub">Approved in advance today (UTC): ${data.daily_total.approved_in_advance} of ${data.daily_total.max}, {data.daily_total.calls} {data.daily_total.calls === 1 ? 'call' : 'calls'}. Offers count even though no money moves until a buyer accepts. Past the total, calls wait for you.</div>}
       {c && (
         <div className="jd-counts" aria-label="Gate counts">
-          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved] as const] : []), ['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
+          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Approved by a visitor on their leased case', c.leased_approved] as const] : []), ['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
             <div key={k}><span>{k}</span><strong>{v}</strong></div>
           ))}
         </div>

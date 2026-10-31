@@ -5,7 +5,7 @@ import type { Evidence } from './recommend.js';
 import type { Saved, Activity } from './agent.js';
 import type { Hold } from './gate.js';
 
-type Input = { d: any; evidence: Evidence[]; saved: Saved | null; holds: Hold[]; activity: Activity[] };
+type Input = { d: any; evidence: Evidence[]; saved: Saved | null; holds: (Hold & { decided_by?: string })[]; activity: Activity[] };
 const human = (s: string) => String(s ?? '').toLowerCase().replace(/_/g, ' ');
 
 // T2 wording, same as the desk's.
@@ -37,7 +37,7 @@ export function caseMarkdown({ d, evidence, saved, holds, activity }: Input): st
     if (saved?.problems.length) lines.push('', `Blocked by checks: ${saved.problems.join('; ')}`);
     lines.push('', `Checked ${saved!.at}. Every claim cites the evidence above; JUNCO's validator rejects claims that cite nothing or cite evidence that isn't there.`);
   }
-  if (holds.length) { lines.push('', '## Approvals', ''); for (const h of holds) lines.push(`- ${h.created}: ${human(h.method)} held (${h.reason}), ${HOLD_STATUS[h.status] ?? h.status}`); }
+  if (holds.length) { lines.push('', '## Approvals', ''); for (const h of holds) lines.push(`- ${h.created}: ${human(h.method)} held (${h.reason}), ${h.status === 'rejected' && h.decided_by ? `rejected by ${h.decided_by}` : HOLD_STATUS[h.status] ?? h.status}`); }
   if (activity.length) { lines.push('', '## Timeline', ''); for (const a of [...activity].sort((x, y) => x.at.localeCompare(y.at))) lines.push(`- ${a.at}: ${a.step}. ${a.detail}`); }
   return lines.join('\n') + '\n';
 }

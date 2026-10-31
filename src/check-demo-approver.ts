@@ -14,7 +14,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 // The desk's wiring, read before leaving the repo: desk.ts can't be imported offline, it starts the server and timers.
 const desk = readFileSync('src/desk.ts', 'utf8'), onetapSrc = readFileSync('src/onetap.ts', 'utf8'), demoSrc = readFileSync('src/demo-approver.ts', 'utf8'), incidentSrc = readFileSync('src/incident.ts', 'utf8');
-const publicSrc = readFileSync('src/public.ts', 'utf8'), pageSrc = readFileSync('public/incident.html', 'utf8'), studioSrc = readFileSync('studio/src/widgets/IncidentWidget.tsx', 'utf8');
+const classicSrc = readFileSync('public/index.html', 'utf8'), publicSrc = readFileSync('src/public.ts', 'utf8'), pageSrc = readFileSync('public/incident.html', 'utf8'), studioSrc = readFileSync('studio/src/widgets/IncidentWidget.tsx', 'utf8');
 
 globalThis.fetch = (async (url: any) => { throw new Error(`check-demo-approver: no network (${url})`); }) as any;
 delete process.env.DATABASE_URL; delete process.env.DEMO_APPROVE_PER_DAY;
@@ -28,8 +28,8 @@ const buy = (cap: string, session: string) => ({ capture_id: cap, order_id: `ORD
 writeFileSync('.junco/agent-buys.json', JSON.stringify([buy('CAPA1', A), buy('CAPA2', A), buy('CAPB1', B), buy('CAPC1', C), buy('CAPC2', C), buy('CAPC3', C), buy('CAPD1', D), buy('CAPE1', E), buy('CAPE2', E), buy('CAPE3', E), buy('CAPE4', E), buy('CAPE5', E)]));
 
 const { flagHolds, gate, gateRecord, guards, loadPolicy, readHolds, requestApproval, setExpiry } = await import('./gate.js');
-const { DEMO_APPROVER, PUBLIC_SESSION, actor, decideRefusal, decidedBy, leaseRefusal, readDemoDecisions, saveRefundAsk } = await import('./store-dispute.js');
-const { demoDecide, demoOffer, demoRefusal, demoRows, demoShow, demoTarget, DEMO_PATH, YOU_ARE } = await import('./demo-approver.js');
+const { DEMO_APPROVER, LEASE_VISITOR, PUBLIC_SESSION, actor, decideRefusal, decidedBy, decidedField, leaseRefusal, readDemoDecisions, saveRefundAsk } = await import('./store-dispute.js');
+const { decideHoldAs, demoDecide, demoOffer, demoRefusal, demoRows, demoShow, demoTarget, DEMO_PATH, YOU_ARE } = await import('./demo-approver.js');
 const { ASKER } = await import('./refund-ask.js');
 const { buildIncident } = await import('./incident.js');
 const { holdNews } = await import('./holdcard.js');
@@ -37,6 +37,7 @@ const { holdPage, linkRefusal, signedLink, LINK_MS } = await import('./onetap.js
 const { reconcile } = await import('./reconcile.js');
 const { threeRecords } = await import('./incident-questions.js');
 const { receiptPage } = await import('./incident-view.js');
+const { caseMarkdown } = await import('./casefile.js');
 
 const KEY = 'the-owner-token', BASE = 'https://d';
 let paypalCalls = 0, seen: any = null;
@@ -45,6 +46,9 @@ const tag = (id: string, who: string) => { tags[id] = who; writeFileSync('.junco
 const server = new McpServer({ name: 'check', version: '0' });
 server.registerTool('create_refund', { description: 'Refund a capture', inputSchema: { capture_id: z.string(), amount: z.any().optional() } },
   async () => { paypalCalls++; seen = actor.getStore(); return { content: [{ type: 'text', text: JSON.stringify({ id: `REFUND${paypalCalls}`, status: 'COMPLETED' }) }] }; });
+let leaseCalls = 0, recordAtPayPal: string | null = null;
+server.registerTool('accept_dispute_claim', { description: 'Accept a claim', inputSchema: { dispute_id: z.string() } },
+  async ({ dispute_id }: { dispute_id: string }) => { leaseCalls++; recordAtPayPal = decidedBy(readHolds().find((h) => h.args?.dispute_id === dispute_id && h.status === 'executing')?.id ?? ''); return { content: [{ type: 'text', text: '{}' }] }; });
 // The desk's own lease guard: a plain visitor can't decide a hold with no case, so the link has to pass it honestly.
 guards.push((_m, args, phase) => (phase === 'decide' ? decideRefusal : leaseRefusal)(args?.dispute_id));
 const g = gate(server, loadPolicy(), (h: any) => tag(h.id, ASKER));
@@ -288,8 +292,77 @@ assert.equal(holdNews(readHolds().find((h: any) => h.id === ownerHold.id)).text,
 const incG = actor.run(visitor(G), () => buildIncident('CAPG2'))!;
 assert.equal(incG.events.find((e: any) => e.id === `approval:${ownerHold.id}`)!.actor, 'owner');
 assert.equal(incG.counts.approved, 1); assert.equal(incG.counts.demo_approved, undefined);
-await client.close();
 console.log("owner: the owner's own decisions read exactly as before");
+
+// /api/holds: a visitor deciding on the case they lease is recorded as that, before PayPal, and only when it's really theirs.
+const L = 'l'.repeat(36), iso = new Date().toISOString(), cases = ['PP-LEASED', 'PP-L-REJECT', 'PP-L-OTHER', 'PP-L-OWNER', 'PP-L-FAILS', 'PP-L-SETTLE', 'PP-L-INC'];
+writeFileSync('.junco/store-runs.json', JSON.stringify(cases.map((dispute_id) => ({ at: iso, leased_at: iso, visitor: 'ip', session: L, buyer_txn: `TXN${dispute_id}`, kind: 'unshipped', dispute_id }))));
+writeFileSync('.junco/pool.json', JSON.stringify([{ buyer_txn: 'TXNPP-L-INC', amount: '62.00', order_id: 'ORDL', tracking: false, added: iso, agent: rec('CAPLINC') }]));
+const heldOn = (dispute_id: string) => { const h = requestApproval('accept_dispute_claim', { dispute_id }, 'policy: accept_dispute_claim = hold'); tag(h.id, 'desk agent'); return h.id; };
+const leaseRow = (id: string) => demoRows(gateRecord(readHolds(), [], [], (h: any) => tags[h.id])).find((r: any) => r.hold_id === id)!.outcome;
+const leaseRecords = () => readDemoDecisions().filter((d) => d.leased);
+let told = '';
+const viaDesk = (who: { owner: boolean; session: string }, id: string, verb: 'approve' | 'reject' | 'settle') => actor.run(who, () => decideHoldAs(id, verb, (w: string) => { told = w; return g[verb](id); }));
+
+const hL = heldOn('PP-LEASED');
+assert.equal((await viaDesk(visitor(L), hL, 'approve')).status, 'completed');
+assert.equal(told, LEASE_VISITOR); assert.equal(LEASE_VISITOR, 'a visitor on their leased case');
+assert.equal(recordAtPayPal, LEASE_VISITOR, 'the record has to exist before PayPal is called');
+assert.deepEqual(leaseRecords().map((d) => [d.hold_id, d.session, d.verb]), [[hL, L, 'approve']]);
+assert.equal(leaseRow(hL), 'approved by a visitor on their leased case, PayPal accepted it');
+assert.equal(holdNews(readHolds().find((h) => h.id === hL)).text, 'Approved by a visitor on their leased case, and PayPal accepted it.');
+assert.deepEqual(decidedField(hL), { decided_by: LEASE_VISITOR });
+const hLR = heldOn('PP-L-REJECT');
+assert.equal((await viaDesk(visitor(L), hLR, 'reject')).status, 'rejected');
+assert.equal(leaseRow(hLR), 'rejected by a visitor on their leased case, nothing sent');
+assert.equal(holdNews(readHolds().find((h) => h.id === hLR)).text, 'Rejected by a visitor on their leased case. Nothing was sent to PayPal.');
+
+const hInc = heldOn('PP-L-INC');
+await viaDesk(visitor(L), hInc, 'approve');
+const leasedInc = actor.run(visitor(L), () => buildIncident('TXNPP-L-INC'))!;
+const leaseEv = leasedInc.events.find((e: any) => e.id === `approval:${hInc}`)!;
+assert.deepEqual([leaseEv.actor, leaseEv.summary], ['a visitor on their leased case', 'A visitor on their leased case approved accept dispute claim.']);
+assert.deepEqual(leasedInc.counts, { proposed: 1, approved: 0, executed: 1, outcome_unknown: 0, leased_approved: 1 });
+assert.ok(receiptPage(leasedInc, 'https://d/x').includes('1 approved by a visitor on their leased case'));
+console.log('leased: approve and reject record as a visitor on their leased case, saved before PayPal, on the incident, counts, rows and hold card');
+
+// Records nothing unless it's really the visitor's decision: refused, already decided, a settle, the owner.
+const before = leaseRecords().length, hOther = heldOn('PP-L-OTHER');
+await assert.rejects(viaDesk(visitor('someone-else'), hOther, 'approve'), /leased to another visitor/);
+assert.deepEqual([status(hOther), leaseRecords().length, decidedBy(hOther)], ['pending', before, 'the owner']);
+const hOwn = heldOn('PP-L-OWNER');
+assert.equal((await viaDesk({ owner: true, session: 'o' }, hOwn, 'approve')).status, 'completed');
+assert.equal(told, 'the owner');
+assert.deepEqual([leaseRecords().length, decidedBy(hOwn), decidedField(hOwn)], [before, 'the owner', {}]);
+assert.equal(leaseRow(hOwn), 'approved by the owner, PayPal accepted it');
+await assert.rejects(viaDesk(visitor(L), hOwn, 'reject'), /already/);
+assert.deepEqual([leaseRecords().length, leaseRow(hOwn)], [before, 'approved by the owner, PayPal accepted it']);
+const hSettle = heldOn('PP-L-SETTLE');
+await viaDesk(visitor(L), hSettle, 'settle').catch(() => null);
+assert.deepEqual([told, leaseRecords().length], ['the owner', before]);
+
+// A decision that dies with the hold still pending takes its record back, or the owner's later approval would read as a visitor's.
+const hFail = heldOn('PP-L-FAILS');
+await assert.rejects(actor.run(visitor(L), () => decideHoldAs(hFail, 'approve', async () => { assert.equal(decidedBy(hFail), LEASE_VISITOR); throw new Error('the desk fell over'); })), /fell over/);
+assert.deepEqual([status(hFail), decidedBy(hFail), leaseRecords().length], ['pending', 'the owner', before]);
+await g.approve(hFail);
+assert.equal(leaseRow(hFail), 'approved by the owner, PayPal accepted it');
+
+// A lease decision is no demo approval: it spends no link and no cap, and a record from before this change stays the owner's.
+writeFileSync('.junco/agent-buys.json', JSON.stringify([...JSON.parse(readFileSync('.junco/agent-buys.json', 'utf8')), buy('CAPLEASE', L)]));
+assert.ok(demoOffer(KEY, BASE, await asked('CAPLEASE', L), visitor(L))!.url, 'a lease decision used up no demo approval');
+const oldHold = heldOn('PP-OLD-ROW');
+await g.reject(oldHold);
+assert.equal(leaseRow(oldHold), 'rejected by the owner, nothing sent');
+assert.deepEqual(decidedField(oldHold), {});
+
+// The case file names the visitor on their rejection and keeps the owner's words otherwise; the classic page does the same.
+const fileLine = (over: object) => caseMarkdown({ d: { dispute_id: 'PP-L-REJECT', dispute_amount: { value: '1.00', currency_code: 'USD' } }, evidence: [], saved: null, activity: [], holds: [{ ...readHolds().find((h) => h.id === hLR)!, ...over }] }).split('\n').find((l: string) => l.includes(' held ('))!;
+assert.match(fileLine(decidedField(hLR)), /, rejected by a visitor on their leased case$/);
+assert.match(fileLine({}), /, rejected by owner$/);
+assert.ok(classicSrc.includes("h.status === 'rejected' && h.decided_by ? `rejected by ${h.decided_by}`"), 'the classic page names the visitor too');
+await client.close();
+console.log("leased: a refused visitor, a decided hold, a settle, a failed try and the owner record nothing, and old rows aren't guessed at");
 
 // The desk's wiring: before the password like the owner's link, GET can't decide, it never runs as the owner, and the words match.
 const at = (s: string) => { const i = desk.indexOf(s); assert.ok(i >= 0, `desk.ts no longer has: ${s}`); return i; };
@@ -300,7 +373,14 @@ at("decide: (id, verb, session) => actor.run({ owner: false, session, demo: true
 at("guards.push((_m, args, phase) => (phase === 'decide' ? decideRefusal : leaseRefusal)(args?.dispute_id));");
 at('const rows = demoRows(gateRecord(');
 at('notifyDecision(h, `${done}.`);');
-at("demo ? 'demo approver' : 'owner'");
+at("demo ? 'demo approver' : who === LEASE_VISITOR ? LEASE_VISITOR : 'owner'");
+at("{ const verb = p[3], h = await decideHoldAs(p[2], verb, (who) => decideHold(p[2], verb, who)); return json(res, 200, { ...h, ...decidedField(h.id), paypal: paypalRefund(h) }); }");
+at("const leased = n((r) => /^approved by a visitor/.test(r.outcome));");
+at("...(leased && { leased_approved: leased })"); // no key at all when there is none, so the owner's JSON is what it was
+at("const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map((h) => ({ ...tagged(h), ...decidedField(h.id) }));");
+at("approved: n((r) => /^approved by the owner/.test(r.outcome))");
+at("decide: (id) => decideHold(id, 'approve', 'the owner'),");
+assert.ok(!desk.includes("decideHold(p[2], p[3], 'the owner')"), 'the /api/holds route must say who decided');
 at('demoOffer(process.env.OWNER_TOKEN, DESK_URL, r.refund.ask?.hold_id, actor.getStore()!)');
 assert.ok(desk.includes('`approved by ${who}, and ${acceptedText(h)}`'), "Slack's line must take who decided");
 assert.ok(!/demo/i.test(publicSrc), 'the link needs no public route; it carries its own signature');

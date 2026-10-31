@@ -135,7 +135,7 @@ function render() {
   $('#receipt').href = `/incident/${encodeURIComponent(inc.id)}/receipt`;
   $('#who-else').hidden = !inc.dispute_id; $('#who-else').href = `/who-else?seed=${encodeURIComponent(inc.id)}`;
   const c = inc.counts, d = inc.decline;
-  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved]] : []), ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
+  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved]] : []), ...(c.leased_approved ? [['Approved by a visitor on their leased case', c.leased_approved]] : []), ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
     .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   // A decline: the agent bought nothing, so there are no money moves to count and nothing for the what-if to re-run.
   $('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
