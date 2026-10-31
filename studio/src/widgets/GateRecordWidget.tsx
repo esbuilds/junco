@@ -10,6 +10,8 @@ type Record = { counts: { proposed: number; held: number; approved: number; demo
 
 const VERDICT: { [k: string]: string } = { hold: 'Held', allow: 'Allowed', deny: 'Denied', 'gate-only': 'Gate-only test' };
 
+const COUNT_TITLE: { [k: string]: string } = { 'Demo approver': 'Approved by the demo approver (a desk visitor)', 'Leased visitor': 'Approved by a visitor on their leased case' };
+
 export function GateRecordWidget() {
   const { data, error } = usePoll<Record>('/api/gate-record', 15000);
   const c = data?.counts;
@@ -20,8 +22,8 @@ export function GateRecordWidget() {
       {data?.daily_total && <div className="jd-sub" title="Offers count even though no money moves until a buyer accepts. Past the total, calls wait for you.">Approved in advance today (UTC): ${data.daily_total.approved_in_advance} of ${data.daily_total.max}, {data.daily_total.calls} {data.daily_total.calls === 1 ? 'call' : 'calls'}</div>}
       {c && (
         <div className="jd-counts" aria-label="Gate counts">
-          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Approved by a visitor on their leased case', c.leased_approved] as const] : []), ['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
-            <div key={k}><span>{k}</span><strong>{v}</strong></div>
+          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Leased visitor', c.leased_approved] as const] : []),['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
+            <div key={k} title={COUNT_TITLE[k]}><span>{k}</span><strong>{v}</strong></div>
           ))}
         </div>
       )}
