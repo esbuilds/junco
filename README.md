@@ -2,7 +2,7 @@
 
 [![checks](https://github.com/esbuilds/junco/actions/workflows/checks.yml/badge.svg)](https://github.com/esbuilds/junco/actions/workflows/checks.yml)
 
-**JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.**
+**JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.** This sandbox demo has two exceptions, both a visitor's own test: they decide holds on a case they lease, and they can approve the one refund on their own demo purchase, which is labelled as theirs.
 
 ## For judges
 
@@ -14,6 +14,7 @@
   2. Or, at the top of that Incidents page, **Send your own shopping agent**. Type what to buy and a budget. The agent buys one of the store's three bags in the sandbox or buys nothing, and its incident opens either way. Two runs per visitor a day.
   3. **Point your own Claude at the desk:** in claude.ai, go to Settings, Connectors, Add custom connector, enter `https://junco-desk.onrender.com/mcp`, and sign in as `judge` with the same password. claude.ai declines to call tools that move money, so from claude.ai you investigate: ask it to list the incidents, read one, and re-run the gate under a lower limit. Other clients and the money tools are in [docs/mcp.md](docs/mcp.md).
   4. Under Test it, open the **Escape room**. Five rooms, each harder: try to get the owner's money out past the policy. The counter shows every attempt and every escape on record.
+- **Approve it yourself:** after step 2, ask for your money back on your own purchase's incident. The refund is held, and the page offers a QR code and a link, so a phone works. You are the demo approver for that one sandbox refund, and you can't approve anything else. The link works once, ends with the hold, goes through the same re-checks as the owner's approval, and shows PayPal's refund id. It proves you hold the link, not who you are, and you aren't the store's owner: the incident, the Gate record, the Slack line and the counts say "the demo approver (a desk visitor)". One approval per visitor a day and 5 for the desk, counted before PayPal.
 - **PayPal's hosted MCP server has been failing its API calls since Oct 28** (their bug: "Unsupported cache mode: default"). Until PayPal fixes it, `/mcp` is the working path for connectors, and it carries refunds and orders too, through PayPal's Agent Toolkit.
 - **If Claude is down,** or the desk's daily AI budget is used up, the header says the desk is read-only. Cases, saved recommendations, holds, the Gate record, incident pages, receipts and past runs still open, and approving a hold doesn't need Claude. The shopping agent and new Escape room attempts need Claude.
 - **If PayPal's sandbox is down,** Try it (43 made-up cases, no PayPal calls), the Gate record, incident pages, receipts and every past run's page still work. Live cases won't load.
@@ -40,7 +41,7 @@ JUNCO is the only public entry we found that puts a gate in front of PayPal's ho
 - **An approved hold runs only if the case is still the one the owner was shown.** If PayPal's webhook says it changed, the hold is marked "re-check" before the owner taps.
 - **The owner decides from a phone.** Each hold goes to Slack with a signed one-tap link, and says who asked: the Claude connector, an MCP client, the desk's agent or the dashboard assistant.
 
-PayPal's platform team wrote about this problem in October. Their [Oct 8 post on PayPal's MCP Hub](https://developer.paypal.com/community/blog/One_connection_2000_tools) lists "Which tools may each user discover and invoke?" among six questions the protocol leaves to you. It says "An agent action should remain attributable to the person who authorized it and the agent that executed it" and that "every production path needs an explicit control boundary." Their [Oct 9 post on agent skills](https://developer.paypal.com/community/blog/agent_skills_at_enterprise_scale) runs automated checks, prompt injection among them, before a human answers "Should this be trusted and published?" JUNCO is a small seller's answer to those questions for PayPal's own tools: `policy.json` decides which tools an agent sees and which wait, every hold names who asked and only the owner approves, the Gate record is the audit trail, and DisputeBench's 10 injection scenarios test the agent. The quotes are PayPal's and the mapping is ours; PayPal hasn't reviewed or endorsed JUNCO.
+PayPal's platform team wrote about this problem in October. Their [Oct 8 post on PayPal's MCP Hub](https://developer.paypal.com/community/blog/One_connection_2000_tools) lists "Which tools may each user discover and invoke?" among six questions the protocol leaves to you. It says "An agent action should remain attributable to the person who authorized it and the agent that executed it" and that "every production path needs an explicit control boundary." Their [Oct 9 post on agent skills](https://developer.paypal.com/community/blog/agent_skills_at_enterprise_scale) runs automated checks, prompt injection among them, before a human answers "Should this be trusted and published?" JUNCO is a small seller's answer to those questions for PayPal's own tools: `policy.json` decides which tools an agent sees and which wait, every hold names who asked and the owner approves, apart from the sandbox demo's two labelled exceptions above, the Gate record is the audit trail, and DisputeBench's 10 injection scenarios test the agent. The quotes are PayPal's and the mapping is ours; PayPal hasn't reviewed or endorsed JUNCO.
 
 ## How it works
 
@@ -103,7 +104,7 @@ A desk visitor can send the shopping agent themselves (`/api/shop`, the form on 
 - **Caps:** two runs per visitor a day and 20 for the whole desk, counted before any Claude call, on top of the desk's daily AI budget.
 - **Private to the visitor:** their buys and declines are listed only for them and the owner. Anyone with the link can open the page.
 - **Keyed by the capture id:** the desk can't read the buyer's PayPal activity, so there is no buyer transaction id, and the incident says that under what the records don't have. For example, capture `57G046971Y1191455`: asked for "a light packable bag for a rainy city weekend" under $45, the agent bought WKD-03 for $38.
-- **Refunds only:** without the buyer transaction id these orders can't be disputed. A refund names the capture, so a refund someone asks JUNCO for lands in the same incident and waits for the owner like any other.
+- **Refunds only:** without the buyer transaction id these orders can't be disputed. A refund names the capture, so a refund someone asks JUNCO for lands in the same incident and waits for the owner like any other. The visitor who asked can also approve that one themselves, as the demo approver, with a link of its own (`src/demo-approver.ts`). It isn't the owner's one-tap link and neither works as the other.
 
 ## Go around the gate
 

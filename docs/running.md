@@ -57,6 +57,7 @@ npm run check-agent  # agent triage: acts once per state, no repeat messages
 npm run check-lease  # case leases, who may approve where, the pre-filed pool
 npm run check-challenge  # Break the mandate: the three cards, caps, owner-only holds, private messages
 npm run check-onetap # one-tap links: signed per hold, no stretched expiry, GET never decides
+npm run check-demo-approver # "Approve it yourself": one hold, one visitor, once, labelled; the owner's one-tap unchanged; offline
 npm run check-recheck   # webhook re-check flags and the reported-refund refusal, offline
 npm run check-incident  # BLACK BOX: the incident join, missing facts, and a what-if that reaches no network, offline
 npm run check-incident-desk # the desk's side: LIVE and RECORDED labels, PayPal's refund id, the receipt, the three questions, offline
@@ -77,6 +78,7 @@ CI (`.github/workflows/checks.yml`) runs the typecheck and every check that need
 - The gate wraps every registered tool, so an agent cannot reach a stock money-moving tool around it. Tools the policy doesn't name are denied.
 - Approving a hold marks it before running it, so a crash cannot run it twice. A rejected hold cannot be approved later. An approval is refused if the case moved on since the hold (resolved, new stage, new amount, or PayPal no longer allows the action).
 - On the hosted desk, visitors share one password. Each visitor's own sandbox case is leased to their browser session for 30 minutes; only that session can act on it, and holds from Break the mandate wait for the owner.
+- "Approve it yourself" (`src/demo-approver.ts`) lets a visitor decide the one refund hold from their own refund ask, with no password, on a link signed from `OWNER_TOKEN` in its own context, bound to that hold, purchase and session. The session is signed, never in the URL. It's single use, ends with the hold and runs the owner's re-checks. It proves someone holds the link, not who they are, and records as the demo approver. `DEMO_APPROVE_PER_DAY` caps the desk (default 5, 0 turns it off); a visitor gets one a day.
 - Buyer and merchant messages are passed to Claude as evidence and the prompt tells it to treat them as data. The desk escapes all text it displays.
 - Credentials come from environment variables. `.env` is git-ignored.
 - The hosted desk uses HTTP basic auth over HTTPS. It is a demo control, not multi-user auth. Claude connectors sign in with OAuth (dynamic client registration, PKCE S256, rotating refresh tokens, revocation): username `judge` and the desk password give visitor rights; only the owner token gives owner rights. Clients and token hashes are kept in Postgres, so a deploy doesn't sign anyone out.

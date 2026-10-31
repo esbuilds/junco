@@ -62,7 +62,7 @@ export function HoldsWidget() {
                   <td className="jd-r">{canDecide(h, who) ? <div className="jd-actions">
                     <button type="button" className="jd-btn jd-btn-sm" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
                     <button type="button" className="jd-btn jd-btn-sm jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>{approveLabel(h.method)}</button>
-                  </div> : <span className="jd-muted jd-owner-decides" title="Only the store owner approves or rejects this. You decide holds on the case you take in Dispute this store.">Owner decides</span>}</td>
+                  </div> : <span className="jd-muted jd-owner-decides" title="The store owner approves or rejects this. You decide holds on the case you take in Dispute this store, and a refund you asked for on your own purchase, from its incident page.">Owner decides</span>}</td>
                 </tr>
                 {/* The re-check reason in full, on its own line under the row, so the buttons keep their place. */}
                 {h.recheck && <tr className="jd-note-row"><td colSpan={5}><span className="jd-attn">Re-check:</span> PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</td></tr>}
