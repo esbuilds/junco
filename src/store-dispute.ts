@@ -181,7 +181,8 @@ export function addDeclines(list: any[], session?: string): number {
 // D1 leases. A leased case belongs to the session that leased it for 30 minutes from the lease; after that it's a past
 // run, read-only to visitors. Who's asking comes from the desk request: visitors are a cookie session behind the shared
 // password, the owner has the owner cookie, and anything outside a desk request (PayPal webhooks, timers) is the system.
-export type Actor = { owner: boolean; session: string };
+// demo: this one call came through a checked "Approve it yourself" link (demo-approver.ts). It opens no dispute hold.
+export type Actor = { owner: boolean; session: string; demo?: boolean };
 export const actor = new AsyncLocalStorage<Actor>();
 export { PUBLIC_SESSION } from './public.js'; // the judges' door: someone without the password
 export const LEASE_MS = 30 * 60_000;
@@ -201,6 +202,7 @@ export function leaseRefusal(disputeId?: string): string | null {
 export function decideRefusal(disputeId?: string): string | null {
   const a = actor.getStore();
   if (!a || a.owner) return null;
+  if (a.demo && !disputeId) return null;
   const run = readRuns().find((r) => r.dispute_id === disputeId);
   // In Break the mandate the visitor plays the buyer: a concession they talked JUNCO into waits for the owner, not them.
   if (run?.challenge) return 'holds from Break the mandate are approved or rejected only by the owner';

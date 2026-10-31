@@ -27,8 +27,8 @@ const rec = (cap: string) => ({ instruction: 'a bag', budget: '70.00', sku: 'WKD
 const buy = (cap: string, session: string) => ({ capture_id: cap, order_id: `ORD${cap}`, amount: '38.00', session, added: '2026-10-29T18:00:01.000Z', agent: rec(cap) });
 writeFileSync('.junco/agent-buys.json', JSON.stringify([buy('CAPA1', A), buy('CAPA2', A), buy('CAPB1', B), buy('CAPC1', C), buy('CAPC2', C), buy('CAPC3', C), buy('CAPD1', D), buy('CAPE1', E), buy('CAPE2', E), buy('CAPE3', E), buy('CAPE4', E), buy('CAPE5', E)]));
 
-const { flagHolds, gate, gateRecord, loadPolicy, readHolds, requestApproval, setExpiry } = await import('./gate.js');
-const { DEMO_APPROVER, PUBLIC_SESSION, actor, decidedBy, readDemoDecisions, saveRefundAsk } = await import('./store-dispute.js');
+const { flagHolds, gate, gateRecord, guards, loadPolicy, readHolds, requestApproval, setExpiry } = await import('./gate.js');
+const { DEMO_APPROVER, PUBLIC_SESSION, actor, decideRefusal, decidedBy, leaseRefusal, readDemoDecisions, saveRefundAsk } = await import('./store-dispute.js');
 const { demoDecide, demoOffer, demoRefusal, demoRows, demoShow, demoTarget, DEMO_PATH, YOU_ARE } = await import('./demo-approver.js');
 const { ASKER } = await import('./refund-ask.js');
 const { buildIncident } = await import('./incident.js');
@@ -45,6 +45,8 @@ const tag = (id: string, who: string) => { tags[id] = who; writeFileSync('.junco
 const server = new McpServer({ name: 'check', version: '0' });
 server.registerTool('create_refund', { description: 'Refund a capture', inputSchema: { capture_id: z.string(), amount: z.any().optional() } },
   async () => { paypalCalls++; seen = actor.getStore(); return { content: [{ type: 'text', text: JSON.stringify({ id: `REFUND${paypalCalls}`, status: 'COMPLETED' }) }] }; });
+// The desk's own lease guard: a plain visitor can't decide a hold with no case, so the link has to pass it honestly.
+guards.push((_m, args, phase) => (phase === 'decide' ? decideRefusal : leaseRefusal)(args?.dispute_id));
 const g = gate(server, loadPolicy(), (h: any) => tag(h.id, ASKER));
 const [x, y] = InMemoryTransport.createLinkedPair();
 await server.connect(x);
@@ -59,7 +61,7 @@ async function asked(capture_id: string, session: string) {
   saveRefundAsk({ capture_id, session, at: new Date().toISOString(), reason: '', outcome: 'held', hold_id: r.hold_id });
   return r.hold_id as string;
 }
-const deps = { key: () => KEY, desk: BASE, decide: (id: string, verb: 'approve' | 'reject', session: string) => actor.run({ owner: false, session }, () => g[verb](id)) };
+const deps = { key: () => KEY, desk: BASE, decide: (id: string, verb: 'approve' | 'reject', session: string) => actor.run({ owner: false, session, demo: true }, () => g[verb](id)) };
 const visitor = (session: string) => ({ owner: false, session });
 const parts = (id: string, session = A) => { const u = new URL(demoOffer(KEY, BASE, id, visitor(session))!.url!); return { e: u.searchParams.get('e'), s: u.searchParams.get('s') }; };
 const status = (id: string) => readHolds().find((h: any) => h.id === id)?.status;
@@ -156,6 +158,12 @@ assert.ok(desk.includes("const why = linkRefusal(process.env.OWNER_TOKEN, id, q.
 assert.equal(status(h1), 'pending');
 console.log("one-tap: the owner's signature, page and route are as before, and neither link works as the other");
 
+// The guard is live: the same visitor without the link is refused, and the link's flag opens no dispute hold.
+await assert.rejects(actor.run(visitor(A), () => g.approve(h1)), /only the owner approves or rejects/);
+await assert.rejects(actor.run({ ...visitor(A), demo: true }, () => g.approve(disputeHold.id)), /only the owner approves or rejects/);
+assert.deepEqual([status(h1), status(disputeHold.id), paypalCalls], ['pending', 'pending', 0]);
+console.log("guard: no link, no decision, and the link's flag opens no dispute hold");
+
 // A cap refusal spends nothing: the hold stays the owner's to decide, and the visitor's link still works tomorrow.
 process.env.DEMO_APPROVE_PER_DAY = '0';
 const capped = await demoDecide(deps, h1, q1, 'approve');
@@ -173,7 +181,7 @@ const done = await demoDecide(deps, h1, q1, 'approve');
 assert.equal(done.status, 200); assert.ok(done.html.includes('Approved. PayPal made refund REFUND1, status COMPLETED.'));
 assert.ok(!done.html.includes('<form'));
 assert.deepEqual([status(h1), paypalCalls], ['completed', 1]);
-assert.deepEqual(seen, visitor(A), 'it ran as the visitor who asked');
+assert.deepEqual(seen, { ...visitor(A), demo: true }, 'it ran as the visitor who asked, never the owner');
 assert.deepEqual(readDemoDecisions().map((d: any) => [d.hold_id, d.capture_id, d.session, d.verb]), [[h1, 'CAPA1', A, 'approve']]);
 assert.ok(done.html.includes(`${BASE}/incident/CAPA1`));
 console.log("approve: runs once through the gate as that visitor, and the phone shows PayPal's refund id");
@@ -288,7 +296,8 @@ const at = (s: string) => { const i = desk.indexOf(s); assert.ok(i >= 0, `desk.t
 assert.ok(at("req.url?.match(/^\\/demo-approve\\/([\\w-]+)(?:\\?|$)/)") < at('if (await oauth(req, res, DESK_URL'), 'the link opens with no password, like the one-tap');
 at("verb === 'approve' || verb === 'reject' ? await demoDecide(demoDeps, id, q, verb) : demoShow(demoDeps, id, q)");
 at("const form = req.method === 'POST' ? new URLSearchParams(await readRaw(req, 10_000)) : null, verb = form?.get('verb');");
-at("decide: (id, verb, session) => actor.run({ owner: false, session }, () => decideHold(id, verb, DEMO_APPROVER))");
+at("decide: (id, verb, session) => actor.run({ owner: false, session, demo: true }, () => decideHold(id, verb, DEMO_APPROVER))");
+at("guards.push((_m, args, phase) => (phase === 'decide' ? decideRefusal : leaseRefusal)(args?.dispute_id));");
 at('const rows = demoRows(gateRecord(');
 at('notifyDecision(h, `${done}.`);');
 at("demo ? 'demo approver' : 'owner'");

@@ -206,7 +206,7 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
 
 // "Approve it yourself": the same decideHold, as the visitor who asked, never as the owner.
 const demoDeps: DemoDeps = { key: () => process.env.OWNER_TOKEN, desk: DESK_URL,
-  decide: (id, verb, session) => actor.run({ owner: false, session }, () => decideHold(id, verb, DEMO_APPROVER)) };
+  decide: (id, verb, session) => actor.run({ owner: false, session, demo: true }, () => decideHold(id, verb, DEMO_APPROVER)) };
 
 // The Gate record (v3.14): every money move proposed to the gate from every source, with its verdict and outcome.
 function gateRecordView() {
