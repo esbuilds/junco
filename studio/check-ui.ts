@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
 import { HOLD_STATUS, holdWords } from './src/api';
 import { BOOK_FIELDS, FIELDS } from './src/insights';
-import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noOtherPurchase, policyWords, quoteParts, splitHolds, startProgress, toPlan, trialLines, whoElseRows } from './src/ui';
-import type { Bucket, Member, Trial, WhoElseRun } from '../src/whoelse-types';
+import { approveLabel, canDecide, checkWords, detailUnderRow, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noOtherPurchase, policyWords, quoteParts, rowStatus, splitHolds, standing, startProgress, toPlan, trialLines, whoElseRows, whoElseSummary } from './src/ui';
+import type { Bucket, Member, Remedy, Trial, WhoElseRun } from '../src/whoelse-types';
 import { readFileSync } from 'node:fs';
 
 // Every text pair the desk uses passes WCAG AA (4.5:1) in both colour schemes.
 for (const mode of ['light', 'dark'] as const) {
   const t = TOKENS[mode];
-  for (const [fg, bg] of [['ink', 'surface'], ['muted', 'bg'], ['muted', 'surface'], ['attn-text', 'bg'], ['attn-text', 'surface'], ['attn-text', 'attn-bg'], ['danger', 'danger-bg'], ['accent-ink', 'accent']] as const)
+  for (const [fg, bg] of [['ink', 'surface'], ['muted', 'bg'], ['muted', 'surface'], ['muted', 'surface-2'], ['ink', 'surface-2'], ['ink', 'attn-bg'], ['danger', 'surface'], ['attn-text', 'bg'], ['attn-text', 'surface'], ['attn-text', 'attn-bg'], ['danger', 'danger-bg'], ['accent-ink', 'accent']] as const)
     assert.ok(contrast(t[fg], t[bg]) >= 4.5, `${mode} ${fg} on ${bg}: ${contrast(t[fg], t[bg]).toFixed(2)}`);
 }
 assert.equal(TOKENS.light.attn, '#c2531f');
@@ -95,7 +95,7 @@ assert.equal(whoRows.find((r) => r.id === 'group:not_same')!.paid, 38);
 assert.equal(whoRows[0].paid, 124.3, 'totals add in cents');
 assert.deepEqual(toPlan(whoRun, new Set(['Cc'])).map((m) => m.incident_id), ['b'], 'not dropped, not already held, has a capture');
 assert.equal(whoRows.find((r) => r.id === 'd')!.can_keep, false, 'a held row is settled');
-assert.equal(keptTotal(whoRun, new Set(['Cc'])).remaining, 59.97);
+assert.equal(keptTotal(whoRun, new Set(['Cc'])).remaining, 0.1, 'only what the plan would hold: not dropped, not held');
 assert.deepEqual([...whoRows].reverse().sort(inGroups).filter((r) => r.kind === 'group').map((r) => r.bucket), ['silent', 'complained', 'not_same']);
 assert.equal([...whoRows].reverse().sort(inGroups)[0].id, 'group:silent', 'a heading stays on top of its members whatever the sort');
 assert.equal(noOtherPurchase(whoRun), false);
@@ -105,6 +105,50 @@ assert.deepEqual(quoteParts('carry-on-friendly dimensions (50x28x25 cm)', [{ fie
 const trial = (sku: string | null): Trial => ({ at: 't', instruction: 'i', budget: '70', outcome: sku ? 'bought' : 'declined', sku, reason: 'r' });
 assert.deepEqual(trialLines({ ...whoRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial('WKD-01'), trial('WKD-03'), trial(null)] }), ['The agent still bought the corrected bag in 1 of 3.', "1 of 3 bought WKD-03, and that listing hasn't been corrected."]);
 assert.deepEqual(trialLines({ ...whoRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial(null)] }), []);
+
+// A refund PayPal confirmed moves the row, its group and the top numbers; the run's snapshot doesn't change, and no other state moves money.
+const paidRow = member('p', 'silent', '62.00', '10.00'), rem = (over: Partial<Remedy>): Remedy => ({ capture_id: 'Cp', incident_id: 'p', amount: '52.00', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'completed', refund_id: 'RF1', refund_status: 'COMPLETED', ...over });
+assert.deepEqual(standing(paidRow, rem({})), { paid: 6200, refunded: 6200, remaining: 0 });
+for (const hold_status of ['pending', 'executing', 'failed', 'expired', 'unknown']) assert.deepEqual(standing(paidRow, rem({ hold_status, refund_id: null })), { paid: 6200, refunded: 1000, remaining: 5200 }, `${hold_status} moved no money`);
+assert.equal(paidRow.remaining, '52.00', 'the snapshot is left alone');
+const settledRun: WhoElseRun = { ...whoRun, members: [member('a', 'complained', '62.00', '0.00'), paidRow, member('q', 'silent', '62.00', '0.00')], remedies: [rem({})] };
+const settledRows = whoElseRows(settledRun, new Set(), new Set());
+assert.deepEqual(settledRows.find((r) => r.id === 'p')!.status, { label: 'Refunded', tone: 'done' });
+assert.equal(settledRows.find((r) => r.id === 'p')!.remaining, 0);
+assert.equal(settledRows.find((r) => r.id === 'group:silent')!.remaining, 62);
+const topOf = whoElseSummary(settledRun, new Set());
+assert.deepEqual([topOf.silent, topOf.left, topOf.refunded, topOf.current], [2, 62, 1, 'plan']);
+// A refused or expired refund can be planned again, as the server allows; anything held, or refunded, can't.
+assert.deepEqual(toPlan({ ...settledRun, members: [paidRow], remedies: [rem({ hold_status: 'failed', refund_id: null })] }, new Set()).map((m) => m.incident_id), ['p']);
+assert.deepEqual(toPlan({ ...settledRun, members: [paidRow], remedies: [rem({ hold_status: 'pending', refund_id: null })] }, new Set()), []);
+assert.deepEqual(toPlan({ ...settledRun, members: [paidRow], remedies: [rem({})] }, new Set()), []);
+// The path: the current step follows the work, and a step with work left never wears a check.
+const stepOf = (run: WhoElseRun) => { const x = whoElseSummary(run, new Set()); return [x.current, x.done.plan, x.done.approve, x.done.fix]; };
+assert.deepEqual(stepOf({ ...settledRun, members: [paidRow], remedies: [] }), ['plan', false, false, false]);
+assert.deepEqual(stepOf({ ...settledRun, members: [paidRow], remedies: [rem({ hold_status: 'pending', refund_id: null })] }), ['approve', true, false, false]);
+assert.deepEqual(stepOf({ ...settledRun, members: [paidRow], remedies: [rem({})] }), ['fix', true, true, false]);
+assert.deepEqual(stepOf({ ...settledRun, members: [paidRow, member('q', 'silent', '62.00', '0.00')], remedies: [rem({ hold_status: 'pending', refund_id: null })] }), ['approve', false, false, false], 'one held, one still to plan');
+assert.equal(whoElseSummary({ ...settledRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial('WKD-03')] }, new Set()).done.fix, false, 'the agent still buys, so the fix is not done');
+assert.equal(whoElseSummary({ ...settledRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial(null)] }, new Set()).done.fix, true);
+// A row's detail stays under its row whatever the sort.
+const openRows = whoElseRows(whoRun, new Set(), new Set(), 'b').map((data) => ({ data })).reverse().sort((x, y) => inGroups(x.data, y.data));
+detailUnderRow(openRows);
+const at = openRows.findIndex((n) => n.data.id === 'b');
+assert.equal(openRows[at + 1].data.id, 'detail:b');
+// The header: PayPal's outage reads as PayPal's, and any other failure keeps today's words.
+assert.equal(checkWords(["PayPal's hosted MCP server"]), "PayPal's hosted server is down");
+assert.equal(checkWords(['the database']), 'Self-check: 1 failing');
+assert.equal(checkWords(["PayPal's hosted MCP server", 'the database']), 'Self-check: 2 failing');
+// public/who-else.html can't import ui.ts, so run its copies against it.
+const copy = (name: string) => new Function('cents', 'HOLD_PILL', 'BUCKET_PILL', `return ${readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8').match(new RegExp(`const ${name} = ([\\s\\S]*?);\\n(?:const|let|//|function)`))![1]}`);
+const pageSrc = readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8');
+const table = (name: string) => new Function(`return ${pageSrc.match(new RegExp(`const ${name} = (\\{[\\s\\S]*?\\});\\n`))![1]}`)();
+const pageStanding = copy('standing')((s: string) => Math.round(Number(s) * 100)), pageStatus = copy('rowStatus')(null, table('HOLD_PILL'), table('BUCKET_PILL'));
+for (const r of [undefined, rem({}), rem({ hold_status: 'pending', refund_id: null }), rem({ hold_status: 'failed', refund_id: null })]) assert.deepEqual(pageStanding(paidRow, r), standing(paidRow, r));
+for (const hold_status of ['pending', 'executing', 'completed', 'failed', 'unknown', 'approved', 'rejected', 'stale', 'expired', 'new']) assert.deepEqual(pageStatus(paidRow, rem({ hold_status, refund_id: null })), rowStatus(paidRow, rem({ hold_status, refund_id: null })), hold_status);
+for (const m of [paidRow, member('a', 'complained', '1.00', '0.00'), member('b', 'repaired', '1.00', '1.00'), member('c', 'unclear', '1.00', '0.00'), member('d', 'not_same', '1.00', '0.00'), { ...member('e', 'not_same', '0.00', '0.00'), sku: '' }]) assert.deepEqual(pageStatus(m), rowStatus(m));
+// No native confirm left where the owner decides money or sign-outs, and a dead control is hidden, never disabled.
+for (const f of ['src/widgets/WhoElseWidget.tsx', 'src/widgets/KillSwitch.tsx']) assert.doesNotMatch(readFileSync(new URL(f, import.meta.url), 'utf8'), /\bconfirm\(/, `${f} is back on the browser's confirm`);
 
 // Everything visitors read about Who else?: what's true, none of the banned words, and no route that plans or approves on the public page.
 const whoPage = readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8');
