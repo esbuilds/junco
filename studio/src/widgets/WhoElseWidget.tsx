@@ -2,21 +2,25 @@ import { useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef } from 'ag-grid-community';
 import type { IncidentSummary } from '../../../src/incident-types';
-import type { Bucket, Quote, QuoteField, WhoElseRun, WhoElseScore } from '../../../src/whoelse-types';
+import type { Bucket, Quote, QuoteField, SeedNote, WhoElseRun, WhoElseScore } from '../../../src/whoelse-types';
 import { gridTheme } from '../theme';
 import { api, HOLD_STATUS, money } from '../api';
 import { usePoll } from '../store';
-import { inGroups, keptTotal, noSharedMistake, quoteParts, toPlan, trialLines, whoElseRows, type WhoElseRow } from '../ui';
+import { inGroups, keptTotal, noOtherLine, noOtherPurchase, quoteParts, toPlan, trialLines, whoElseRows, type WhoElseRow } from '../ui';
 import { Panel } from './Panel';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 // Who else?: every purchase the finder read, in an AG Grid grouped by what code decided, with money totals per group.
 // All of it goes through the desk's routes; nothing here picks an amount or a capture. Visitors read, the owner acts.
+const tightTheme = gridTheme.withParams({ cellHorizontalPaddingScale: 0.6 }); // ten columns inside the desk's 1280 width
 const LIVE = <span className="jd-mode jd-mode-live">LIVE</span>;
 const RECORDED = <span className="jd-mode jd-mode-recorded">RECORDED</span>;
 const FIELD: Record<QuoteField, string> = { instruction: 'The buyer asked', reason: 'The agent said', listing: 'The listing said' };
 const BAD_HOLD = new Set(['failed', 'unknown', 'stale', 'expired']);
+// The grid cell's words; the tooltip and the row's detail carry HOLD_STATUS in full.
+const HOLD_SHORT: Record<string, string> = { pending: 'Waiting for you', executing: 'Sending to PayPal', completed: 'PayPal confirmed', failed: 'PayPal refused', unknown: 'Outcome unknown', approved: 'Approved', rejected: 'Rejected', stale: 'Not run, case changed', expired: 'Expired, nothing sent' };
+const labelled = (mode: JSX.Element, name: string) => ({ innerHeaderComponent: () => <span className="jd-whoelse-head">{mode}{name}</span> });
 const day = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const Marked = ({ text, quotes, field }: { text: string; quotes: Quote[]; field: QuoteField }) => <>{quoteParts(text, quotes, field).map((p, i) => p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>)}</>;
 const dollars = (p: { value?: number | null }) => p.value == null ? '' : money(p.value);
@@ -32,6 +36,8 @@ function Detail({ r, seed }: { r: WhoElseRow; seed: string }) {
         <dt>The agent said</dt><dd><Marked text={m.reason} quotes={m.quotes} field="reason" /></dd>
         {m.quotes.some((q) => q.field === 'listing') && <><dt>The listing said</dt><dd><Marked text={m.listing} quotes={m.quotes} field="listing" /></dd></>}
         {n && <><dt>Note to the buyer</dt><dd>{n.note_to_payer}</dd></>}
+        {n?.hold_status && <><dt>{RECORDED} Hold</dt><dd className={BAD_HOLD.has(n.hold_status) ? 'jd-whoelse-bad' : undefined}>{HOLD_STATUS[n.hold_status] ?? n.hold_status}</dd></>}
+        {n?.refund_id && <><dt>{LIVE} PayPal refund</dt><dd>{n.refund_id}{n.refund_status ? `, ${n.refund_status}` : ''}</dd></>}
       </dl>
     </section>
   );
@@ -67,7 +73,7 @@ function Fix({ run, owner, reload }: { run: WhoElseRun; owner?: boolean; reload:
       {run.trials.length > 0 && <>
         <h3>The same ask, {run.trials.length} times, no order placed</h3>
         {lines.map((l) => <p key={l} className="jd-attn">{l}</p>)}
-        <dl className="jd-facts">{run.trials.map((t, i) => <div key={t.at + i}><dt>Trial {i + 1}: {t.outcome === 'bought' ? `bought ${t.sku}` : 'bought nothing'}</dt><dd>{t.reason}</dd></div>)}</dl>
+        <ol className="jd-whoelse-trials">{run.trials.map((t, i) => <li key={t.at + i}><strong>{t.outcome === 'bought' ? `Bought ${t.sku}` : 'Bought nothing'}.</strong> {t.reason}</li>)}</ol>
       </>}
     </section>
   );
@@ -75,7 +81,7 @@ function Fix({ run, owner, reload }: { run: WhoElseRun; owner?: boolean; reload:
 
 export function WhoElseWidget() {
   const owner = usePoll<{ owner?: boolean }>('/api/status', 60000).data?.owner;
-  const top = usePoll<{ latest: WhoElseRun | null; score: WhoElseScore; left: number }>('/api/who-else', 30000);
+  const top = usePoll<{ latest: WhoElseRun | null; score: WhoElseScore; left: number; seeds: SeedNote[] }>('/api/who-else', 30000);
   const incidents = usePoll<IncidentSummary[]>('/api/incidents', 60000);
   const latest = top.data?.latest ?? null;
   // Read through the run route: it reads hold and refund states fresh, so a hold that expires shows here.
@@ -85,10 +91,11 @@ export function WhoElseWidget() {
   const [closed, setClosed] = useState<Set<Bucket>>(new Set(['not_same']));
   const [picked, setPicked] = useState<string | null>(null);
   const [seed, setSeed] = useState('');
+  const [note, setNote] = useState<string | null>(null); // the owner's edit; null shows what's saved
   const [ran, setRan] = useState<string | null>(null); // the run this session started; any other on screen is a recorded one
   const [busy, setBusy] = useState<string | null>(null), [err, setErr] = useState<string | null>(null);
-  const none = !!run && noSharedMistake(run);
-  const shown = useMemo(() => none ? new Set<Bucket>() : closed, [none, closed]); // nothing but Not the same: what was checked stays open
+  const none = !!run && noOtherPurchase(run);
+  const shown = useMemo(() => none ? new Set<Bucket>() : closed, [none, closed]); // nothing else matched: what was checked stays open
   const rows = useMemo(() => run ? whoElseRows(run, dropped, shown) : [], [run, dropped, shown]);
   const total = useMemo(() => run && run.members.some((m) => m.bucket === 'silent') ? [keptTotal(run, dropped)] : [], [run, dropped]);
   const live = run?.id === ran && run.mode === 'live';
@@ -96,6 +103,8 @@ export function WhoElseWidget() {
   const pending = run?.remedies.filter((r) => r.hold_status === 'pending') ?? [];
   const seeds = useMemo(() => (incidents.data ?? []).filter((i) => !i.id.startsWith('decline-')).sort((a, b) => Number(!!b.dispute_id) - Number(!!a.dispute_id)), [incidents.data]);
   const chosen = seed || seeds[0]?.id || '';
+  const saved = top.data?.seeds.find((s) => s.incident_id === chosen)?.text ?? '';
+  const noteText = note ?? saved;
   const reload = () => { top.reload(); fresh.reload(); };
   const act = async (name: string, path: string, json: unknown) => {
     setBusy(name); setErr(null);
@@ -103,48 +112,43 @@ export function WhoElseWidget() {
     catch (e: any) { setErr(e.message); return null; }
     finally { setBusy(null); reload(); }
   };
+  const saveNote = async () => { await act('note', '/api/who-else/note', { seed: chosen, text: noteText.trim() }); setNote(null); };
   const find = async () => { const r = await act('find', '/api/who-else/run', { seed: chosen }); if (r?.id) { setRan(r.id); setDropped(new Set()); setPicked(null); } };
   const planIt = () => act('plan', `/api/who-else/run/${encodeURIComponent(run!.id)}/plan`, { captures: plan.map((m) => m.capture_id) });
   const approveAll = () => { if (confirm(`Approve ${pending.length} refund${pending.length === 1 ? '' : 's'}? They run one at a time and it can finish part way. PayPal's answer shows on each row.`)) act('approve', `/api/who-else/run/${encodeURIComponent(run!.id)}/approve-all`, {}); };
 
   const columns = useMemo<ColDef<WhoElseRow>[]>(() => [
     {
-      field: 'keep', headerName: 'Keep', width: 72, hide: !owner, cellDataType: 'boolean', sortable: false,
+      field: 'keep', headerName: 'Keep', width: 56, hide: !owner, cellDataType: 'boolean', sortable: false,
       editable: (p) => !!p.data?.can_keep,
       cellRendererSelector: (p) => p.data?.kind === 'member' && p.data.bucket === 'silent' ? { component: 'agCheckboxCellRenderer' } : { component: () => null },
     },
     {
-      field: 'label', headerName: 'Purchase', width: 216, cellRenderer: (p: { data?: WhoElseRow }) => {
+      field: 'label', headerName: 'Purchase', width: 168, cellRenderer: (p: { data?: WhoElseRow }) => {
         const r = p.data!;
         if (r.kind === 'total') return <strong>{r.label}</strong>;
         if (r.kind === 'group') return <button type="button" className="jd-whoelse-toggle" aria-expanded={r.open} onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(r.bucket)) n.delete(r.bucket); else n.add(r.bucket); return n; })}><span aria-hidden="true">{r.open ? '-' : '+'}</span> {r.label}</button>;
         return <a className="jd-linkish" href={`/incident/${encodeURIComponent(r.member!.incident_id)}`} target="_blank" rel="noreferrer">...{r.member!.incident_id.slice(-6)}</a>;
       },
     },
-    { field: 'remaining', headerName: 'Left to refund', width: 120, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
-    { field: 'paid', headerName: 'Paid', width: 92, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
-    { field: 'refunded', headerName: 'Already back', width: 112, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
-    { colId: 'sku', headerName: 'Bag', width: 92, valueGetter: (p) => p.data?.member?.sku ?? '' },
+    { field: 'remaining', headerName: 'Left to refund', width: 100, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
+    { field: 'paid', headerName: 'Paid', width: 72, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
+    { field: 'refunded', headerName: 'Refunded', width: 92, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: dollars },
+    { colId: 'sku', headerName: 'Bag', width: 72, valueGetter: (p) => p.data?.member?.sku ?? '' },
+    // Each column wears its label, as on the Books. A row PayPal didn't answer for says so in the cell.
     {
-      colId: 'paypal', headerName: 'PayPal says', flex: 1, minWidth: 176, valueGetter: (p) => p.data?.member?.payment_status ?? '',
-      cellRenderer: (p: { data?: WhoElseRow }) => {
-        const m = p.data?.member;
-        if (!m) return null;
-        return m.payment_status === null ? <span className="jd-attn">{RECORDED} PayPal unread</span> : <span>{live ? LIVE : RECORDED} {m.payment_status}</span>;
-      },
+      colId: 'paypal', headerName: 'PayPal says', width: 164, headerComponentParams: labelled(live ? LIVE : RECORDED, 'PayPal says'), valueGetter: (p) => p.data?.member?.payment_status ?? '',
+      cellRenderer: (p: { data?: WhoElseRow }) => { const m = p.data?.member; return !m ? null : m.payment_status ?? <span className="jd-attn">PayPal unread</span>; },
     },
-    { colId: 'fingerprint', headerName: 'Fingerprint', width: 150, valueGetter: (p) => p.data?.member?.fingerprint ?? '' },
+    { colId: 'fingerprint', headerName: 'Fingerprint', width: 130, valueGetter: (p) => p.data?.member?.fingerprint ?? '' },
     {
-      colId: 'hold', headerName: 'Hold', flex: 1, minWidth: 196, valueGetter: (p) => p.data?.remedy?.hold_status ?? '', tooltipValueGetter: (p) => HOLD_STATUS[p.value] ?? p.value,
+      colId: 'hold', headerName: 'Hold', flex: 1, minWidth: 144, headerComponentParams: labelled(RECORDED, 'Hold'), valueGetter: (p) => p.data?.remedy?.hold_status ?? '', tooltipValueGetter: (p) => HOLD_STATUS[p.value] ?? p.value,
       cellRenderer: (p: { data?: WhoElseRow }) => {
         const s = p.data?.remedy?.hold_status;
-        return s ? <span className={BAD_HOLD.has(s) ? 'jd-whoelse-bad' : undefined}>{RECORDED} {HOLD_STATUS[s] ?? s}</span> : null;
+        return s ? <span className={BAD_HOLD.has(s) ? 'jd-whoelse-bad' : undefined}>{HOLD_SHORT[s] ?? s}</span> : null;
       },
     },
-    {
-      colId: 'refund', headerName: 'PayPal refund', width: 196, valueGetter: (p) => p.data?.remedy?.refund_id ?? '',
-      cellRenderer: (p: { data?: WhoElseRow }) => { const r = p.data?.remedy; return r?.refund_id ? <span>{LIVE} {r.refund_id}{r.refund_status ? `, ${r.refund_status}` : ''}</span> : null; },
-    },
+    { colId: 'refund', headerName: 'PayPal refund', width: 164, headerComponentParams: labelled(LIVE, 'PayPal refund'), valueGetter: (p) => p.data?.remedy?.refund_id ?? '', tooltipValueGetter: (p) => p.data?.remedy?.refund_status ?? '' },
   ], [owner, live]);
 
   const score = top.data?.score;
@@ -154,21 +158,31 @@ export function WhoElseWidget() {
     <Panel title="Who else?" subtitle={subtitle} hug>
       {top.error && <div className="jd-result jd-err">{top.error}</div>}
       {owner
-        ? <div className="jd-row">
-            <select className="jd-ellipsis" aria-label="Start from" value={chosen} onChange={(e) => setSeed(e.target.value)}>{seeds.map((i) => <option key={i.id} value={i.id}>{i.dispute_id ? 'Disputed' : 'Not disputed'} · ...{i.id.slice(-6)} · {i.title}</option>)}</select>
-            <button type="button" className="jd-btn" disabled={!chosen || !!busy || !top.data?.left} onClick={find}>{busy === 'find' ? 'Reading every public purchase...' : 'Who else?'}</button>
-            <span className="jd-muted">{top.data?.left ?? 0} left today</span>
-          </div>
-        : <p className="jd-muted">Read-only here. Only the owner can plan and approve. To run the finder yourself, open <a className="jd-linkish" href="/who-else" target="_blank" rel="noreferrer">the Who else? page</a>.</p>}
+        ? <>
+            <div className="jd-row">
+              <select className="jd-ellipsis jd-whoelse-seed" aria-label="Start from" value={chosen} onChange={(e) => { setSeed(e.target.value); setNote(null); }}>{seeds.map((i) => <option key={i.id} value={i.id}>{i.dispute_id ? 'Disputed' : 'Not disputed'} · ...{i.id.slice(-6)} · {i.title}</option>)}</select>
+              <button type="button" className="jd-btn" disabled={!saved || note !== null || !!busy || !top.data?.left} onClick={find}>{busy === 'find' ? 'Looking for other purchases...' : 'Who else?'}</button>
+              <span className="jd-muted">{top.data?.left ?? 0} left today</span>
+            </div>
+            <label className="jd-field jd-whoelse-note">What went wrong on this purchase, in your words. Claude only looks for other purchases that show it.
+              <textarea className="jd-whoelse-text" rows={2} value={noteText} onChange={(e) => setNote(e.target.value)} />
+            </label>
+            <div className="jd-row">
+              <button type="button" className="jd-btn" disabled={note === null || !noteText.trim() || !!busy} onClick={saveNote}>{busy === 'note' ? 'Saving...' : 'Save the note'}</button>
+              <span className="jd-muted">{note !== null ? 'Save it before you run.' : saved ? 'Visitors can run the finder on this purchase and read this note.' : 'No note yet, so this purchase can\'t be run.'}</span>
+            </div>
+          </>
+        : <p className="jd-muted">Read-only here. Only the owner can write a note, plan and approve. To run the finder yourself, open <a className="jd-linkish" href="/who-else" target="_blank" rel="noreferrer">the Who else? page</a>.</p>}
       {top.data && !run && <p className="jd-muted">No run yet.</p>}
       {run && <>
         <div className="jd-whoelse-cause">
           <p>{live ? LIVE : RECORDED} <span className="jd-muted">{live ? 'Read just now.' : `Latest finished run, from ${day(run.at)}.`}</span></p>
-          {none && <p><strong>No shared mistake found.</strong> {run.members.length} purchases checked, and none shows this mistake. There's nothing to plan.</p>}
+          {none && <p><strong>No other purchase shows this problem.</strong> {noOtherLine(run)}</p>}
+          <h3>What the owner says went wrong</h3>
           <p>{run.cause.summary}</p>
           {run.cause.quotes.map((q, i) => <p key={i} className="jd-muted">{FIELD[q.field]}: <mark>{q.text}</mark></p>)}
         </div>
-        <p className="jd-muted">Claude only says same, not same or unsure. Code picks the group, and the amount is what PayPal shows left to refund. Click a row for the agent's words.</p>
+        <p className="jd-muted">The owner named the problem. Claude only says whether each other purchase shows it: same, not same or unsure. Code picks the group, and the amount is what PayPal shows left to refund. Click a row for the agent's words.</p>
         {owner && !none && <>
           <div className="jd-row">
             <button type="button" className="jd-btn jd-primary" disabled={!plan.length || !!busy} onClick={planIt}>{busy === 'plan' ? 'Holding...' : `Plan refunds (${plan.length})`}</button>
@@ -179,7 +193,7 @@ export function WhoElseWidget() {
         {err && <div className="jd-result jd-err">{err}</div>}
         <div className="jd-grid jd-whoelse">
           <AgGridReact<WhoElseRow>
-            theme={gridTheme}
+            theme={tightTheme}
             rowData={rows}
             pinnedBottomRowData={total}
             columnDefs={columns}

@@ -48,8 +48,10 @@ export type WhoElseRow = { id: string; kind: 'group' | 'member' | 'total'; bucke
 const cents = (s: string) => Math.round(Number(s) * 100);
 const sum = (rows: Member[], f: (m: Member) => string) => rows.reduce((n, m) => n + cents(f(m)), 0) / 100;
 
-// Every purchase read, and none showed the mistake. A normal result: nothing to plan, and what was checked stays open.
-export const noSharedMistake = (run: WhoElseRun) => run.members.length > 0 && run.members.every((m) => m.bucket === 'not_same');
+// Every other purchase read, and none shows the owner's problem. A normal result: nothing to plan, and what was checked stays open.
+const others = (run: WhoElseRun) => run.members.filter((m) => m.incident_id !== run.seed);
+export const noOtherPurchase = (run: WhoElseRun) => others(run).length > 0 && others(run).every((m) => m.bucket === 'not_same');
+export const noOtherLine = (run: WhoElseRun) => `${others(run).length} checked, so there's nothing to plan.`;
 
 export function whoElseRows(run: WhoElseRun, dropped: ReadonlySet<string>, closed: ReadonlySet<Bucket>): WhoElseRow[] {
   return BUCKETS.flatMap(([bucket, name]) => {

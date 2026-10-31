@@ -517,6 +517,12 @@ textarea { border-radius: 8px; }
 .jd-whoelse-bad { color: var(--jd-danger); }
 .jd-whoelse-cause { margin: 12px 0; }
 .jd-whoelse-cause p { margin: 4px 0; }
+.jd-whoelse-cause h3 { margin: 12px 0 0; font-size: 13px; font-weight: 500; color: var(--jd-muted); }
+.jd-whoelse-note { margin-top: 10px; }
+.jd-whoelse-seed { flex: 1 1 240px; min-width: 0; }
+.jd-whoelse-trials { margin: 4px 0 12px; padding-left: 20px; }
+.jd-whoelse-trials li { margin-bottom: 4px; }
+.jd-whoelse-head { display: inline-flex; align-items: center; gap: 6px; }
 .jd-whoelse-detail, .jd-whoelse-fix { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--jd-line); overflow-wrap: anywhere; }
 .jd-whoelse-detail h3, .jd-whoelse-fix h3 { margin: 12px 0 4px; font-size: 14px; font-weight: 600; }
 .jd-whoelse-detail h3:first-child, .jd-whoelse-fix h3:first-child { margin-top: 0; }

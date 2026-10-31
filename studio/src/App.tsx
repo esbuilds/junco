@@ -52,7 +52,7 @@ const layout = {
     id: 'who-else',
     layout: { columns: 12, rowHeight: 24, widgetPadding: 8, pagePadding: 16 },
     widgets: { 'who-else': { id: 'who-else', type: 'junco-who-else', dataMapping: {} } },
-    widgetLayout: { 'who-else': { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 60 } },
+    widgetLayout: { 'who-else': { xTrack: 0, yTrack: 0, xSpan: 12, ySpan: 124 } }, // tall enough with every group open; the card hugs its content
   }, {
     // Break the mandate: the visitor plays the buyer; the seller side is real on a never-shipped sandbox case.
     id: 'mandate',

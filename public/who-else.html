@@ -21,17 +21,18 @@ dl{display:grid;grid-template-columns:128px minmax(0,1fr);gap:4px 16px;margin:8p
 .group-h{display:flex;flex-wrap:wrap;gap:0 12px;align-items:baseline;justify-content:space-between;margin:28px 0 4px}.group-h h2{margin:0}
 /* Never complained is who this page is for: the one group with a heavy edge. */
 .focus .box{border-left:3px solid #1f5c4a}.focus .group-h h2{font-size:17px}
-details{margin-top:28px}summary{cursor:pointer;font-size:15px;font-weight:600}details .box{margin-top:8px}
+details{margin-top:28px}summary{cursor:pointer;font-size:15px;font-weight:600}details .box{margin-top:8px}details.more{margin-top:6px}.more summary{font-size:13px;font-weight:500;color:#52525b}
 .cause + .cause{margin-top:8px}[hidden]{display:none!important}#none{font-weight:600}.note{margin:0;padding:6px 10px;background:#f4f4f5;border-radius:6px}
 @media (max-width:560px){body{padding:24px 16px}dl{grid-template-columns:minmax(0,1fr);gap:0}dt{margin-top:6px;font-size:13px}.pick{grid-template-columns:minmax(0,1fr)}.pick button{width:100%}}
 </style></head><body>
 <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· who else?</span></p>
 <h1>One dispute shows a mistake. Who else did the agent do it to?</h1>
-<p class="m">Pick a purchase. Claude reads what the shopping agent recorded on every public purchase and says whether it made the same mistake. Code then sorts them, and a purchase goes in the plan only if PayPal shows money left to refund and nobody has complained. This page moves no money and creates no hold.</p>
-<div class="pick"><label>Start from<select id="seed"><option value="">Loading purchases...</option></select></label><button id="go" disabled>Who else?</button></div>
+<p class="m">The owner says what went wrong on one purchase. Claude finds which other public purchases show that same problem, from what the shopping agent recorded when it bought. Code then sorts them, and a purchase goes in the plan only if PayPal shows money left to refund and nobody has complained. This page moves no money and creates no hold.</p>
+<div class="pick" id="pick" hidden><label>Start from<select id="seed"></select></label><button id="go" disabled>Who else?</button></div>
+<div class="box" id="seed-box" hidden><div class="m">What the owner says went wrong</div><p id="seed-note" class="cause"></p></div>
 <p id="status" class="m" aria-live="polite"></p>
 <div id="run" hidden>
-  <h2>The cause</h2>
+  <h2>What the owner says went wrong</h2>
   <div class="box"><span id="mode" class="tag"></span><span id="state" class="m"></span><p id="none" class="cause" hidden></p><p id="cause" class="cause"></p><ul id="cause-q" class="cause-q"></ul></div>
   <div id="groups"></div>
   <div id="fix" hidden><h2>The fix</h2><div id="fix-out"></div></div>
@@ -39,7 +40,7 @@ details{margin-top:28px}summary{cursor:pointer;font-size:15px;font-weight:600}de
 <h2>The score</h2>
 <div class="score" id="score"></div>
 <p class="m" id="limit"></p>
-<p class="m">Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
+<p class="m">Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. The owner named the problem and Claude found the matching purchases. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
 <p><a href="/judges">Back to the judges' page</a></p>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -52,8 +53,8 @@ const day = (iso) => iso.slice(0, 16).replace('T', ' ');
 const mode = (m) => el('span', `tag ${m}`, m === 'live' ? 'LIVE' : 'RECORDED');
 const FIELD = { instruction: 'The buyer asked', reason: 'The agent said', listing: 'The listing said' };
 // Never complained first: it's who this helps. The dispute desk already has Complained. Not the same stays closed.
-const GROUPS = [['silent', 'Never complained', 'The same mistake, and nobody has said anything. These are the purchases a plan can help.'], ['complained', 'Complained', 'An open dispute. The dispute desk works these, so no refund is planned here.'],
-  ['repaired', 'Already repaired', 'The same mistake, and PayPal shows nothing left to refund.'], ['unclear', 'Unclear', "Code couldn't confirm these, so they stay out of the plan."], ['not_same', 'Not the same', "The agent's recorded reason doesn't show this mistake."]];
+const GROUPS = [['silent', 'Never complained', 'The same problem, and nobody has said anything. These are the purchases a plan can help.'], ['complained', 'Complained', 'An open dispute. The dispute desk works these, so no refund is planned here.'],
+  ['repaired', 'Already repaired', 'The same problem, and PayPal shows nothing left to refund.'], ['unclear', 'Unclear', "Code couldn't confirm these, so they stay out of the plan."], ['not_same', 'Not the same', "The agent's recorded reason doesn't show this problem."]];
 // Hold words for someone who isn't the owner: same states as HOLD_STATUS in studio/src/api.ts.
 const HOLD = { pending: 'Waiting for the owner', executing: 'Approved, sending to PayPal now', completed: 'Approved, and PayPal confirmed it ran', failed: 'Approved, but PayPal refused it', unknown: 'Approved, outcome unknown until PayPal is re-read', approved: 'Approved (outcome not recorded)', rejected: 'Rejected by the owner', stale: 'Approved but not run, the case had changed', expired: "Expired: the owner didn't decide within 24 hours, nothing sent" };
 const BAD_HOLD = ['failed', 'unknown', 'stale', 'expired'];
@@ -81,6 +82,7 @@ function paypalSays(m, run) {
   return [mode(run.mode), `${m.payment_status}${back}`];
 }
 
+// Never complained shows everything. Other groups open a row on request, so a phone reaches them without scrolling past repeats.
 function row(m, run) {
   const box = el('article', 'box'), head = el('div', 'head'), left = el('span');
   const link = el('a', '', `Purchase ...${m.incident_id.slice(-6)}`);
@@ -90,7 +92,9 @@ function row(m, run) {
   if (m.dispute_id) left.append(` · dispute ${m.dispute_id}`);
   head.append(left, el('span', 'num m', `${usd(m.remaining)} left of ${usd(m.paid)}`));
   const d = el('dl');
-  box.append(head, el('div', 'm', m.why), d);
+  box.append(head, el('div', 'm', m.why));
+  if (m.bucket === 'silent') box.append(d);
+  else { const more = el('details', 'more'); more.append(el('summary', '', 'What the records say'), d); box.append(more); }
   line(d, 'The buyer asked', marked(m.instruction, m.quotes, 'instruction'));
   line(d, 'The agent said', marked(m.reason, m.quotes, 'reason'));
   if (m.quotes.some((q) => q.field === 'listing')) line(d, 'The listing said', marked(m.listing, m.quotes, 'listing'));
@@ -109,12 +113,12 @@ function row(m, run) {
 
 function group([bucket, name, blurb], run) {
   const members = run.members.filter((m) => m.bucket === bucket);
-  if (!members.length && (bucket !== 'silent' || noneShared(run))) return null;
+  if (!members.length && (bucket !== 'silent' || noOther(run))) return null;
   const total = members.reduce((n, m) => n + cents(m.remaining), 0);
   const title = `${name} (${members.length})`, sum = bucket === 'silent' || bucket === 'complained' ? `${usd(total / 100)} left to refund` : '';
   if (bucket === 'not_same') {
-    const d = el('details'), s = el('summary', '', noneShared(run) ? `What was checked (${members.length})` : title);
-    d.open = noneShared(run);
+    const d = el('details'), s = el('summary', '', noOther(run) ? `What was checked (${members.length})` : title);
+    d.open = noOther(run);
     d.append(s, el('p', 'm', blurb), ...members.map((m) => row(m, run)));
     return d;
   }
@@ -143,17 +147,20 @@ function fix(run) {
   $('fix-out').replaceChildren(...out);
 }
 
-// Every purchase read and none showed the mistake: a normal result. Nothing to plan, and what was checked stays open.
-const noneShared = (run) => run.members.length > 0 && run.members.every((m) => m.bucket === 'not_same');
+// Every other purchase read and none shows the problem: a normal result. Nothing to plan, and what was checked stays open.
+const others = (run) => run.members.filter((m) => m.incident_id !== run.seed);
+const noOther = (run) => others(run).length > 0 && others(run).every((m) => m.bucket === 'not_same');
 
 function show(run) {
   $('run').hidden = false;
+  onScreen = run.seed;
+  seedNote();
   const mine = run.id === seen && run.mode === 'live', recorded = !mine;
   $('mode').textContent = recorded ? 'RECORDED' : 'LIVE';
   $('mode').className = `tag ${recorded ? 'recorded' : 'live'}`;
   $('state').textContent = recorded ? `Latest finished run, from ${day(run.at)} UTC.` : `Read just now. ${run.members.length} purchases looked at.`;
-  $('none').hidden = !noneShared(run);
-  $('none').textContent = `No shared mistake found. ${run.members.length} purchases checked, and none shows this mistake. There's nothing to plan.`;
+  $('none').hidden = !noOther(run);
+  $('none').textContent = `No other purchase shows this problem. ${others(run).length} checked, so there's nothing to plan.`;
   $('cause').textContent = run.cause.summary;
   $('cause-q').replaceChildren(...run.cause.quotes.map((q) => { const li = el('li', 'm', `${FIELD[q.field]}: `); li.append(el('mark', '', q.text)); return li; }));
   $('groups').replaceChildren(...GROUPS.map((g) => group(g, recorded ? { ...run, mode: 'recorded' } : run)).filter(Boolean));
@@ -180,24 +187,34 @@ async function refresh(fresh) {
   const r = await fetch('/api/who-else').catch(() => null);
   if (!r?.ok) { say(r ? await fail(r) : "The desk didn't answer.", true); return; }
   const b = await r.json();
+  if (fresh) seeds(b.seeds);
   score(b.score, b.left);
   if (fresh && b.latest) await load(b.latest.id).then(() => $('run').hidden && show(b.latest));
 }
 
-async function seeds() {
-  const r = await fetch('/api/incidents').catch(() => null);
-  if (!r?.ok) { $('seed').replaceChildren(new Option("Couldn't load the purchases", '')); return; }
-  const all = (await r.json()).filter((i) => !i.id.startsWith('decline-'));
-  // Disputed purchases first: a dispute is what shows the mistake. ?seed= comes from an incident page's link.
-  all.sort((a, b) => !!b.dispute_id - !!a.dispute_id);
-  $('seed').replaceChildren(...all.map((i) => new Option(`${i.dispute_id ? 'Disputed' : 'Not disputed'} · ...${i.id.slice(-6)} · ${i.title}`, i.id)));
+// Only purchases the owner wrote a note on. Visitors can't type one, so with none there's nothing to run and no button.
+let notes = [], onScreen = null;
+function seeds(list) {
+  notes = list;
+  $('pick').hidden = !list.length;
+  if (!list.length) { say("The owner hasn't written what went wrong on any purchase yet, so there's nothing to run."); return; }
+  $('seed').replaceChildren(...list.map((s) => new Option(`...${s.incident_id.slice(-6)} · ${s.title}`, s.incident_id)));
+  // ?seed= comes from an incident page's link.
   const want = new URLSearchParams(location.search).get('seed');
-  if (want && all.some((i) => i.id === want)) $('seed').value = want;
+  if (want && list.some((s) => s.incident_id === want)) $('seed').value = want;
+  else if (want) say("The owner hasn't written what went wrong on that purchase yet. Here are the ones with a note.");
+  seedNote();
 }
+function seedNote() {
+  const s = notes.find((n) => n.incident_id === $('seed').value);
+  $('seed-box').hidden = !s || s.incident_id === onScreen; // the run below already shows this note
+  $('seed-note').textContent = s?.text ?? '';
+}
+$('seed').onchange = seedNote;
 
 $('go').onclick = async () => {
   $('go').disabled = true;
-  say('Claude is reading every public purchase. This can take a minute.');
+  say('Claude is looking for other purchases with this problem. This can take a minute.');
   const r = await fetch('/api/who-else/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seed: $('seed').value }) }).catch(() => null);
   if (!r?.ok) { say(r ? await fail(r) : "The desk didn't answer.", true); await refresh(false); return; }
   const run = await r.json();
@@ -207,6 +224,6 @@ $('go').onclick = async () => {
   await refresh(false);
 };
 
-seeds().then(() => refresh(true));
+refresh(true);
 </script>
 </body></html>

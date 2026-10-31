@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
 import { BOOK_FIELDS, FIELDS } from './src/insights';
-import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noSharedMistake, policyWords, quoteParts, splitHolds, startProgress, toPlan, trialLines, whoElseRows } from './src/ui';
+import { approveLabel, canDecide, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noOtherPurchase, policyWords, quoteParts, splitHolds, startProgress, toPlan, trialLines, whoElseRows } from './src/ui';
 import type { Bucket, Member, Trial, WhoElseRun } from '../src/whoelse-types';
 import { readFileSync } from 'node:fs';
 
@@ -91,9 +91,9 @@ assert.equal(whoRows.find((r) => r.id === 'd')!.can_keep, false, 'a held row is 
 assert.equal(keptTotal(whoRun, new Set(['Cc'])).remaining, 59.97);
 assert.deepEqual([...whoRows].reverse().sort(inGroups).filter((r) => r.kind === 'group').map((r) => r.bucket), ['silent', 'complained', 'not_same']);
 assert.equal([...whoRows].reverse().sort(inGroups)[0].id, 'group:silent', 'a heading stays on top of its members whatever the sort');
-assert.equal(noSharedMistake(whoRun), false);
-assert.equal(noSharedMistake({ ...whoRun, members: [member('n', 'not_same', '38.00', '0.00')] }), true);
-assert.equal(noSharedMistake({ ...whoRun, members: [] }), false);
+assert.equal(noOtherPurchase(whoRun), false);
+assert.equal(noOtherPurchase({ ...whoRun, members: [member('a', 'complained', '62.00', '0.00'), member('n', 'not_same', '38.00', '0.00')] }), true, 'the seed itself never counts');
+assert.equal(noOtherPurchase({ ...whoRun, members: [member('a', 'complained', '62.00', '0.00')] }), false, 'nothing else was read');
 assert.deepEqual(quoteParts('carry-on-friendly dimensions (50x28x25 cm)', [{ field: 'reason', text: 'carry-on-friendly' }, { field: 'reason', text: 'friendly dimensions' }, { field: 'reason', text: 'not there' }, { field: 'listing', text: 'cm' }], 'reason').map((p) => [p.text, p.hit]), [['carry-on-friendly', true], [' dimensions', true], [' (50x28x25 cm)', false]]);
 const trial = (sku: string | null): Trial => ({ at: 't', instruction: 'i', budget: '70', outcome: sku ? 'bought' : 'declined', sku, reason: 'r' });
 assert.deepEqual(trialLines({ ...whoRun, corrections: [{ sku: 'WKD-01', text: 't', at: 'now' }], trials: [trial('WKD-01'), trial('WKD-03'), trial(null)] }), ['The agent still bought the corrected bag in 1 of 3.', "1 of 3 bought WKD-03, and that listing hasn't been corrected."]);
@@ -107,6 +107,8 @@ for (const [name, text] of [['public/who-else.html', whoPage], ['WhoElseWidget.t
   assert.match(text, /our own script filed the disputes/, `${name} says who filed the disputes`);
   assert.match(text, /mistake is real/, `${name} says the mistake is real`);
   assert.match(text, /may not fit/, `${name} says may not fit`);
+  assert.match(text, /What the owner says went wrong/, `${name} labels the cause as the owner's`);
+  assert.doesNotMatch(text, /AI found the mistake|Claude found the mistake|shared mistake/i, `${name} credits the AI with the mistake`);
   assert.doesNotMatch(text, /recall|—|doesn't fit|\bthe first\b|\bthe only\b/i, `${name} breaks a copy rule`);
 }
 assert.doesNotMatch(whoPage, /\/plan|approve-all|\/correct|\/api\/holds|paypal\.com/, 'the public page has no write but the capped finder');

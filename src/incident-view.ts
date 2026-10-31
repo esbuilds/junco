@@ -101,7 +101,7 @@ ${d.drill ? `<h2>The drill</h2>
 <p class="m">A gate stops what goes through it. So a separate program refunds a small amount straight in PayPal, outside the gate, and a fresh Claude with read tools is sent to find it. Sandbox only.</p>
 <div class="box"><span class="count">${d.drill.hidden} hidden, ${d.drill.found} found, ${d.drill.missed} missed, ${plural(d.drill.false_alarms, 'false alarm')}.</span><div>Money moved by the investigator: $${d.drill.money_moved_usd.toFixed(2)}.</div><div><a href="/drill">Run the drill</a></div></div>` : ''}
 ${d.whoElse ? `<h2>Who else?</h2>
-<p class="m">One dispute shows a mistake the shopping agent made. Claude reads the other public purchases for the same mistake, code sorts them, and the owner decides. Sandbox only, one test buyer.</p>
+<p class="m">The owner says what the shopping agent got wrong on one purchase. Claude finds the other public purchases that show the same problem, code sorts them, and the owner decides. Sandbox only, one test buyer.</p>
 <div class="box"><span class="count">${plural(d.whoElse.runs, 'run')}, ${d.whoElse.silent_found} never complained, found.</span><div>${d.whoElse.refunds_confirmed} of ${plural(d.whoElse.refunds_proposed, 'proposed refund')} confirmed by PayPal.</div><div><a href="/who-else">Run Who else?</a></div></div>` : ''}
 <h2>Sign in to act</h2>
 <div class="box act">The password is in the Devpost submission's testing instructions. It lets you:
