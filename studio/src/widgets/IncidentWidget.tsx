@@ -1,8 +1,8 @@
 // BLACK BOX in Studio: one AI purchase's incident, from the same Incident JSON as the desk's incident page.
 // Read-only apart from the what-if, which re-runs the gate on a recorded request and never reaches PayPal.
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Incident, IncidentSummary, ThreeRecords, WhatIf } from '../../../src/incident-types';
-import { aiLines, modeOf, notInRecords, reachedPayPal, whatIfPreset } from '../../../src/incident-questions';
+import { aiLines, ID_TOKEN, modeOf, notInRecords, reachedPayPal, verdict, whatIfPreset } from '../../../src/incident-questions';
 import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
@@ -12,21 +12,39 @@ export const incidentLabel = (i: IncidentSummary) =>
   `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+// Ids set in mono, so a sentence reads past them. The full value stays on the page.
+const withIds = (t: string) => t.split(new RegExp(`(${ID_TOKEN.source})`)).map((x, i) => (i % 2 ? <code key={i}>{x}</code> : x));
+
+// The first thing a reader takes away: the one-line verdict, then whether the three records agree.
+function Verdict({ inc }: { inc: Incident }) {
+  const r = inc.records, [, head, rest] = r?.line.match(/^([^.]+\.)\s*(.*)$/s) ?? [];
+  const state = !r ? 'open' : r.agree === false ? 'differ' : r.agree ? 'agree' : 'open';
+  return (
+    <header className="jd-verdict-head">
+      <h3 className="jd-verdict">{verdict(inc)}</h3>
+      <p className={`jd-inc-status jd-inc-status-${state}`}>{r ? <><strong>{head ?? r.line}</strong>{rest && <> {withIds(rest)}</>}</> : 'No order was placed and no money moved.'}</p>
+    </header>
+  );
+}
+
 // What the AI believed, what the gate recorded and what PayPal says, from the incident JSON (no model, no extra PayPal read).
 function Records({ r }: { r: ThreeRecords }) {
   return (
     <section className="jd-records" aria-label="Three records">
-      <p className={r.agree === false ? 'jd-records-line jd-records-differ' : 'jd-records-line'}>{r.line}</p>
-      <div className="jd-records-cols">
-        {r.columns.map((c) => (
-          <div key={c.title} className="jd-records-col">
-            <h3><span className={`jd-mode jd-mode-${c.mode}`}>{c.mode.toUpperCase()}</span>{c.title}</h3>
-            <dl>{c.rows.map((x, i) => <Fragment key={i}><dt>{x.label}</dt><dd>{x.value}</dd></Fragment>)}</dl>
-          </div>
-        ))}
-      </div>
+      {r.columns.map((c) => (
+        <div key={c.title} className="jd-records-col">
+          <h4>{c.title}</h4>
+          <span className={`jd-mode jd-mode-${c.mode}`}>{c.mode.toUpperCase()}</span>
+          <dl>{c.rows.map((x, i) => <div key={i} className={/^\d+$/.test(x.value) ? 'jd-rec-row jd-rec-num' : 'jd-rec-row'}><dt>{withIds(x.label)}</dt><dd>{withIds(x.value)}</dd></div>)}</dl>
+        </div>
+      ))}
     </section>
   );
+}
+
+// A closed section: native disclosure, so the rest of the page stays quiet until it's asked for.
+function Section({ title, note, open, children }: { title: string; note?: string; open?: React.Ref<HTMLDetailsElement>; children: React.ReactNode }) {
+  return <details className="jd-section" ref={open}><summary><span>{title}</span>{note && <span className="jd-section-note">{note}</span>}</summary><div className="jd-section-body">{children}</div></details>;
 }
 
 // Ask for your money back: on the visitor's own shopping agent purchase only (the incident says whether this viewer may
@@ -52,17 +70,19 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
     finally { setBusy(false); }
   };
   return (
-    <div className="jd-shop">
-      <h3>Ask for your money back</h3>
+    <div className="jd-refund">
+      <h4>Ask for your money back</h4>
       {r.ask ? <>
         <p>{askState(r.ask)}</p>
         {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words:{aiLines(r.ask.ai).map((l, i) => <span key={i}><br />{l}</span>)}</p>}
         {r.demo && (r.demo.url ? <div className="jd-demo">
-          <h3>Approve it yourself</h3>
-          <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
           <img src={r.demo.qr!} alt="QR code for your approve link" />
-          <p><a className="jd-linkish" href={r.demo.url} target="_blank" rel="noreferrer">Open your approve link here</a></p>
-          <p className="jd-muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p>
+          <div>
+            <h4>Approve it yourself</h4>
+            <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
+            <p><a className="jd-btn jd-primary" href={r.demo.url} target="_blank" rel="noreferrer">Open your approve link here</a></p>
+            <p className="jd-muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p>
+          </div>
         </div> : <p className="jd-muted">{r.demo.why}</p>)}
       </> : <>
         <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
@@ -95,7 +115,6 @@ function ShopForm({ onDone }: { onDone: (id: string) => void }) {
   };
   return (
     <div className="jd-shop">
-      <h3>Send your own shopping agent</h3>
       <p className="jd-sub">Tell it what to buy and your budget. It picks one of the demo store's three bags or buys nothing. If it buys, the store charges the test buyer's saved PayPal account in PayPal's sandbox, then you investigate the order here. {data.left.you} of your runs left today.</p>
       <div className="jd-row">
         <input type="text" aria-label="What to buy" placeholder="A waterproof bag for kayaking" maxLength={200} value={ask} onChange={(e) => setAsk(e.target.value)} style={{ flex: '1 1 220px' }} />
@@ -122,7 +141,8 @@ export function IncidentWidget() {
   const [target, setTarget] = useState('');
   const [focusLive, setFocusLive] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
-  const missingRef = useRef<HTMLParagraphElement>(null);
+  const [shopping, setShopping] = useState(false);
+  const missingRef = useRef<HTMLDetailsElement>(null), timelineRef = useRef<HTMLDetailsElement>(null), whatIfRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => { setW(null); setErr(null); setTarget(''); setFocusLive(false); setAnswer(null); }, [id]);
   const whatIf = (eventId: string, max: number) => api<WhatIf>(`/api/incident/${encodeURIComponent(inc!.id)}/what-if`, { method: 'POST', json: { event_id: eventId, max_amount: max } });
   const rerun = async () => {
@@ -131,8 +151,9 @@ export function IncidentWidget() {
     catch (e: any) { setErr(e.message); }
   };
   // The three preset questions, answered from the incident JSON and the what-if endpoint; no model call.
-  const askLive = () => { setFocusLive(true); setAnswer(reachedPayPal(inc!).text); };
-  const askMissing = () => { setFocusLive(false); const q = notInRecords(inc!); setAnswer(q.text); missingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  const reveal = (d: HTMLDetailsElement | null) => { if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
+  const askLive = () => { setFocusLive(true); setAnswer(reachedPayPal(inc!).text); reveal(timelineRef.current); };
+  const askMissing = () => { setFocusLive(false); setAnswer(notInRecords(inc!).text); reveal(missingRef.current); };
   const askWhatIf = async () => {
     setFocusLive(false); setErr(null);
     const p = whatIfPreset(inc!);
@@ -140,18 +161,20 @@ export function IncidentWidget() {
     setLimit(String(p.limit));
     // Newest recorded move first; one without an amount limit (an accept, a message) is refused and the next is tried.
     for (const t of p.targets) {
-      try { const r = await whatIf(t, p.limit); setTarget(t); setW(r); return setAnswer(`Re-ran ${r.method.replace(/_/g, ' ')} at a $${p.limit} limit: ${r.before.verdict} then, ${r.after.verdict} now. Nothing was sent to PayPal.`); }
+      try { const r = await whatIf(t, p.limit); setTarget(t); setW(r); reveal(whatIfRef.current); return setAnswer(`Re-ran ${r.method.replace(/_/g, ' ')} at a $${p.limit} limit: ${r.before.verdict} then, ${r.after.verdict} now. Nothing was sent to PayPal.`); }
       catch { /* no amount limit on this one */ }
     }
     setAnswer('None of the recorded moves has an amount limit to change: accepts and messages have none. Nothing was sent to PayPal.');
   };
 
   const shopped = (newId: string) => { setId(newId); listPoll.reload(); };
-  if (!list.length) return <Panel title="Incident"><ShopForm onDone={shopped} /><p className="jd-muted">No AI purchases on record yet.</p></Panel>;
+  const send = <button type="button" className="jd-btn jd-primary" aria-expanded={shopping} onClick={() => setShopping(!shopping)}>Send your own shopping agent</button>;
+  if (!list.length) return <Panel id="jd-incident" hug title="Incident"><ShopForm onDone={shopped} /><p className="jd-muted">No AI purchases on record yet.</p></Panel>;
+  const count = inc?.missing.length ?? 0;
   return (
-    <Panel title="Incident" subtitle={inc?.title ?? 'Loading...'}>
-      <ShopForm onDone={shopped} />
-      <div className="jd-row">
+    <Panel id="jd-incident" hug title="Incident" action={send}>
+      {shopping && <ShopForm onDone={shopped} />}
+      <div className="jd-inc-tools">
         <select className="jd-ellipsis" aria-label="Incident" value={id ?? ''} onChange={(e) => setId(e.target.value)}>
           {list.map((i) => <option key={i.id} value={i.id}>{incidentLabel(i)}</option>)}
         </select>
@@ -160,49 +183,40 @@ export function IncidentWidget() {
         {inc?.dispute_id && <a className="jd-linkish" href={`/who-else?seed=${encodeURIComponent(inc.id)}`} target="_blank" rel="noreferrer">Who else?</a>}
       </div>
       {error && <div className="jd-result jd-err">{error}</div>}
-      {inc?.records && <Records r={inc.records} />}
-      {inc && <div className="jd-incident-grid">
-        <div className="jd-incident-main">
-          {!inc.decline && <div className="jd-counts">
-            {([['Proposed', inc.counts.proposed], ['Approved', inc.counts.approved], ...(inc.counts.demo_approved ? [['Approved by the demo approver', inc.counts.demo_approved] as const] : []), ...(inc.counts.leased_approved ? [['Approved by a visitor on their leased case', inc.counts.leased_approved] as const] : []), ['Executed', inc.counts.executed], ['Outcome unknown', inc.counts.outcome_unknown]] as const)
-              .map(([k, v]) => <div key={k}><span>{k}</span><strong>{v}</strong></div>)}
-          </div>}
-          <dl className="jd-facts">
-            <dt>Buyer allowed</dt><dd>{inc.authority ? `${inc.authority.instruction} (budget ${inc.authority.budget}, ${inc.authority.agent})` : 'not in the records'}</dd>
-            {inc.decline ? <>
-              <dt>Bought</dt><dd>Nothing. No order was placed and no money moved.</dd>
-              <dt>Why it declined</dt><dd>{inc.decline.reason}</dd>
-              <dt>Listings it saw</dt><dd>{inc.decline.listings.join(' | ') || 'not in the records'}</dd>
-            </> : <><dt>Bought</dt><dd>{inc.purchase ? `${inc.purchase.listing}, ${inc.purchase.amount}` : 'not in the records'}</dd></>}
-          </dl>
-          <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
-            {inc.events.map((e) => { const mode = modeOf(e); return (
-              <li key={e.id} className={`jd-rail-${mode}`}>
-                <div className="jd-rail-meta"><span className={`jd-mode jd-mode-${mode}`}>{mode.toUpperCase()}</span> {when(e.at)} · {e.actor}</div>
-                <div>{e.summary}</div>
-              </li>); })}
-            {w && (
-              <li className="jd-rail-what-if">
-                <div className="jd-rail-meta"><span className="jd-mode jd-mode-what-if">WHAT-IF</span> {w.change}</div>
-                <div>{w.method.replace(/_/g, ' ')}: was <strong>{w.before.verdict}</strong> ({w.before.reason}), would be <strong>{w.after.verdict}</strong> ({w.after.reason}).</div>
-                <div className="jd-muted">PayPal calls: {w.paypal_calls}. Nothing was sent.</div>
-              </li>
-            )}
-          </ol>
-          {inc.refund && <RefundBox key={inc.id} inc={inc} onDone={reloadInc} />}
-          {inc.missing.length > 0 && <p ref={missingRef} className="jd-muted">Not in the records: {inc.missing.join(' ')}</p>}
-        </div>
-        <aside className="jd-incident-side">
-          <h3>Ask the records</h3>
-          <div className="jd-stack">
-            <button type="button" className="jd-btn" onClick={askLive}>Which actions reached PayPal?</button>
-            <button type="button" className="jd-btn" onClick={askMissing}>What's not in the records?</button>
-            {!inc.decline && <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>}
-          </div>
-          {answer && <p className="jd-answer" role="status">{answer}</p>}
-          {calls.length > 0 && <>
-            <h3>Re-run the gate</h3>
-            <div className="jd-stack">
+      {inc && <div key={inc.id}>
+        <Verdict inc={inc} />
+        {inc.refund && <RefundBox inc={inc} onDone={reloadInc} />}
+        {inc.records ? <Records r={inc.records} /> : inc.decline && <dl className="jd-decline">
+          <div className="jd-rec-row"><dt>Asked</dt><dd>{inc.authority?.instruction ?? 'not in the records'}</dd></div>
+          <div className="jd-rec-row"><dt>Budget</dt><dd>{inc.authority?.budget ?? 'not in the records'}</dd></div>
+          <div className="jd-rec-row"><dt>Why it declined</dt><dd>{inc.decline.reason}</dd></div>
+          <div className="jd-rec-row"><dt>Listings it saw</dt><dd>{inc.decline.listings.length ? <ul>{inc.decline.listings.map((l) => <li key={l}>{l}</li>)}</ul> : 'not in the records'}</dd></div>
+        </dl>}
+        <p className="jd-sub jd-inc-legend">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
+        <div className="jd-sections">
+          <Section title="What happened" note={`${inc.events.length} event${inc.events.length === 1 ? '' : 's'}`} open={timelineRef}>
+            <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
+              {inc.events.map((e) => { const mode = modeOf(e); return (
+                <li key={e.id} className={`jd-rail-${mode}`}>
+                  <div className="jd-rail-meta"><span className={`jd-mode jd-mode-${mode}`}>{mode.toUpperCase()}</span> {when(e.at)} · {e.actor}</div>
+                  <div>{withIds(e.summary)}</div>
+                </li>); })}
+            </ol>
+          </Section>
+          <Section title="What's not in the records" note={count ? `${count} listed` : 'Nothing listed'} open={missingRef}>
+            <p>{notInRecords(inc).text}</p>
+            {count > 0 && <ul>{inc.missing.map((m) => <li key={m}>{m}</li>)}</ul>}
+          </Section>
+          <Section title="Ask the records">
+            <div className="jd-row">
+              <button type="button" className="jd-btn" onClick={askLive}>Which actions reached PayPal?</button>
+              <button type="button" className="jd-btn" onClick={askMissing}>What's not in the records?</button>
+              {!inc.decline && <button type="button" className="jd-btn" onClick={askWhatIf}>{whatIfPreset(inc).label}</button>}
+            </div>
+            {answer && <p className="jd-answer" role="status">{answer}</p>}
+          </Section>
+          {calls.length > 0 && <Section title="What if" note="Nothing reaches PayPal" open={whatIfRef}>
+            <div className="jd-inc-whatif">
               <label className="jd-field">Recorded request
                 <select aria-label="Recorded request" value={target || calls[0].id} onChange={(e) => setTarget(e.target.value)}>
                   {calls.map((e) => <option key={e.id} value={e.id}>{when(e.at)}: {e.summary.slice(0, 80)}</option>)}
@@ -210,11 +224,25 @@ export function IncidentWidget() {
               </label>
               <label className="jd-field">Amount limit (USD) <input type="number" min={0} max={10000} value={limit} onChange={(e) => setLimit(e.target.value)} /></label>
               <button type="button" className="jd-btn jd-primary" onClick={rerun}>Re-run the gate</button>
-              <p className="jd-sub">A what-if on the recorded request. Nothing reaches PayPal.</p>
             </div>
-          </>}
-          {err && <div className="jd-result jd-err">{err}</div>}
-        </aside>
+            {w && <div className="jd-inc-result">
+              <div className="jd-rail-meta"><span className="jd-mode jd-mode-what-if">WHAT-IF</span> {w.change}</div>
+              <div>{w.method.replace(/_/g, ' ')}: was <strong>{w.before.verdict}</strong> ({w.before.reason}), would be <strong>{w.after.verdict}</strong> ({w.after.reason}).</div>
+              <div className="jd-muted">PayPal calls: {w.paypal_calls}. Nothing was sent.{w.note ? ` ${w.note}` : ''}</div>
+            </div>}
+            {err && <div className="jd-result jd-err">{err}</div>}
+          </Section>}
+          {inc.purchase && <Section title="Purchase details">
+            <dl className="jd-facts">
+              <dt>Incident</dt><dd><code>{inc.id}</code></dd>
+              <dt>Agent</dt><dd>{inc.authority?.agent ?? 'not in the records'}</dd>
+              <dt>Listing it saw</dt><dd>{inc.purchase.listing}</dd>
+              {inc.purchase.order_id && <><dt>Order</dt><dd><code>{inc.purchase.order_id}</code></dd></>}
+              {inc.purchase.capture_id && <><dt>Capture</dt><dd><code>{inc.purchase.capture_id}</code></dd></>}
+              {inc.dispute_id && <><dt>Dispute</dt><dd><code>{inc.dispute_id}</code></dd></>}
+            </dl>
+          </Section>}
+        </div>
       </div>}
     </Panel>
   );
