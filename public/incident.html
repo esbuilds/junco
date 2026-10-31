@@ -108,21 +108,20 @@
 <body>
 <div class="page">
 <nav class="top" aria-label="JUNCO"><strong><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</strong>
-  <span>One AI purchase or decline, start to finish, from the records</span>
-  <span class="links"><a href="/judges">For judges</a> <a href="/" title="No password is needed to look; the password lets you act">Desk (sign in to act)</a> <a id="receipt" href="#">Printable receipt</a> <a id="who-else" href="/who-else" hidden>Who else?</a></span></nav>
+  <span>From the records</span>
+  <span class="links"><a href="/judges">For judges</a> <a href="/" title="No password is needed to look; the password lets you act">Desk (sign in to act)</a> <a id="receipt" href="#">Receipt</a> <a id="who-else" href="/who-else" hidden>Who else?</a></span></nav>
 <h1 id="title">Loading the incident...</h1>
 <p class="status" id="status"></p>
 <section class="refund" id="refund-card" hidden><h2>Ask for your money back</h2><div id="refund"></div></section>
 <section class="records" id="records" aria-label="Three records" hidden></section>
 <section id="declined" hidden></section>
-<p class="legend">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
+<p class="legend">LIVE: PayPal's sandbox. RECORDED: the desk's record. WHAT-IF: never reaches PayPal.</p>
 <div class="sections">
   <details id="rail-card"><summary><span>What happened</span><span class="note" id="rail-note"></span></summary><div class="body"><ol class="rail" id="rail"></ol></div></details>
   <details id="missing-card"><summary><span>What's not in the records</span><span class="note" id="missing-note"></span></summary><div class="body"><p id="missing-line"></p><ul id="missing"></ul></div></details>
   <details id="ask-card"><summary><span>Ask the records</span></summary><div class="body"><div class="ask"><button id="q-live">Which actions reached PayPal?</button><button id="q-missing">What's not in the records?</button><button id="q-whatif">What if the refund limit were lower?</button></div>
     <p id="answer" class="muted" aria-live="polite"></p></div></details>
   <details id="whatif-card"><summary><span>What if</span><span class="note">Nothing reaches PayPal</span></summary><div class="body">
-    <p class="muted">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers).</p>
     <div class="whatif"><label>Recorded request<select id="target"></select></label>
       <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
       <button class="btn" id="rerun">Re-run</button></div>
@@ -252,7 +251,7 @@ const askText = (a) => {
   const hold = a.hold_id ? ` (hold ${a.hold_id})` : '', until = a.expires ? new Date(a.expires).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const state = a.outcome === 'asking' ? 'The support agent is reading your purchase. Reload in a moment.'
     : a.outcome !== 'held' ? 'The support agent proposed no refund. Nothing was sent to PayPal.'
-    : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner${hold}. Waiting for the owner${until ? `; if they don't decide by ${until}, it expires and nothing moves` : ''}.`
+    : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner${hold}.${until ? ` Undecided by ${until}, it expires and nothing moves.` : ''}`
     : a.hold_status === 'expired' ? `${EXPIRED}${hold ? ` Hold ${a.hold_id} expired.` : ''}`
     : a.hold_status === 'rejected' ? `${Who} rejected it${hold}. Nothing was sent to PayPal.`
     : a.hold_status === 'completed' ? `${Who} approved it${hold}, and PayPal made the refund.`
@@ -263,7 +262,7 @@ const askText = (a) => {
 const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><img class="qr" src="${esc(d.qr)}" alt="QR code for your approve link"><div><h2>Approve it yourself</h2>
   <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
   <p><a class="btn" href="${esc(d.url)}">Open your approve link here</a></p>
-  <p class="muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div></div>`
+  <p class="muted">It works once. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div></div>`
   : `<p class="muted">${esc(d.why)}</p>`;
 // An optional photo, before the ask: the upload, then the card. Nothing about photos shows on a purchase that has none and can't add one.
 function photoSlot(r, again) {
@@ -280,7 +279,7 @@ function renderRefund() {
   if (!r) return;
   if (r.ask) { $('#refund').innerHTML = askText(r.ask) + (inc.photo ? juncoPhoto.card(inc.photo) : '') + demoBox(r.demo); return; }
   if (!r.can_ask) return;
-  $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
+  $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) can propose a refund. The owner has 24 hours, then it expires and nothing moves. If it's held, you can approve this one sandbox refund yourself, as the demo approver.</p>
     <div id="photo-slot"></div><div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"></label>
     <button class="btn" id="refund-ask">Ask the support agent for a refund</button></div><div id="refund-out" aria-live="polite"></div>`;
   photoSlot(r);

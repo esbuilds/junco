@@ -55,7 +55,7 @@ type Ask = NonNullable<NonNullable<Incident['refund']>['ask']>;
 const decider = (a: Ask) => { const by = a.decided_by ?? 'the owner'; return by[0].toUpperCase() + by.slice(1); };
 const askState = (a: Ask) => a.outcome === 'asking' ? 'The support agent is reading your purchase.'
   : a.outcome !== 'held' ? 'The support agent proposed no refund. Nothing was sent to PayPal.'
-  : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner (hold ${a.hold_id}). Waiting for the owner${a.expires ? `; if they don't decide by ${when(a.expires)}, it expires and nothing moves` : ''}.`
+  : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner (hold ${a.hold_id}).${a.expires ? ` Undecided by ${when(a.expires)}, it expires and nothing moves.` : ''}`
   : a.hold_status === 'expired' ? `The owner didn't decide within 24 hours, so nothing moved. Hold ${a.hold_id} expired.`
   : a.hold_status === 'rejected' ? `${decider(a)} rejected it (hold ${a.hold_id}). Nothing was sent to PayPal.`
   : a.hold_status === 'completed' ? `${decider(a)} approved it (hold ${a.hold_id}), and PayPal made the refund.`
@@ -96,11 +96,11 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
             <h4>Approve it yourself</h4>
             <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
             <p><a className="jd-btn jd-primary" href={r.demo.url} target="_blank" rel="noreferrer">Open your approve link here</a></p>
-            <p className="jd-muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p>
+            <p className="jd-muted">It works once. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p>
           </div>
         </div> : <p className="jd-muted">{r.demo.why}</p>)}
       </> : <>
-        <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
+        <p className="jd-sub">A support agent (Claude) can propose a refund. The owner has 24 hours, then it expires and nothing moves. If it's held, you can approve this one sandbox refund yourself, as the demo approver.</p>
         <PhotoSlot inc={inc} onDone={onDone} />
         <div className="jd-row">
           <input type="text" aria-label="Why you want it back (optional)" placeholder="Why you want it back (optional)" maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} style={{ flex: '1 1 220px' }} />
@@ -131,7 +131,7 @@ function ShopForm({ onDone }: { onDone: (id: string) => void }) {
   };
   return (
     <div className="jd-shop">
-      <p className="jd-sub">Tell it what to buy and your budget. It picks one of the demo store's three bags or buys nothing. If it buys, the store charges the test buyer's saved PayPal account in PayPal's sandbox, then you investigate the order here. {data.left.you} of your runs left today.</p>
+      <p className="jd-sub">It picks one of the demo store's three bags or buys nothing. A buy charges the test buyer's saved account in PayPal's sandbox. {data.left.you} of your runs left today.</p>
       <div className="jd-row">
         <input type="text" aria-label="What to buy" placeholder="A waterproof bag for kayaking" maxLength={200} value={ask} onChange={(e) => setAsk(e.target.value)} style={{ flex: '1 1 220px' }} />
         <span className="jd-money-input">Budget $<input type="number" aria-label="Budget in dollars" min={1} max={data.max_budget} step={1} value={budget} onChange={(e) => setBudget(e.target.value)} /></span>
@@ -208,7 +208,7 @@ export function IncidentWidget() {
           <div className="jd-rec-row"><dt>Why it declined</dt><dd>{inc.decline.reason}</dd></div>
           <div className="jd-rec-row"><dt>Listings it saw</dt><dd>{inc.decline.listings.length ? <ul>{inc.decline.listings.map((l) => <li key={l}>{l}</li>)}</ul> : 'not in the records'}</dd></div>
         </dl>}
-        <p className="jd-sub jd-inc-legend">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
+        <p className="jd-sub jd-inc-legend">LIVE: PayPal's sandbox. RECORDED: the desk's record. WHAT-IF: never reaches PayPal.</p>
         <div className="jd-sections">
           <Section title="What happened" note={`${inc.events.length} event${inc.events.length === 1 ? '' : 's'}`} open={timelineRef}>
             <ol className={focusLive ? 'jd-rail jd-focus-live' : 'jd-rail'}>
