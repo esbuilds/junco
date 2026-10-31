@@ -88,7 +88,7 @@ assert.equal(holdWords({ status: 'something new' }), 'something new');
 
 // Who else?: groups in bucket order with totals in cents, the plan only ever from kept silent rows, failures said plainly.
 const member = (id: string, bucket: Bucket, paid: string, refunded: string, capture: string | null = `C${id}`): Member => ({ incident_id: id, capture_id: capture, sku: 'WKD-01', paid, instruction: 'a carry-on bag', reason: 'carry-on-friendly', listing: 'L', bucket, why: 'w', quotes: [], dispute_id: null, payment_status: 'COMPLETED', refunded, remaining: (Number(paid) - Number(refunded)).toFixed(2), fingerprint: 'match' });
-const whoRun: WhoElseRun = { id: 'r', at: '2026-10-30T00:00:00Z', seed: 'a', cause: { summary: 's', quotes: [] }, draft_note: 'd', corrections: [], trials: [], mode: 'live', model: 'm', cost_usd: 0, members: [member('n', 'not_same', '38.00', '0.00'), member('a', 'complained', '62.00', '0.00'), member('b', 'silent', '0.10', '0.00'), member('c', 'silent', '0.20', '0.00'), member('d', 'silent', '62.00', '2.13'), member('e', 'silent', '62.00', '0.00', null)], remedies: [{ capture_id: 'Cd', incident_id: 'd', amount: '59.87', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'pending', refund_id: null, refund_status: null }] };
+const whoRun: WhoElseRun = { id: 'r', at: '2026-10-30T00:00:00Z', seed: 'a', cause: { summary: 's', quotes: [] }, draft_note: 'd', notice: 'told', notices: [], corrections: [], trials: [], mode: 'live', model: 'm', cost_usd: 0, members: [member('n', 'not_same', '38.00', '0.00'), member('a', 'complained', '62.00', '0.00'), member('b', 'silent', '0.10', '0.00'), member('c', 'silent', '0.20', '0.00'), member('d', 'silent', '62.00', '2.13'), member('e', 'silent', '62.00', '0.00', null)], remedies: [{ capture_id: 'Cd', incident_id: 'd', amount: '59.87', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'pending', refund_id: null, refund_status: null }] };
 const whoRows = whoElseRows(whoRun, new Set(['Cc']), new Set<Bucket>(['not_same']));
 assert.deepEqual(whoRows.map((r) => r.id), ['group:silent', 'b', 'c', 'd', 'e', 'group:complained', 'a', 'group:not_same'], 'Never complained first; a closed group keeps its heading and total');
 assert.equal(whoRows.find((r) => r.id === 'group:not_same')!.paid, 38);
@@ -140,13 +140,25 @@ assert.equal(checkWords(["PayPal's hosted MCP server"]), "PayPal's hosted server
 assert.equal(checkWords(['the database']), 'Self-check: 1 failing');
 assert.equal(checkWords(["PayPal's hosted MCP server", 'the database']), 'Self-check: 2 failing');
 // public/who-else.html can't import ui.ts, so run its copies against it.
-const copy = (name: string) => new Function('cents', 'HOLD_PILL', 'BUCKET_PILL', `return ${readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8').match(new RegExp(`const ${name} = ([\\s\\S]*?);\\n(?:const|let|//|function)`))![1]}`);
+const copy = (name: string) => new Function('cents', 'HOLD_PILL', 'BUCKET_PILL', 'AGENT_PILL', `return ${readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8').match(new RegExp(`const ${name} = ([\\s\\S]*?);\\n(?:const|let|//|function)`))![1]}`);
 const pageSrc = readFileSync(new URL('../public/who-else.html', import.meta.url), 'utf8');
 const table = (name: string) => new Function(`return ${pageSrc.match(new RegExp(`const ${name} = (\\{[\\s\\S]*?\\});\\n`))![1]}`)();
-const pageStanding = copy('standing')((s: string) => Math.round(Number(s) * 100)), pageStatus = copy('rowStatus')(null, table('HOLD_PILL'), table('BUCKET_PILL'));
+const pageStanding = copy('standing')((s: string) => Math.round(Number(s) * 100)), pageStatus = copy('rowStatus')(null, table('HOLD_PILL'), table('BUCKET_PILL'), table('AGENT_PILL'));
 for (const r of [undefined, rem({}), rem({ hold_status: 'pending', refund_id: null }), rem({ hold_status: 'failed', refund_id: null })]) assert.deepEqual(pageStanding(paidRow, r), standing(paidRow, r));
 for (const hold_status of ['pending', 'executing', 'completed', 'failed', 'unknown', 'approved', 'rejected', 'stale', 'expired', 'new']) assert.deepEqual(pageStatus(paidRow, rem({ hold_status, refund_id: null })), rowStatus(paidRow, rem({ hold_status, refund_id: null })), hold_status);
 for (const m of [paidRow, member('a', 'complained', '1.00', '0.00'), member('b', 'repaired', '1.00', '1.00'), member('c', 'unclear', '1.00', '0.00'), member('d', 'not_same', '1.00', '0.00'), { ...member('e', 'not_same', '0.00', '0.00'), sku: '' }]) assert.deepEqual(pageStatus(m), rowStatus(m));
+// What the row says about a purchase's own agent: the same on both surfaces. A decline leaves the plan; a failed agent can go again.
+const heldNow = rem({ hold_status: 'pending', refund_id: null });
+for (const [r, n, label] of [[heldNow, { outcome: 'asked' }, 'Agent asked'], [undefined, { outcome: 'declined' }, 'Agent declined'], [undefined, { outcome: 'failed' }, 'Agent failed'], [rem({}), { outcome: 'asked' }, 'Refunded'], [rem({ hold_status: 'rejected', refund_id: null }), { outcome: 'asked' }, 'Rejected']] as const) {
+  assert.equal(rowStatus(paidRow, r, false, n).label, label); assert.deepEqual(pageStatus(paidRow, r, n), rowStatus(paidRow, r, false, n));
+}
+const noted = (outcome: 'asked' | 'declined' | 'failed'): WhoElseRun => ({ ...whoRun, members: [member('a', 'complained', '62.00', '0.00'), member('q', 'silent', '62.00', '0.00')], remedies: [], notices: [{ capture_id: 'Cq', incident_id: 'q', at: 'now', outcome, reason: 'r', hold_id: null }] });
+assert.deepEqual([whoElseSummary(noted('declined'), new Set()).plan.length, whoElseSummary(noted('declined'), new Set()).tell.length, whoElseSummary(noted('declined'), new Set()).declined], [0, 0, 1], 'a decline leaves the plan');
+assert.equal(whoElseSummary(noted('failed'), new Set()).tell.length, 1, 'a failed agent can be told again');
+assert.equal(whoElseSummary({ ...noted('failed'), notices: [] }, new Set()).tell.length, 1);
+assert.equal(whoElseSummary({ ...noted('failed'), notices: [] }, new Set(['Cq'])).tell.length, 0, 'a dropped row stays out');
+const declinedRow = whoElseRows(noted('declined'), new Set(), new Set()).find((r) => r.id === 'q')!;
+assert.deepEqual([declinedRow.can_keep, declinedRow.keep, declinedRow.notice?.outcome, declinedRow.status?.label], [false, false, 'declined', 'Agent declined']);
 // No native confirm left where the owner decides money or sign-outs, and a dead control is hidden, never disabled.
 for (const f of ['src/widgets/WhoElseWidget.tsx', 'src/widgets/KillSwitch.tsx']) assert.doesNotMatch(readFileSync(new URL(f, import.meta.url), 'utf8'), /\bconfirm\(/, `${f} is back on the browser's confirm`);
 
@@ -160,10 +172,12 @@ for (const [name, text] of [['public/who-else.html', whoPage], ['WhoElseWidget.t
   assert.match(text, /may not fit/, `${name} says may not fit`);
   assert.match(text, /What the owner says went wrong/, `${name} labels the cause as the owner's`);
   assert.match(text, /What each buyer will read through PayPal/, `${name} shows the buyer's note before a plan`);
+  assert.match(text, /a test buyer's agent run by this demo/, `${name} labels the agent plainly`);
+  assert.match(text, /same process as the desk/, `${name} says both sides run here`);
   assert.match(text, /run\.draft_note/, `${name} shows the note code built, as it stands`);
   assert.doesNotMatch(text, /AI found the mistake|Claude found the mistake|shared mistake/i, `${name} credits the AI with the mistake`);
   assert.doesNotMatch(text, /recall|—|doesn't fit|\bthe first\b|\bthe only\b/i, `${name} breaks a copy rule`);
 }
-assert.doesNotMatch(whoPage, /\/plan|approve-all|\/correct|\/api\/holds|paypal\.com/, 'the public page has no write but the capped finder');
+assert.doesNotMatch(whoPage, /\/plan|\/notify|approve-all|\/correct|\/api\/holds|paypal\.com/, 'the public page has no write but the capped finder');
 
 console.log('check-ui: ok');

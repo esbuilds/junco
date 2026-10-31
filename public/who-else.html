@@ -64,6 +64,7 @@ button.ghead{width:100%;border:0;border-top:1px solid var(--line-2);border-radiu
 <footer class="fine">
   <details><summary>How this works</summary>
     <p>The owner named the problem and Claude found the matching purchases: same, not same or unsure. Code picks the group, and a purchase goes in the plan only if PayPal shows money left to refund and nobody has complained. This page moves no money and creates no hold.</p>
+    <p>The owner can also tell each purchase's own shopping agent. It's a test buyer's agent run by this demo, in the same process as the desk, so both sides run here. It sees what its person asked, the budget, what it bought and why, and the owner's notice, and nothing about any other purchase. It asks or declines, and an ask waits for the owner like any refund.</p>
     <p id="score"></p>
   </details>
   <p>Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
@@ -90,9 +91,11 @@ const standing = (m, r) => {
 const HOLD_PILL = { pending: { label: 'Waiting for approval', tone: 'attn' }, executing: { label: 'Sending to PayPal', tone: 'attn' }, completed: { label: 'Refunded', tone: 'done' }, failed: { label: 'PayPal refused', tone: 'bad' },
   unknown: { label: 'Outcome unknown', tone: 'bad' }, approved: { label: 'Approved', tone: 'quiet' }, rejected: { label: 'Rejected', tone: 'quiet' }, stale: { label: 'Not run', tone: 'bad' }, expired: { label: 'Hold expired', tone: 'bad' } };
 const BUCKET_PILL = { silent: { label: 'Not planned', tone: 'ready' }, complained: { label: 'Open dispute', tone: 'quiet' }, repaired: { label: 'Already repaired', tone: 'quiet' }, unclear: { label: 'Unclear', tone: 'quiet' }, not_same: { label: 'Not the same', tone: 'quiet' } };
-const rowStatus = (m, r) => r?.refund_id ? HOLD_PILL.completed : r?.hold_status ? HOLD_PILL[r.hold_status] ?? { label: r.hold_status, tone: 'quiet' }
-  : m.bucket === 'not_same' && !m.sku ? { label: 'Bought nothing', tone: 'quiet' } : BUCKET_PILL[m.bucket];
+const AGENT_PILL = { asked: { label: 'Agent asked', tone: 'attn' }, declined: { label: 'Agent declined', tone: 'quiet' }, failed: { label: 'Agent failed', tone: 'bad' } };
+const rowStatus = (m, r, n) => r?.refund_id ? HOLD_PILL.completed : n?.outcome === 'asked' && r?.hold_status === 'pending' ? AGENT_PILL.asked : r?.hold_status ? HOLD_PILL[r.hold_status] ?? { label: r.hold_status, tone: 'quiet' }
+  : n && n.outcome !== 'asked' ? AGENT_PILL[n.outcome] : m.bucket === 'not_same' && !m.sku ? { label: 'Bought nothing', tone: 'quiet' } : BUCKET_PILL[m.bucket];
 const remedyOf = (run, m) => m.capture_id ? run.remedies.find((r) => r.capture_id === m.capture_id) : undefined;
+const noticeOf = (run, m) => m.capture_id ? run.notices.find((n) => n.capture_id === m.capture_id) : undefined;
 const left = (run, list) => list.reduce((n, m) => n + standing(m, remedyOf(run, m)).remaining, 0) / 100;
 let seen = null, poller = null, closed = true; // seen: this visitor's own click produced the run on screen; closed: Not the same
 
@@ -113,7 +116,7 @@ function line(dl, name, ...value) { const dt = el('dt'); dt.append(...[name].fla
 
 // A row: the purchase, the agent's quoted words, what's left and one pill. It opens in place for the records.
 function row(m, run) {
-  const r = remedyOf(run, m), s = standing(m, r), st = rowStatus(m, r), box = el('details', 'row'), head = el('summary'), buy = el('span', 'buy');
+  const r = remedyOf(run, m), told = noticeOf(run, m), s = standing(m, r), st = rowStatus(m, r, told), box = el('details', 'row'), head = el('summary'), buy = el('span', 'buy');
   const link = el('a', '', `...${m.incident_id.slice(-6)}`);
   link.href = `/incident/${encodeURIComponent(m.incident_id)}`;
   buy.append(link);
@@ -126,6 +129,7 @@ function row(m, run) {
   line(d, 'The buyer asked', marked(m.instruction, m.quotes, 'instruction'));
   line(d, 'The agent said', marked(m.reason, m.quotes, 'reason'));
   if (m.quotes.some((x) => x.field === 'listing')) line(d, 'The listing said', marked(m.listing, m.quotes, 'listing'));
+  if (told) line(d, `Their agent ${told.outcome}`, told.reason);
   if (r) line(d, 'Note to the buyer', r.note_to_payer);
   if (m.sku) line(f, 'Bag', m.sku);
   line(f, 'Paid', usd(s.paid / 100));
@@ -185,7 +189,8 @@ function result(run) {
   const complained = others(run).filter((m) => m.bucket === 'complained').length, failed = run.remedies.filter((r) => !r.refund_id && BAD_HOLD.includes(r.hold_status)).length;
   const big = el('p', 'big'), stats = el('dl', 'stats');
   big.append(el('b', '', silent.length), `more purchase${silent.length === 1 ? '' : 's'} show${silent.length === 1 ? 's' : ''} this problem, and nobody complained`);
-  for (const [v, k] of [[usd(left(run, silent)), 'left to refund'], [refunded, 'refunded, confirmed by PayPal'], ...(complained ? [[complained, 'also complained']] : [])]) { const d = el('div'); d.append(el('dd', '', v), el('dt', '', k)); stats.append(d); }
+  const asked = run.notices.filter((n) => n.outcome === 'asked').length, declined = run.notices.filter((n) => n.outcome === 'declined').length;
+  for (const [v, k] of [[usd(left(run, silent)), 'left to refund'], [refunded, 'refunded, confirmed by PayPal'], ...(complained ? [[complained, 'also complained']] : []), ...(asked ? [[asked, `purchase${asked === 1 ? '' : 's'} where their agent asked`]] : []), ...(declined ? [[declined, `purchase${declined === 1 ? '' : 's'} where their agent declined`]] : [])]) { const d = el('div'); d.append(el('dd', '', v), el('dt', '', k)); stats.append(d); }
   out.replaceChildren(big, stats, ...(failed ? [el('p', 'alert', `${failed} refund${failed === 1 ? '' : 's'} didn't run. The rows below say why.`)] : []));
 }
 
@@ -220,7 +225,7 @@ async function load(id) {
 }
 
 function score(s, runs) {
-  $('score').textContent = `${s.runs} run${s.runs === 1 ? '' : 's'} so far, ${s.purchases_read} purchases read, ${s.silent_found} never complained, ${s.refunds_confirmed} of ${s.refunds_proposed} proposed refunds confirmed by PayPal. Real counts from this sandbox. ${runs > 0 ? `${runs} run${runs === 1 ? '' : 's'} left today.` : "Today's runs are used up, so this is the latest finished run."}`;
+  $('score').textContent = `${s.runs} run${s.runs === 1 ? '' : 's'} so far, ${s.purchases_read} purchases read, ${s.silent_found} never complained, ${s.refunds_confirmed} of ${s.refunds_proposed} proposed refunds confirmed by PayPal, agents told on ${s.agents_told} purchase${s.agents_told === 1 ? '' : 's'}: ${s.agents_asked} asked, ${s.agents_declined} declined. Real counts from this sandbox. ${runs > 0 ? `${runs} run${runs === 1 ? '' : 's'} left today.` : "Today's runs are used up, so this is the latest finished run."}`;
   $('go').hidden = !(runs > 0) || !$('seed').value;
   if (!(runs > 0) && !notes.length) $('pick').hidden = true;
 }

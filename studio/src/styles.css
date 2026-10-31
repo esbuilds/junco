@@ -605,6 +605,14 @@ textarea { border-radius: 8px; }
 .jd-wel-step > p + p, .jd-wel-step > .jd-wel-callout + p, .jd-wel-actions:not(:first-child) { margin-top: 12px; }
 .jd-wel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--jd-muted); }
 .jd-wel-actions select { max-width: 140px; }
+.jd-wel-choice { display: grid; gap: 24px; }
+@container (min-width: 760px) { .jd-wel-choice { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 0; } .jd-wel-choice > div + div { padding-left: 24px; margin-left: 24px; border-left: 1px solid var(--jd-line-2); } }
+.jd-wel-choice > div { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.jd-wel-choice > div > h4 { margin: 0; font-size: 15px; line-height: 22px; font-weight: 600; }
+.jd-wel-choice > div > p { margin: 0; color: var(--jd-muted); }
+.jd-wel-choice .jd-wel-callout { align-self: stretch; }
+.jd-wel-choice > div > .jd-btn { margin-top: auto; }
+.jd-wel-step > .jd-wel-choice + p { margin-top: 16px; font-size: 13px; }
 .jd-wel-callout { padding: 12px 14px; background: var(--jd-surface-2); border-radius: 8px; }
 .jd-wel-callout h4 { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: var(--jd-muted); }
 .jd-wel-callout p { margin: 0; }
