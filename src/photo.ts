@@ -176,7 +176,7 @@ body{margin:0 auto;padding:24px 16px 40px;max-width:560px;background:var(--bg);c
 h1{margin:0 0 8px;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}.m{color:var(--muted)}.err{color:var(--danger);font-weight:600}
 </style></head><body><p class="m"><strong>JUNCO</strong>, add a photo</p>${why ? `<p class="err">${esc(why)}</p>` : `<h1>Show the store your ${esc(b?.agent.sku)}</h1>
 <div id="photo"></div>
-<script src="/photo-client.js"></script><script>juncoPhoto.control(document.getElementById('photo'), { url: location.pathname, extra: ${JSON.stringify({ e: q.e, n: q.n, s: q.s }).replace(/</g, '\\u003c')}, phone: true, onDone: (p) => { document.getElementById('photo').innerHTML = juncoPhoto.card(p) + '<p class="m">Sent. The incident page on your computer shows this now, so go back there to ask for your money back.</p>'; } });</script>`}</body></html>`;
+<script src="/photo-client.js"></script><script>juncoPhoto.control(document.getElementById('photo'), { url: location.pathname, extra: ${JSON.stringify({ e: q.e, n: q.n, s: q.s }).replace(/</g, '\\u003c')}, phone: true, onDone: (p) => { document.getElementById('photo').innerHTML = juncoPhoto.card(p) + '<p class="m">Sent. Go back to the incident page to ask for your money back.</p>'; } });</script>`}</body></html>`;
 };
 
 export async function phoneUpload(deps: PhotoDeps, capture: string, body: { e?: string; n?: string; s?: string; image?: unknown; thumb?: unknown }) {

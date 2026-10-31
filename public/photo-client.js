@@ -53,7 +53,7 @@
   function control(el, { url, extra, offer, phone, onDone }) {
     const coarse = phone || matchMedia('(pointer: coarse)').matches;
     el.innerHTML = `<div class="pc-add"><div><label class="pc-take${phone ? ' pc-main' : ''}"><input type="file" accept="image/*" capture="environment"><span>${coarse ? 'Take a photo' : 'Choose a photo'}</span></label>
-      <p class="pc-fine">Optional. Hold your phone over the bag, or over anything you want to show. This is a demo, so don't upload anything personal. Only a small copy is kept.</p>
+      <p class="pc-fine">Optional. This is a demo, so don't upload anything personal. Only a small copy is kept.</p>
       <p class="pc-fine">A photo is evidence, not a refund. It can't show whose this is, when it was taken, or that a claim is true.</p><p class="pc-status pc-fine" aria-live="polite"></p></div>
       ${!coarse && offer?.url ? `<div style="flex:0 0 auto"><img class="pc-qr" src="${esc(offer.qr)}" alt="QR code to add a photo from your phone"><p class="pc-fine">Or scan this with your phone.</p></div>` : ''}</div>`;
     const status = el.querySelector('.pc-status'), input = el.querySelector('input'), say = (t, bad) => { status.textContent = t; status.className = `pc-status ${bad ? 'pc-err' : 'pc-fine'}`; };
