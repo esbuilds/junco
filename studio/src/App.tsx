@@ -20,7 +20,7 @@ import './styles.css';
 // Simulated lifecycle outcomes moved to Insights (v3.14).
 // Waiting for your OK hugs its three rows (Panel hug); its slot is sized to them so no gap opens under the card.
 // Rows wrap more below 1400 px, so the slot is a track taller there. The rail and the queue follow it.
-const HOLDS = typeof innerWidth === 'number' && innerWidth >= 1400 ? 16 : 17;
+const HOLDS = typeof innerWidth === 'number' && innerWidth >= 1400 ? 15 : 16;
 const layout = {
   pages: [{
     id: 'desk',
@@ -39,13 +39,13 @@ const layout = {
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
       holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: HOLDS },
-      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 14 },
-      activity: { xTrack: 9, yTrack: 14, xSpan: 3, ySpan: HOLDS + 8 },
-      queue: { xTrack: 0, yTrack: 5 + HOLDS, xSpan: 9, ySpan: 17 },
-      case: { xTrack: 0, yTrack: 40, xSpan: 12, ySpan: 22 },
-      gate: { xTrack: 0, yTrack: 62, xSpan: 12, ySpan: 12 },
-      store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 12 },
-      risk: { xTrack: 0, yTrack: 86, xSpan: 7, ySpan: 7 },
+      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 15 },
+      activity: { xTrack: 9, yTrack: 15, xSpan: 3, ySpan: HOLDS + 8 },
+      queue: { xTrack: 0, yTrack: 5 + HOLDS, xSpan: 9, ySpan: 18 },
+      case: { xTrack: 0, yTrack: 23 + HOLDS, xSpan: 12, ySpan: 22 },
+      gate: { xTrack: 0, yTrack: 45 + HOLDS, xSpan: 12, ySpan: 24 },
+      store: { xTrack: 0, yTrack: 69 + HOLDS, xSpan: 12, ySpan: 14 },
+      risk: { xTrack: 0, yTrack: 83 + HOLDS, xSpan: 7, ySpan: 19 },
     },
   }, insightsPage, booksPage, {
     // Who else?: the other purchases where the agent made the same mistake, and the owner's plan for them.
@@ -143,7 +143,7 @@ const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || 
 const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
 // Every panel full width, stacked in reading order (top to bottom, then left to right). PHONE_SPAN: panels that change
 // shape on a phone (the KPI strip goes 2x2; the holds table stacks its rows).
-const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 30, bookRecon: 5, bookStatus: 8, bookPrint: 5, bookReplay: 5, 'who-else': 190 }; // Books' filters: full width needs less height, so the table stays near the top
+const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 26, gate: 46, store: 40, risk: 22, bookRecon: 5, bookStatus: 8, bookPrint: 5, bookReplay: 5, 'who-else': 190 }; // Books' filters: full width needs less height, so the table stays near the top
 const stack = (wl: Record<string, { xTrack: number; yTrack: number; xSpan: number; ySpan: number }>) => {
   let y = 0;
   return Object.fromEntries(Object.entries(wl).sort(([, a], [, b]) => a.yTrack - b.yTrack || a.xTrack - b.xTrack)
