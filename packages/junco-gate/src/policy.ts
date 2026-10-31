@@ -24,6 +24,11 @@ export const amountOf = (args: any): number | null => {
   return v == null ? null : Number(v);
 };
 
+// The policy file a hold was made under, from the gate log: the plugin's hook falls back to its own when the folder has none, so a
+// plain `policy.json` in the folder isn't always there at approval.
+export const heldPolicy = (log: string, holdId: string): string | undefined => log.split('\n')
+  .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((l) => l?.hold_id === holdId && typeof l.policy === 'string').at(-1)?.policy;
+
 export function decide(policy: Policy, method: string, args: any): { verdict: Verdict; reason: string } {
   const rule = policy.tools[method];
   if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };

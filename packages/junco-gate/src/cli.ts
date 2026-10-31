@@ -11,7 +11,7 @@
 // --paypal and --toolkit take PAYPAL_SANDBOX_ACCESS_TOKEN (what PayPal's Claude Code plugin uses) or PAYPAL_ACCESS_TOKEN, or
 // mint a token from PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET. Logs go to stderr; stdout is MCP.
 import { parseArgs } from 'node:util';
-import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -22,6 +22,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { gate, jsonStore, type Policy, type Hold, type GateOptions } from './index.js';
 import { mirror } from './mirror.js';
 import { paypalDisputeHooks, paypalToken } from './paypal.js';
+import { heldPolicy } from './policy.js';
 
 // @paypal/mcp is PayPal's local MCP server on npm (its latest is 1.8.1 on Oct 31 2026, behind the 1.11 toolkit). Pinned so an
 // approval runs the same tool shapes the hold was made against.
@@ -49,6 +50,9 @@ if (cmd === 'reject') { // sends nothing, so it needs no upstream
   console.log(`${h.id} rejected`);
   process.exit(0);
 }
+let policyPath = o.policy!;
+const readPolicy = (): Policy => { try { return JSON.parse(readFileSync(policyPath, 'utf8')); } catch (e: any) { say(`can't read the policy ${policyPath}: ${e.message}`); process.exit(1); } };
+let policy: Policy | undefined;
 if (cmd === 'approve') {
   if (!holdId) { say('junco-gate approve <hold id>'); process.exit(1); }
   // The owner's line: an approval is typed by a person at a terminal, checked before any token is read or anything is
@@ -60,6 +64,9 @@ if (cmd === 'approve') {
   }
   const pending = store.read().find((x) => x.id === holdId);
   if (!pending || pending.status !== 'pending') { console.log(pending ? `Hold ${holdId} is already ${pending.status}` : `No hold ${holdId}`); process.exit(1); }
+  // The folder's policy, else the one the plugin's hook logged for this hold. Read before the owner is asked to type anything.
+  if (!existsSync(policyPath) && existsSync(o.log!)) policyPath = heldPolicy(readFileSync(o.log!, 'utf8'), holdId) ?? policyPath;
+  policy = readPolicy();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const typed = await rl.question(`Hold ${pending.id}: ${pending.method} ${JSON.stringify(pending.args)}\nWhy held: ${pending.reason}\nType the hold id to run exactly this call once, or anything else to leave it pending: `);
   rl.close();
@@ -68,7 +75,7 @@ if (cmd === 'approve') {
 
 const url: string = o.upstream ?? (o.paypal ? 'https://mcp.sandbox.paypal.com/sse' : o.toolkit ? `npx -y ${TOOLKIT}` : '');
 if (!url) { say('give --upstream <url>, --paypal or --toolkit'); process.exit(1); }
-const policy: Policy = (() => { try { return JSON.parse(readFileSync(o.policy!, 'utf8')); } catch (e: any) { say(`can't read the policy ${o.policy}: ${e.message}`); process.exit(1); } })();
+policy ??= readPolicy();
 
 // The PayPal token: the one PayPal's own plugin uses, a plain access token, or one minted from the app's client id and secret.
 async function paypalAccess(): Promise<{ token: string; expiresIn: number }> {
@@ -130,7 +137,8 @@ const opts: GateOptions = {
 };
 
 const { server, tools } = await mirror(upstream, 'junco-gate', () => { conn = null; });
-const g = gate(server, policy, opts);
+const active: Policy = policy;
+const g = gate(server, active, opts);
 
 if (cmd === 'approve') {
   if (!holdId) { say(`junco-gate ${cmd} <hold id>`); process.exit(1); }
@@ -141,5 +149,5 @@ if (cmd === 'approve') {
   } catch (e: any) { console.log(e.message); process.exit(1); }
 }
 await server.connect(new StdioServerTransport());
-const counts = tools.reduce((n: Record<string, number>, t) => { const r = policy.tools[t.name]; const k = r === undefined ? `default ${policy.default}` : typeof r === 'string' ? r : 'limit'; n[k] = (n[k] ?? 0) + 1; return n; }, {});
-say(`${url}: ${tools.length} tools behind ${o.policy} (${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ')}). Holds in ${o.holds}.`);
+const counts = tools.reduce((n: Record<string, number>, t) => { const r = active.tools[t.name]; const k = r === undefined ? `default ${active.default}` : typeof r === 'string' ? r : 'limit'; n[k] = (n[k] ?? 0) + 1; return n; }, {});
+say(`${url}: ${tools.length} tools behind ${policyPath} (${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ')}). Holds in ${o.holds}.`);

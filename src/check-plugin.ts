@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { definiteRefusal } from '../packages/junco-gate/src/paypal.js';
+import { heldPolicy } from '../packages/junco-gate/src/policy.js';
 
 // Manifests: PayPal's own layout (plugin.json, marketplace.json with source "./"), every listed part present.
 const plugin = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'));
@@ -104,6 +105,13 @@ const cli = spawnSync('node_modules/.bin/tsx', ['packages/junco-gate/src/cli.ts'
 assert.equal(cli.status, 2, cli.stdout + cli.stderr);
 assert.match(cli.stdout, /needs a person at a terminal/); assert.doesNotMatch(cli.stdout + cli.stderr, /PAYPAL_|token|npx/);
 assert.equal(holds()[0].status, 'pending');
+
+// Oct 31, the real test: a folder with no policy.json held the call under the plugin's own, and approve then looked only in the
+// folder. The gate log names the file that made each hold, and the last line for that hold wins.
+const logged = readFileSync(join(proj, '.junco/gate-log.jsonl'), 'utf8');
+assert.match(String(heldPolicy(logged, h.id)), /policy\.json$/);
+assert.equal(heldPolicy(`${JSON.stringify({ hold_id: 'a', policy: '/first' })}\nnot json\n${JSON.stringify({ hold_id: 'a', policy: '/last' })}\n`, 'a'), '/last');
+assert.equal(heldPolicy(logged, 'no-such-hold'), undefined);
 
 // The same call again: no second hold, the same id back.
 r = run('PreToolUse', 'create_refund', refund);
