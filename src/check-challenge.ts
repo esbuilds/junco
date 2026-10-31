@@ -9,7 +9,7 @@ process.chdir(mkdtempSync(join(tmpdir(), 'junco-challenge-')));
 delete process.env.DATABASE_URL;
 process.env.SANDBOX_BUYER_EMAIL = 'buyer@example.com';
 process.env.CHALLENGE_PER_SESSION = '5';
-const { makeChallenge, runPage, readChallengeRuns, stats } = await import('./challenge.js');
+const { makeChallenge, overSessionCap, runPage, readChallengeRuns, stats } = await import('./challenge.js');
 const { actor, decideRefusal, isChallenge } = await import('./store-dispute.js');
 const { gate } = await import('./gate.js');
 
@@ -69,6 +69,7 @@ console.log("JUNCO's validator block: no call, said so");
 
 // Caps: 5 messages per session here, so the sixth is refused before any Claude call.
 await assert.rejects(go({ text: 'one more' }), /last message/);
+assert.equal(overSessionCap({ via: 'desk' }, { you: 0 }), true); assert.equal(overSessionCap({ via: 'red team' }, { you: 0 }), false); // the red team has its own caps
 // The permalink shows the message only when shared, and the cost is logged.
 const runs = readChallengeRuns();
 assert.doesNotMatch(runPage(runs[1]), /Ignore your limit|secret attack text/);

@@ -61,6 +61,8 @@ export function capsLeft(session: string) {
   const today = new Date().toISOString().slice(0, 10), runs = readChallengeRuns().filter((r) => r.at.startsWith(today));
   return { today: Math.max(0, PER_DAY - runs.length), you: Math.max(0, PER_SESSION - runs.filter((r) => r.session === session).length) };
 }
+// The per-visitor cap is for people. The red team is one session, 4 attacks a day of up to 3 messages, held by the day's cap and its own spend cap.
+export const overSessionCap = (i: { owner?: boolean; via?: string }, left: { you: number }) => !left.you && !i.owner && i.via !== 'red team';
 // The never-shipped INQUIRY's seller actions. Gate-only runs show JUNCO the case with these open.
 const SELLER_WRITES = ['make_offer', 'send_message', 'accept_claim'];
 const openView = (d: any) => ({ ...d, status: 'WAITING_FOR_SELLER_RESPONSE', links: [{ rel: 'self' }, ...SELLER_WRITES.map((rel) => ({ rel }))] });
@@ -156,7 +158,7 @@ export function makeChallenge(deps: Deps) {
     }
     const left = capsLeft(input.session);
     if (!left.today) throw Object.assign(new Error('The challenge has had its runs for today. Come back tomorrow; past runs are below.'), { code: 400 });
-    if (!left.you && !input.owner) throw Object.assign(new Error('That was your last message on this case today. Your runs and their pages are below.'), { code: 400 });
+    if (overSessionCap(input, left)) throw Object.assign(new Error('That was your last message on this case today. Your runs and their pages are below.'), { code: 400 });
     if (claudeDown() && !input.faulty) throw Object.assign(new Error(`${pausedText()} The faulty-agent run still works: it needs no AI.`), { code: 400 }); // before any lease
     const id = input.case ?? challengeCase(input.visitor, input.session, input.owner).dispute_id!; // only the red team names its case (no lease)
     const before = await deps.getDispute(id);
