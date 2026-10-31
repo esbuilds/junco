@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { actKey, TRIGGER, type Activity } from '../api';
 import { usePoll } from '../store';
+import { recentView } from '../ui';
+import { Clip } from './Clip';
 import { Panel } from './Panel';
 
 interface ActivityResponse { agent_mode: boolean; items: Activity[] }
@@ -26,9 +28,9 @@ export function ActivityWidget() {
     seen.current = new Set(keys);
   }, [data]);
 
-  const [all, setAll] = useState(false);
-  const items = data?.items ?? [];
-  const shown = all ? items : items.slice(0, 4); // the rail never scrolls inside; View all expands it
+  const [all, setAll] = useState(false), [red, setRed] = useState(false);
+  // The red team's attempts and its attacker's prose sit behind their own toggle; the feed is the store's work.
+  const { kept: items, shown, tests: redRows } = recentView(data?.items ?? [], (x) => x.trigger === 'red team', { tests: red, all, n: 4 }); // the rail never scrolls inside; View all expands it
   return (
     <Panel
       title="Agent activity"
@@ -37,15 +39,16 @@ export function ActivityWidget() {
       action={items.length > 4 ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'View all'}</button> : undefined}
     >
       {error && <div className="jd-result jd-err">{error}</div>}
-      <ol className={all ? 'jd-feed' : 'jd-feed jd-feed-short'} aria-live="polite">
+      <ol className="jd-feed" aria-live="polite">
         {items.length === 0 && <li className="jd-muted">Nothing yet.</li>}
         {shown.map((x) => (
           <li key={actKey(x)} className={fresh.has(actKey(x)) ? 'jd-new' : undefined}>
             <div className="jd-feed-meta"><span className="jd-id">{new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> · {TRIGGER[x.trigger] ?? x.trigger}{/\d/.test(x.dispute_id ?? '') && <> · <span className="jd-id">{x.dispute_id}</span></>}</div>
-            <div className="jd-feed-text" title={x.detail}><strong>{x.step.replace(/^./, (c) => c.toUpperCase())}</strong>: {x.detail}</div>
+            <div className="jd-feed-text"><strong>{x.step.replace(/^./, (c) => c.toUpperCase())}</strong>: <Clip text={x.detail} /></div>
           </li>
         ))}
       </ol>
+      {redRows > 0 && <button type="button" className="jd-linkish jd-muted jd-more" onClick={() => setRed(!red)}>{red ? 'Hide red team' : `Show ${redRows} red team entr${redRows === 1 ? 'y' : 'ies'}`}</button>}
     </Panel>
   );
 }
