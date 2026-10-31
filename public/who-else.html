@@ -68,7 +68,7 @@ button.ghead{width:100%;border:0;border-top:1px solid var(--line-2);border-radiu
     <p>A purchase that did complain is an open PayPal dispute, and the owner can accept it from here through the same gate. PayPal closes it in the buyer's favour and pays the refund itself, and the row shows PayPal's own record of what moved. The buyer gets PayPal's notice, not the owner's note.</p>
     <p id="score"></p>
   </details>
-  <p>Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
+  <p>Sandbox, no real money. Every purchase is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real, quoted as recorded. A bag may not fit: airlines differ. PayPal confirms payments and refunds, not the mistake.</p>
 </footer>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -165,7 +165,7 @@ function group([bucket, name], run) {
   label.append(title);
   h.append(label, el('span', 'num', sum));
   if (bucket === 'silent' && members.some((m) => !remedyOf(run, m))) { const draft = el('div', 'draft'); draft.append(el('div', '', 'What each buyer will read through PayPal'), el('p', '', run.draft_note)); sec.append(h, draft); }
-  else if (bucket === 'complained' && members.some((m) => m.dispute && m.dispute.status !== 'RESOLVED')) { const draft = el('div', 'draft'); draft.append(el('div', '', 'An open dispute the owner can accept from here'), el('p', '', "PayPal then closes it in the buyer's favour and pays the refund itself; the row shows PayPal's record of what moved. The buyer gets PayPal's notice, not the owner's note.")); sec.append(h, draft); }
+  else if (bucket === 'complained' && members.some((m) => m.dispute && m.dispute.status !== 'RESOLVED')) { const draft = el('div', 'draft'); draft.append(el('div', '', 'An open dispute the owner can accept'), el('p', '', "PayPal then closes it and pays the refund itself. The buyer gets PayPal's notice, not the owner's note.")); sec.append(h, draft); }
   else sec.append(h);
   if (!shut) sec.append(...members.map((m) => row(m, run)));
   return [sec];

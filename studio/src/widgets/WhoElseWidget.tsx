@@ -244,32 +244,32 @@ export function WhoElseWidget() {
           </ol>
 
           <div className="jd-wel-step">
-            {step === 'found' && <p>The owner named the problem on purchase ...{run.seed.slice(-6)}. Claude read the others and code sorted them into the groups below.</p>}
+            {step === 'found' && <p>Claude read the others. Code sorted them into these groups.</p>}
             {step === 'plan' && (sum.plan.length || sum.settle.length ? <>
               <div className="jd-wel-choice">
                 {sum.plan.length > 0 && <div>
                   <h4>Plan refunds</h4>
-                  <p>You choose. Each refund waits for your approval.</p>
+                  <p>Each refund waits for your approval.</p>
                   <div className="jd-wel-callout"><h4>What each buyer will read through PayPal</h4><p>{run.draft_note}</p></div>
                 </div>}
                 {sum.settle.length > 0 && <div>
                   <h4>Settle the complaints</h4>
-                  <p>{sum.settle.length} purchase{sum.settle.length === 1 ? ' has' : 's have'} an open PayPal dispute over this. Accepting each claim waits for your approval too. PayPal then closes the dispute in the buyer's favour and pays the refund itself; what it moved shows on the row afterwards, in PayPal's words.</p>
-                  <div className="jd-wel-callout"><h4>What each buyer will read through PayPal</h4><p>PayPal's own notice that the claim was accepted. Your note doesn't travel with an accept.</p></div>
+                  <p>{sum.settle.length} open PayPal dispute{sum.settle.length === 1 ? '' : 's'}. Each accept waits for your approval. PayPal then closes it and pays the refund itself.</p>
+                  <div className="jd-wel-callout"><h4>What each buyer will read through PayPal</h4><p>PayPal's own notice. Your note doesn't travel with an accept.</p></div>
                 </div>}
                 {owner && <div><button type="button" className="jd-btn jd-primary" disabled={!!busy} onClick={planIt}>{busy === 'plan' ? 'Holding...' : `Plan ${planWords(sum.plan.length, sum.settle.length)}`}</button></div>}
                 {sum.tell.length > 0 && <div>
                   <h4>Tell their agents</h4>
-                  <p>Each purchase's own agent reads the notice and decides whether to ask. If it asks, the refund still waits for your approval.{owner && ` ${sum.tell.length} purchase${sum.tell.length === 1 ? '' : 's'}, ${agentsLeft ? `${agentsLeft} agent${agentsLeft === 1 ? '' : 's'} left today` : "today's agents are used up"}.`}</p>
+                  <p>Each agent decides whether to ask. An ask still waits for your approval.{owner &&` ${sum.tell.length} purchase${sum.tell.length === 1 ? '' : 's'}, ${agentsLeft ? `${agentsLeft} agent${agentsLeft === 1 ? '' : 's'} left today` : "today's agents are used up"}.`}</p>
                   <div className="jd-wel-callout"><h4>What each agent will read</h4><p>{run.notice}</p></div>
                   {owner && <button type="button" className="jd-btn jd-primary" disabled={!!busy || !agentsLeft} onClick={tell}>{busy === 'tell' ? 'Their agents are reading...' : 'Tell their agents'}</button>}
                 </div>}
               </div>
-              {owner ? <p>Untick a row to leave it out. Each agent is a test buyer's agent run by this demo, in the same process as the desk, so you can see both sides.</p> : <p>The owner decides which of these to refund or which claims to accept, or tells their agents. Each agent is a test buyer's agent run by this demo.</p>}
+              <p>{owner ? 'Untick a row to leave it out.' : 'The owner decides.'} Each agent is a test buyer's agent run by this demo.</p>
             </> : <p>{run.remedies.length ? 'Every kept purchase has its remedy planned.' : sum.declined ? 'Their agents declined, so nothing is left to plan.' : 'Nothing is kept for the plan.'}</p>)}
             {step === 'approve' && (sum.held.length ? (owner ? <div className="jd-wel-actions">
               <button type="button" className="jd-btn jd-primary" disabled={!!busy} onClick={() => setAsking(true)}>Approve {planWords(sum.held.length - heldAccepts, heldAccepts)}</button>
-              <span>{money(heldTotal)} in all. They run one at a time and it can finish part way.</span>
+              <span>{money(heldTotal)}. It can finish part way.</span>
             </div> : <p>{sum.held.length} hold{sum.held.length === 1 ? ' is' : 's are'} waiting for the owner.</p>)
               : <p>{sum.lines.approve}.</p>)}
             {step === 'fix' && <Fix key={run.id} run={run} owner={owner} reload={reload} />}
@@ -282,7 +282,7 @@ export function WhoElseWidget() {
         <label className="jd-field">Purchase
           <select className="jd-ellipsis" value={chosen} onChange={(e) => { setSeed(e.target.value); setNote(null); }}>{purchases.map((i) => <option key={i.id} value={i.id}>{i.dispute_id ? 'Disputed' : 'Not disputed'}, ...{i.id.slice(-6)}, {i.title}</option>)}</select>
         </label>
-        <label className="jd-field">What went wrong, in your words. Claude only looks for other purchases that show it.
+        <label className="jd-field">What went wrong, in your words
           <textarea rows={2} value={noteText} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="jd-wel-actions">
@@ -324,7 +324,7 @@ export function WhoElseWidget() {
           <p>Settle the complaints accepts an open dispute through the same gate: PayPal closes it in the buyer's favour and pays the refund itself, and the row shows PayPal's own record of what moved. The buyer gets PayPal's notice, not the owner's note, because the toolkit's accept takes no words.</p>
           {score && <p>{score.runs} run{score.runs === 1 ? '' : 's'} so far, {score.purchases_read} purchases read, {score.refunds_confirmed} of {score.refunds_proposed} proposed refunds confirmed by PayPal{score.claims_proposed ? `, ${score.claims_settled} of ${score.claims_proposed} accepted dispute${score.claims_proposed === 1 ? '' : 's'} settled by PayPal` : ''}. Agents told on {score.agents_told} purchase{score.agents_told === 1 ? '' : 's'}: {score.agents_asked} asked, {score.agents_declined} declined.</p>}
         </details>
-        <p>Sandbox only, no real money. Every purchase is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
+        <p>Sandbox, no real money. Every purchase is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real, quoted as recorded. A bag may not fit: airlines differ. PayPal confirms payments and refunds, not the mistake.</p>
       </footer>
 
       {asking && run && <ConfirmDialog title={`Approve ${planWords(heldRows.length - heldAccepts, heldAccepts)}?`} confirm={busy === 'approve' ? 'Approving...' : `Confirm ${money(heldTotal)}`} busy={busy === 'approve'} onConfirm={approveAll} onCancel={() => setAsking(false)}>
@@ -333,8 +333,8 @@ export function WhoElseWidget() {
           <li className="jd-wel-confirm-total"><span>Total</span><b>{money(heldTotal)}</b></li>
         </ul>
         {heldNotes.map((n) => <div key={n} className="jd-wel-callout"><h4>What {heldRows.length - heldAccepts === 1 ? 'the refunded buyer' : 'each refunded buyer'} will read through PayPal</h4><p>{n}</p></div>)}
-        {heldAccepts > 0 && <p>An accepted claim is settled by PayPal: it closes the dispute in the buyer's favour and refunds the disputed amount itself. The amounts above are the disputed amounts; PayPal's own record of what moved shows on each row afterwards.</p>}
-        <p>They run one at a time with the usual re-checks. It can finish part way, and each row shows how it ended.</p>
+        {heldAccepts > 0 && <p>PayPal settles an accepted claim and refunds the disputed amount itself.</p>}
+        <p>They run one at a time with the usual re-checks. It can finish part way.</p>
       </ConfirmDialog>}
     </section>
   );
