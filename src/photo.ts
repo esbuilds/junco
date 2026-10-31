@@ -164,7 +164,9 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.ch
 export const phonePage = (capture: string, q: Q, why: string | null) => {
   const b = why ? undefined : readAgentBuys().find((x) => x.capture_id === capture);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>JUNCO: add a photo</title><style>
+<meta name="robots" content="noindex"><title>JUNCO: add a photo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet"><style>
 /* Graphite tokens, the same values as studio/src/theme.ts. */
 :root{--bg:#fafafa;--surface:#fff;--surface-2:#f4f4f5;--ink:#18181b;--muted:#52525b;--line:#e4e4e7;--accent:#18181b;--accent-ink:#fff;--danger:#b42318;--focus:#2563eb;color-scheme:light dark}
 @media (prefers-color-scheme:dark){:root{--bg:#111113;--surface:#18181b;--surface-2:#202024;--ink:#f4f4f5;--muted:#a1a1aa;--line:#303036;--accent:#f4f4f5;--accent-ink:#18181b;--danger:#f97066;--focus:#7aa7f0}}
