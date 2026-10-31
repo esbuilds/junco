@@ -1,8 +1,13 @@
 // Who else? on the real records, run by hand after a deploy: reads the hosted desk's public incidents (GETs only, no hold, no
 // write) and runs the finder three times on each seed, with the owner's note given here. Not in CI: it calls Claude, about $0.05 a run. Spec: docs/superpowers/specs.
 //   npm run whoelse-real            both tests   DESK_URL= points it at another desk
+//   npm run whoelse-real trial      a proposed correction, then the seed's ask 3 times with it, in a temp folder: no order, nothing kept
 // The cohort comes from the records as they stand, so a new purchase or a new dispute needs no edit here.
-import { assemble, ask, type Finding } from './whoelse.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { correctListing, shop } from './shopper.js';
+import { assemble, ask, proposeCorrection, type Finding } from './whoelse.js';
 import type { Incident } from './incident-types.js';
 import type { Member } from './whoelse-types.js';
 
@@ -21,6 +26,15 @@ const badQuotes = (f: Finding, inc: Incident[]) => {
   const by = new Map(inc.map((i) => [i.id, i])), of = (i: Incident | undefined, field: string) => (field === 'instruction' ? i?.authority?.instruction : (i?.purchase as any)?.[field]) ?? '';
   return f.verdicts.flatMap((v) => v.quotes.filter((q) => !q.text.trim() || !of(by.get(v.id), q.field).includes(q.text)).map((q) => `${v.id}: ${q.text}`));
 };
+if (process.argv[2] === 'trial') {
+  process.chdir(mkdtempSync(join(tmpdir(), 'junco-whoelse-trial-'))); // the correction and the spend meter stay here
+  const seed = all.find((i) => i.id === MATCH.seed)!, fix = await proposeCorrection(MATCH.note, seed);
+  if (!fix) throw new Error('no proposal');
+  console.log(`proposed for ${seed.purchase!.sku}: ${fix.text}`);
+  correctListing(seed.purchase!.sku, fix.text);
+  for (let n = 1; n <= RUNS; n++) console.log(`trial ${n}:`, JSON.stringify(await shop(seed.authority!.instruction, parseFloat(seed.authority!.budget).toFixed(2))));
+  process.exit(0);
+}
 let usd = 0, failed = 0;
 const line = (ms: Member[]) => Object.entries(ms.reduce<Record<string, number>>((t, m) => ({ ...t, [m.bucket]: (t[m.bucket] ?? 0) + 1 }), {})).map(([k, v]) => `${k} ${v}`).join(', ');
 

@@ -13,7 +13,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { isPublic } from './public.js';
 
 const REPO = process.cwd(), desk = readFileSync('src/desk.ts', 'utf8'), server_ = readFileSync('src/server.ts', 'utf8'), hosted = readFileSync('src/hosted.ts', 'utf8');
-for (const f of ['setNote(b?.seed, b?.text)', 'runFinder(whoElseDeps,', 'whoElsePlan(whoElseDeps, p[3],', 'approveAll(whoElseDeps, p[3])', 'correct(p[3], b?.sku, b?.text)', "readFileSync('public/who-else.html')"]) assert.ok(desk.includes(f), `the desk no longer routes ${f}`);
+for (const f of ['setNote(b?.seed, b?.text)', 'runFinder(whoElseDeps,', 'whoElsePlan(whoElseDeps, p[3],', 'approveAll(whoElseDeps, p[3])', 'correct(p[3], b?.sku, b?.text)', "const page = readFileSync('public/who-else.html'); res.writeHead(200"]) assert.ok(desk.includes(f), `the desk no longer routes ${f}`);
 for (const s of [server_, hosted]) assert.ok(s.indexOf('addWhoElseTool(server)') > 0 && s.indexOf('addWhoElseTool(server)') < s.indexOf('gate(server, policy'), 'junco_who_else must be registered before the gate wraps the server');
 for (const [m, p] of [['GET', '/who-else'], ['GET', '/api/who-else'], ['POST', '/api/who-else/run'], ['GET', '/api/who-else/run/abc']]) assert.ok(isPublic(m, p), `${m} ${p} should be public`);
 for (const [m, p] of [['POST', '/api/who-else/note'], ['POST', '/api/who-else/run/abc/plan'], ['POST', '/api/who-else/run/abc/approve-all'], ['POST', '/api/who-else/run/abc/correct'], ['POST', '/api/who-else']]) assert.ok(!isPublic(m, p), `${m} ${p} must stay behind the password`);

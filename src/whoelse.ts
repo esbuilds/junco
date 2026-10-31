@@ -57,7 +57,7 @@ export async function ask(note: string, seed: Incident, others: Incident[]): Pro
 }
 
 // A sentence for the owner to edit and apply, never applied by itself. Failing here costs a suggestion, not the run.
-async function proposeCorrection(note: string, seed: Incident): Promise<{ text: string; usd: number } | null> {
+export async function proposeCorrection(note: string, seed: Incident): Promise<{ text: string; usd: number } | null> {
   try {
     const res = await claude().messages.create({ model: MODEL, max_tokens: 2000, messages: [{ role: 'user', content: 'A store owner stated a problem with what a shopping agent bought from a listing. '
       + "Write one short sentence to add to the listing so a shopping agent reading it won't repeat the problem. Use only facts in the note and the listing, and say \"may\" where the note isn't certain. "

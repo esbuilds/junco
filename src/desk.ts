@@ -750,7 +750,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     }
     if (req.method === 'GET' && p[0] === 'api' && p[1] === 'drill' && p[2] === 'run' && p[3] && !p[4]) { const r = drillRun(p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); }
     // Who else? (whoelse.ts): the page, its home and runs, and a capped finder run are public (public.ts). The rest checks the owner in whoelse.ts.
-    if (req.method === 'GET' && url.pathname === '/who-else') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync('public/who-else.html')); }
+    if (req.method === 'GET' && url.pathname === '/who-else') { const page = readFileSync('public/who-else.html'); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(page); } // read first: a missing page is a 500, not a crash
     if (p[0] === 'api' && p[1] === 'who-else') {
       try {
         if (req.method === 'GET' && !p[2]) return json(res, 200, whoElseHome());

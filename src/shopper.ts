@@ -32,7 +32,7 @@ export type Choice = { sku: string; reason: string } | { declined: string };
 
 export async function shop(instruction: string, budget: string): Promise<Choice> {
   const r = await claude().messages.create({
-    model: MODEL, max_tokens: 600,
+    model: MODEL, max_tokens: 4000, // Oct 30: thinking on a corrected listing used up 600 and cut the tool call off after sku, so the reason was lost
     system: 'You are a shopping agent buying for a person. Buy at most one item from the store catalog that fits their instruction and budget, or decline if nothing fits. Call exactly one tool.',
     tools: [
       { name: 'buy', description: 'Buy one item. reason: one or two sentences to the store on why this item fits the instruction.',
