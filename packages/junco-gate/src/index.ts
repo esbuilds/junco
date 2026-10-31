@@ -10,7 +10,8 @@ export type Verdict = 'allow' | 'hold' | 'deny';
 // read: runs and changes nothing. hidden: not listed, and denied if called anyway. A limit allows a call that moves at
 // most max_amount (args.amount, args.amount.value or args.offer_amount.value) and applies `over` above it.
 export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
-export type Policy = { default: Verdict; tools: Record<string, Rule> };
+// daily_total: what calls that go out without the owner's approval may add up to in a UTC day, in USD. Past it they hold.
+export type Policy = { default: Verdict; tools: Record<string, Rule>; daily_total?: { max: number; over: 'hold' } };
 // pending, then rejected or stale (refused at approval), or executing then completed, failed or unknown. expired: a hold
 // given an `expires` time that was still pending past it (the store that sets it marks it; it never runs).
 // 'approved' only appears on holds stored by older versions.
@@ -21,6 +22,12 @@ export type Store = { read(): Hold[]; write(holds: Hold[]): void };
 export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
 // error: for an allowed call, the error the tool returned (logged after the call), so the log never shows a refused call as done.
 export type Decision = { at: string; method: string; args: any; verdict: Verdict; reason: string; hold_id?: string; error?: string };
+
+// Today's running total. An offer counts though no money moves until a buyer accepts, so this is what was approved in advance, never money out.
+export type DayTotal = { day: string; cents: number; calls: number };
+export type TotalStore = { read(): DayTotal | null; write(t: DayTotal): void };
+// null: not a money call. value null: a money call with no readable amount.
+export type MoneyCall = { value: number | null; currency?: string } | null;
 
 export type GateOptions = {
   store?: Store; // where holds live; default .junco/holds.json
@@ -33,12 +40,23 @@ export type GateOptions = {
   landed?: (h: Hold) => Promise<boolean | null>; // after an unknown outcome: did it land? (h.before is the trail)
   unknownErrors?: string[]; // error types in a tool result that mean "may have landed", e.g. a dropped connection
   log?: (d: Decision) => void; // the action log
+  totals?: TotalStore; // where policy.daily_total's running total lives; default .junco/daily-total.json
+  money?: (method: string, args: any) => MoneyCall | undefined; // what a call counts as; undefined leaves it to amount limits and standing approvals
+  refused?: (text: string | undefined) => boolean; // did this failed call definitely not go through? Only then is its daily total released. Default: any error not in unknownErrors
 };
 
 export const jsonStore = (path = '.junco/holds.json', onWrite?: (path: string, holds: Hold[]) => void): Store => ({
   read: () => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return []; } },
   write: (h) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, JSON.stringify(h, null, 2)); onWrite?.(path, h); },
 });
+
+export const jsonTotal = (path = '.junco/daily-total.json', onWrite?: (path: string, t: DayTotal) => void): TotalStore => ({
+  read: () => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } },
+  write: (t) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, JSON.stringify(t, null, 2)); onWrite?.(path, t); },
+});
+const utcDay = () => new Date().toISOString().slice(0, 10);
+const usd = (cents: number) => (cents / 100).toFixed(2);
+export const dayTotal = (t: DayTotal | null): DayTotal => (t?.day === utcDay() ? t : { day: utcDay(), cents: 0, calls: 0 }); // a new UTC day starts at zero
 
 const amountOf = (args: any): number | null => {
   const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount;
@@ -66,15 +84,20 @@ const errorOf = (t?: string) => { try { return JSON.parse(t ?? '').error; } catc
 // it would move money on its own). Only what the gate does: a held call runs only after the owner's approval, at most once.
 const HOLD_NOTE = 'Through this server, this call does not run when you make it. It creates a hold: the owner sees the exact call and '
   + 'approves or rejects it, and only their approval runs it, at most once. Calling this tool is how you propose the action to the owner.';
-export function policyNote(policy: Policy, name: string, standing: boolean): string | null {
+const TOTAL_NOTE = (max: number) => ` The owner also set a daily total: calls approved in advance, offers included, may add up to ${max} USD a UTC day. `
+  + "A call that would pass it, has no readable amount or isn't in USD creates a hold instead, and an approved hold doesn't count toward it.";
+// money: the gate counts this tool toward the daily total. Amount limits always count.
+export function policyNote(policy: Policy, name: string, standing: boolean, money = false): string | null {
   const rule = policy.tools[name] ?? policy.default;
   const also = standing ? ' One exception: a standing approval the owner set for this exact case can let it run directly.' : '';
-  if (rule === 'hold') return HOLD_NOTE + also;
+  const total = policy.daily_total && (money || typeof rule === 'object') ? TOTAL_NOTE(policy.daily_total.max) : '';
+  if (rule === 'hold') return HOLD_NOTE + also + total;
+  if (rule === 'allow' && total) return `Through this server, this call runs directly.${total}`;
   if (typeof rule !== 'object') return null;
   const above = rule.over === 'hold' ? `creates a hold: the owner sees the exact call and approves or rejects it, and only their approval runs it, at most once`
     : rule.over === 'deny' ? 'is refused' : 'runs directly';
   return `Through this server, a call with an amount of at most ${rule.max_amount} (amount.value or offer_amount.value) runs directly; above that, `
-    + `or with no readable amount, it ${above}.${rule.over === 'hold' ? ' Calling this tool is how you propose a larger action to the owner.' : ''}${also}`;
+    + `or with no readable amount, it ${above}.${rule.over === 'hold' ? ' Calling this tool is how you propose a larger action to the owner.' : ''}${also}${total}`;
 }
 
 // server: an McpServer from @modelcontextprotocol/sdk with its tools registered. Call last, so it wraps every tool.
@@ -82,6 +105,28 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
   const store = o.store ?? jsonStore();
   const guards = o.guards ?? [];
   const unknown = new Set(o.unknownErrors ?? []);
+  const totals = o.totals ?? jsonTotal();
+  // What this call counts as toward the daily total: the owner's hook, else an amount limit's amount, else a standing approval's.
+  const moneyOf = (name: string, args: any, standing: boolean): MoneyCall => {
+    const m = o.money?.(name, args);
+    if (m !== undefined) return m;
+    const read = { value: amountOf(args), currency: args?.offer_amount?.currency_code ?? args?.amount?.currency_code };
+    return typeof policy.tools[name] === 'object' || (standing && read.value !== null) ? read : null;
+  };
+  // Reserves in the same synchronous step as the check, before anything awaits, so two calls can't both pass the last dollars.
+  // ponytail: a read and a write on one file with no await between them is the lock: one gate process (every gate() in it shares
+  // the file). A second desk process would need a database lock here.
+  const reserve = (name: string, args: any, standing: boolean): { over: string } | { release: () => void } | null => {
+    const cap = policy.daily_total, call = cap ? moneyOf(name, args, standing) : null;
+    if (!cap || !call) return null;
+    const value = Number(call.value);
+    if (call.value === null || !Number.isFinite(value) || value < 0) return { over: `${name} counts toward the daily total but has no readable amount` };
+    if ((call.currency ?? 'USD') !== 'USD') return { over: `the daily total is in USD and this call is in ${call.currency}` };
+    const now = dayTotal(totals.read()), cents = Math.ceil(value * 100 - 1e-6);
+    if (!(now.cents + cents <= Math.round(cap.max * 100))) return { over: `the daily total was reached: ${usd(now.cents)} of ${cap.max} USD approved in advance today (UTC), and this ${usd(cents)} would pass it` };
+    totals.write({ day: now.day, cents: now.cents + cents, calls: now.calls + 1 });
+    return { release: () => { const t = dayTotal(totals.read()); if (t.day === now.day) totals.write({ day: t.day, cents: Math.max(0, t.cents - cents), calls: Math.max(0, t.calls - 1) }); } }; // past midnight, yesterday's total is gone
+  };
   const guarded = (method: string, args: any, phase: 'call' | 'decide') => { for (const g of guards) { const why = g(method, args, phase); if (why) return why; } return null; };
   const log = (method: string, args: any, verdict: Verdict, reason: string, hold_id?: string, error?: string) =>
     o.log?.({ at: new Date().toISOString(), method, args, verdict, reason, ...(hold_id && { hold_id }), ...(error && { error }) });
@@ -94,18 +139,22 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
     if (policy.tools[name] === 'hidden') tool.disable?.(); // not listed; a direct call still gets the deny
     // The client reads what the gate does with this tool before it decides to call it. ponytail: written at wrap time; the
     // desk builds a gated server per MCP request, so a policy edit shows on the next connection.
-    const note = policyNote(policy, name, !!o.allow);
+    const note = policyNote(policy, name, !!o.allow, o.money?.(name, {}) !== undefined);
     if (note) tool.update({ description: tool.description ? `${note}\n\n${tool.description}` : note });
     tool.update({
       callback: async (args, extra) => {
         const refused = policy.tools[name] !== 'read' && guarded(name, args, 'call');
         if (refused) { log(name, args, 'deny', refused); return text({ error: { type: 'denied_by_guard', message: `Not allowed: ${refused}` } }); }
         const standing = o.allow?.(name, args);
-        const { verdict, reason } = standing ? { verdict: 'allow' as const, reason: standing } : decide(policy, name, args);
+        let { verdict, reason } = standing ? { verdict: 'allow' as Verdict, reason: standing } : decide(policy, name, args);
+        const counted = verdict === 'allow' && policy.tools[name] !== 'read' ? reserve(name, args, !!standing) : null;
+        if (counted && 'over' in counted) { verdict = 'hold'; reason = counted.over; } // the ordinary hold below: same owner, same approval
         if (verdict === 'allow') {
           try {
             const r = await originals[name](args, extra);
             const t = r?.content?.[0]?.text, err = errorOf(t) ?? (r?.isError || (() => { try { return JSON.parse(t ?? '').ok === false; } catch { return false; } })() ? t : undefined);
+            // Only a definite refusal gives the reservation back; an unknown outcome or a throw (below) may have landed.
+            if (err && counted && (o.refused ? o.refused(t) : !unknown.has(err?.type))) (counted as { release: () => void }).release();
             log(name, args, verdict, reason, undefined, err ? (typeof err === 'string' ? err : err.message ?? JSON.stringify(err)).slice(0, 300) : undefined);
             return r;
           } catch (e: any) { log(name, args, verdict, reason, undefined, e.message); throw e; }
@@ -140,7 +189,8 @@ export function gate(server: any, policy: Policy, o: GateOptions = {}) {
   if (inner && Object.keys(tools).some((n) => policyNote(policy, n, false)))
     inner._instructions = [inner._instructions, 'Tools that move money or commit the store go through an owner approval gate: their descriptions say which. '
       + 'A held call does not run when you make it; it creates a hold the owner approves or rejects, and only an approval runs it, at most once. '
-      + 'Calling such a tool is the way to propose the action to the owner.'].filter(Boolean).join('\n\n');
+      + 'Calling such a tool is the way to propose the action to the owner.'
+      + (policy.daily_total ? ` Calls approved in advance, offers included, may add up to ${policy.daily_total.max} USD a UTC day; past that they hold too.` : '')].filter(Boolean).join('\n\n');
 
   async function resolve(id: string, approve: boolean): Promise<Hold> {
     const holds = store.read();

@@ -36,6 +36,7 @@ junco-gate reject <id>                # nothing is sent
 ## What it does
 
 - **Policy per tool.** `read` runs and changes nothing; `allow` is an allowed write; `hold` waits for the owner; `hidden` isn't listed and is denied if called; a limit (`{ "max_amount": 25, "over": "hold" }`) allows calls up to an amount. Tools the policy doesn't name get the default, usually `deny`.
+- **A daily total, if you want one.** `"daily_total": { "max": 100, "over": "hold" }` in the policy adds up what goes out without the owner's approval in a UTC day, in USD: calls under an amount limit and standing approvals. A call that would pass it, has no readable amount or isn't in USD becomes an ordinary hold. Held calls the owner approves don't count. It's off when absent. It counts what was approved in advance, not money moved: an offer counts before anyone accepts it.
 - **Holds are bound to the exact call.** Approving a hold runs the stored method and arguments, nothing else.
 - **A re-check before an approved call runs.** `beforeRun` can refuse if the world moved on since the hold (the case closed, the amount changed). The hold is marked stale and nothing runs.
 - **Outcomes are tracked, never retried blind.** An approved hold goes executing, then completed, failed or unknown. Unknown (the call threw, or the upstream connection dropped) is settled by `landed`, a re-read of the world, and never by running the call again.
@@ -76,6 +77,9 @@ Register your tools on an `McpServer` as usual, then call `gate(server, policy, 
 | `beforeRun(hold)` | Before an approved hold runs: `{ refuse }` to mark it stale, `{ trail }` to keep for settling. |
 | `landed(hold)` | After an unknown outcome: did it land? `true`, `false`, or `null` to leave it for a person. |
 | `unknownErrors` | Error types in a tool result that mean "may have landed". `mirror` reports `upstream_unavailable`. |
+| `totals` | Where the daily total lives. Default `jsonTotal('.junco/daily-total.json')`. One gate process: the check and the reservation are one synchronous step. |
+| `money(method, args)` | What a call counts as toward the daily total: `{ value, currency }`, `null` for not a money call, `undefined` to use the amount limit or standing approval. Use it to count tools a plain `allow` lets through. |
+| `refused(text)` | Whether a failed call definitely didn't go through, so its reservation is released. Default: any error not in `unknownErrors`. `paypalDisputeHooks` passes `definiteRefusal`: only a 4xx or a stop before PayPal. |
 
 ## Tests
 

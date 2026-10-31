@@ -59,8 +59,17 @@ export function captureStaleReason(h: { case?: any }, c: any): string | null {
 export const refundRanSince = (h: Hold, holds: Hold[]) => holds.find((x) => x.id !== h.id && x.method === 'create_refund' && x.args?.capture_id === h.args?.capture_id
   && ['executing', 'completed', 'unknown'].includes(x.status) && (x.ran ?? x.created) >= h.created);
 
+// Whether a failed call definitely didn't go through: stopped before PayPal, or PayPal answered 4xx. The stock toolkit reports
+// { ok: false, status }, JUNCO's dispute tools { error: { message: 'PayPal 422' } }. A 5xx, no answer or anything unreadable may have landed.
+export function definiteRefusal(text?: string): boolean {
+  let b: any; try { b = JSON.parse(text ?? ''); } catch { return false; }
+  if (['invalid_arguments', 'action_not_allowed'].includes(b?.error?.type)) return true;
+  const status = b?.ok === false ? Number(b.status) : Number(String(b?.error?.message).match(/^(?:PayPal |Could not load dispute \()(\d{3})\)?$/)?.[1]);
+  return status >= 400 && status < 500;
+}
+
 // The hooks, for any call whose args name a dispute_id, and for create_refund (holds: this gate's store; readCapture: PayPal).
-export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>, holds?: () => Hold[]): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors'> {
+export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, readCapture?: (id: string) => Promise<any>, holds?: () => Hold[]): Pick<GateOptions, 'snapshot' | 'beforeRun' | 'landed' | 'unknownErrors' | 'refused'> {
   const read = (h: Hold) => (h.args?.dispute_id ? readDispute(h.args.dispute_id) : null);
   const cap = (h: Hold) => (readCapture && h.method === 'create_refund' && h.args?.capture_id ? readCapture(h.args.capture_id) : null);
   return {
@@ -77,6 +86,7 @@ export function paypalDisputeHooks(readDispute: (id: string) => Promise<any>, re
       const d = await read(h)?.catch(() => null); return d ? landed(h.method, h.before, d) : null;
     },
     unknownErrors: ['hosted_unavailable', 'upstream_unavailable'],
+    refused: definiteRefusal,
   };
 }
 
