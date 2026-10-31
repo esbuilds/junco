@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { api, human, money, HOLD_STATUS, type Hold } from '../api';
 import { selectCase, usePoll } from '../store';
-import { approveLabel, canDecide, holdsLine, policyWords, splitHolds } from '../ui';
+import { approveLabel, canDecide, policyWords, splitHolds } from '../ui';
 import { Panel } from './Panel';
 
 const SHOW = 3; // pending rows before "View all"; the widget never scrolls inside
@@ -41,7 +41,7 @@ export function HoldsWidget() {
     <Panel
       hug
       title="Waiting for your OK"
-      subtitle={data ? holdsLine(split) : 'Loading'}
+      subtitle={data ? undefined : 'Loading'}
       action={pending.length > SHOW ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `View all ${pending.length}`}</button> : undefined}
     >
       {error && <div className="jd-result jd-err">{error}</div>}

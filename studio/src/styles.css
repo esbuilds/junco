@@ -364,7 +364,10 @@ ol.jd-feed li.jd-new { animation: jd-fade 2s ease-out; }
 @keyframes jd-fade { from { background: var(--jd-surface-2); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { ol.jd-feed li.jd-new, .jd-drawer-list li.jd-new, ol.jd-activity li.jd-new { animation: none; } }
 .jd-host .ag-studio-root-inner, .jd-host .ag-studio-layout-canvas { border: 0 !important; }
-.jd-feed-short .jd-feed-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } /* full text on View all and on hover */
+.jd-clip { all: unset; cursor: pointer; overflow-wrap: anywhere; }
+.jd-clip:hover { text-decoration: underline; text-decoration-color: var(--jd-line); text-underline-offset: 3px; }
+.jd-clip:focus-visible { outline: 2px solid var(--jd-focus); outline-offset: 2px; }
+.jd-more { display: block; margin-top: 8px; font-size: 13px; }
 .jd-holds td:nth-child(4) { white-space: normal; }
 .jd-holds td:nth-child(4) .jd-id { font-size: 12px; }
 .jd-holds td:nth-child(2) .jd-id { font-size: 12px; }

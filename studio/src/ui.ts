@@ -11,10 +11,20 @@ export function splitHolds<H extends { status: string; method: string }>(holds: 
   const pending = holds.filter((h) => h.status === 'pending');
   return { pending, money: pending.filter((h) => MONEY_METHODS.includes(h.method)), unconfirmed: holds.filter((h) => UNCONFIRMED.has(h.status)) };
 }
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
-export function holdsLine({ pending, money }: { pending: unknown[]; money: unknown[] }) {
-  const other = pending.length - money.length;
-  return [plural(money.length, 'held money move'), other && plural(other, 'other held action')].filter(Boolean).join(' · ');
+
+// A long record's default view: the newest rows that aren't test runs. Tests and older rows stay a click away, so every row
+// is reachable; nothing here drops a record.
+export function recentView<R>(rows: R[], isTest: (r: R) => boolean, o: { tests: boolean; all: boolean; n: number }) {
+  const kept = o.tests ? rows : rows.filter((r) => !isTest(r));
+  return { kept, shown: o.all ? kept : kept.slice(0, o.n), tests: rows.filter(isTest).length };
+}
+
+// One line of a long entry: its first sentence if that's short, else cut at a word. Clip shows the rest on click.
+export function oneLine(text: string, max = 90) {
+  const first = text.split(/(?<=[.!?])\s/)[0];
+  if (first === text && text.length <= max) return text;
+  if (first.length <= max) return `${first.replace(/[.!?]$/, '')}...`;
+  return `${text.slice(0, max).replace(/[\s,;:]+\S*$/, '')}...`;
 }
 
 // Who may decide a hold, as the server rules (v3.12): the owner any hold, a visitor only one on the case they lease
@@ -171,9 +181,9 @@ export function trialLines(run: WhoElseRun) {
   return [still && `The agent still bought the corrected bag in ${still} of ${n}.`, moved.length && `${moved.length} of ${n} bought ${[...new Set(moved.map((t) => t.sku))].join(', ')}, and that listing hasn't been corrected.`].filter(Boolean) as string[];
 }
 
-// The Desk's saved panel layout (App.tsx saves it, Policy's Reset the layout clears it). v2: the UI polish layout;
-// older saves are ignored.
-export const DESK_LAYOUT_KEY = 'jd-desk-layout-v2';
+// The Desk's saved panel layout (App.tsx saves it, Policy's Reset the layout clears it). v3: panels sized to the short
+// default views; older saves are ignored.
+export const DESK_LAYOUT_KEY = 'jd-desk-layout-v3';
 
 export const START_OPENED_KEY = 'jd-start-opened';
 export function readOpened(): string[] {

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { TOKENS, contrast } from './src/theme';
 import { HOLD_STATUS, holdWords } from './src/api';
 import { BOOK_FIELDS, FIELDS } from './src/insights';
-import { approveLabel, canDecide, checkWords, detailUnderRow, DESK_LAYOUT_KEY, MONEY_METHODS, holdsLine, inGroups, keptTotal, noOtherPurchase, policyWords, quoteParts, rowStatus, splitHolds, standing, startProgress, toPlan, trialLines, whoElseRows, whoElseSummary } from './src/ui';
+import { approveLabel, canDecide, checkWords, detailUnderRow, DESK_LAYOUT_KEY, MONEY_METHODS, inGroups, keptTotal, noOtherPurchase, oneLine, policyWords, quoteParts, recentView, rowStatus, splitHolds, standing, startProgress, toPlan, trialLines, whoElseRows, whoElseSummary } from './src/ui';
 import type { Bucket, Member, Remedy, Trial, WhoElseRun } from '../src/whoelse-types';
 import { readFileSync } from 'node:fs';
 
@@ -37,7 +37,7 @@ assert.deepEqual(startProgress(T6, T6), { current: 5, done: 6 });
 assert.deepEqual(startProgress(['zzz'], T6), { current: 0, done: 0 });
 
 // The saved-layout key lives in one place: Policy's "Reset the layout" must clear the key the Desk saves under.
-assert.equal(DESK_LAYOUT_KEY, 'jd-desk-layout-v2');
+assert.equal(DESK_LAYOUT_KEY, 'jd-desk-layout-v3');
 for (const f of ['src/App.tsx', 'src/widgets/PolicyWidget.tsx'])
   assert.ok(!/'jd-desk-layout/.test(readFileSync(new URL(f, import.meta.url), 'utf8')), `${f} spells the layout key instead of importing DESK_LAYOUT_KEY`);
 
@@ -52,9 +52,17 @@ assert.deepEqual([...MONEY_METHODS].sort(), [...serverMoney].sort());
 const live = splitHolds([{ status: 'pending', method: 'create_refund' }, { status: 'pending', method: 'send_invoice' }, { status: 'pending', method: 'accept_dispute_claim' }, { status: 'executing', method: 'create_refund' }]);
 assert.equal(live.money.length, 2);
 assert.equal(live.pending.length, 3);
-assert.equal(holdsLine(live), '2 held money moves · 1 other held action');
-assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'create_refund' }])), '1 held money move');
-assert.equal(holdsLine(splitHolds([{ status: 'pending', method: 'send_invoice' }])), '0 held money moves · 1 other held action');
+// A long record shows a slice by default, and every row stays reachable: tests behind one toggle, older rows behind View all.
+const logRows = [{ id: 1, t: false }, { id: 2, t: true }, { id: 3, t: false }, { id: 4, t: false }];
+const isT = (r: { t: boolean }) => r.t;
+assert.deepEqual(recentView(logRows, isT, { tests: false, all: false, n: 2 }).shown.map((r) => r.id), [1, 3], 'tests hide by default, newest first');
+assert.equal(recentView(logRows, isT, { tests: false, all: false, n: 2 }).tests, 1);
+assert.equal(recentView(logRows, isT, { tests: false, all: false, n: 2 }).kept.length, 3);
+assert.deepEqual(recentView(logRows, isT, { tests: true, all: true, n: 2 }).shown, logRows, 'every row is reachable');
+assert.equal(oneLine('Short.'), 'Short.');
+assert.equal(oneLine('No run was recorded. Attacker: a long story.'), 'No run was recorded...');
+assert.equal(oneLine('one two three four', 9), 'one two...');
+assert.equal(oneLine('Paid 3.49 USD today'), 'Paid 3.49 USD today', 'a decimal point is not a sentence');
 
 // Who may decide a hold (the server's v3.12 rule): the owner any hold, a visitor only one on the case they lease.
 const onCase = { args: { dispute_id: 'PP-R-A' } }, onPayment = { args: { capture_id: 'C1' } };
