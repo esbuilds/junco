@@ -39,13 +39,13 @@ const layout = {
     widgetLayout: {
       stats: { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 5 },
       holds: { xTrack: 0, yTrack: 5, xSpan: 9, ySpan: HOLDS },
-      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 17 },
-      activity: { xTrack: 9, yTrack: 17, xSpan: 3, ySpan: HOLDS + 5 },
+      start: { xTrack: 9, yTrack: 0, xSpan: 3, ySpan: 14 },
+      activity: { xTrack: 9, yTrack: 14, xSpan: 3, ySpan: HOLDS + 8 },
       queue: { xTrack: 0, yTrack: 5 + HOLDS, xSpan: 9, ySpan: 17 },
       case: { xTrack: 0, yTrack: 40, xSpan: 12, ySpan: 22 },
       gate: { xTrack: 0, yTrack: 62, xSpan: 12, ySpan: 12 },
-      store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 14 },
-      risk: { xTrack: 0, yTrack: 88, xSpan: 7, ySpan: 7 },
+      store: { xTrack: 0, yTrack: 74, xSpan: 12, ySpan: 12 },
+      risk: { xTrack: 0, yTrack: 86, xSpan: 7, ySpan: 7 },
     },
   }, insightsPage, booksPage, {
     // Who else?: the other purchases where the agent made the same mistake, and the owner's plan for them.
@@ -195,7 +195,6 @@ export function App() {
       {page === 'desk' && (
         <div className="jd-pagehead">
           <h1>Desk</h1>
-          <p>Every money move an agent proposes goes through your policy. Anything it holds waits here for you.</p>
         </div>
       )}
       <ReplayDrawer />

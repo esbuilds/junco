@@ -8,16 +8,16 @@ import { Panel } from './Panel';
 type Row = { at: string; source: string; dispute_id: string | null; method: string; amount: string | null; verdict: string; outcome: string; hold_id?: string; run_id?: string; reason: string };
 type Record = { counts: { proposed: number; held: number; approved: number; demo_approved: number; leased_approved?: number; rejected: number; stale: number; pending: number; allowed: number; denied: number; gate_only: number; past_limit: number }; daily_total?: { approved_in_advance: string; max: number; calls: number } | null; rows: Row[] };
 
-const VERDICT: { [k: string]: string } = { hold: 'Held for the owner', allow: 'Allowed by policy', deny: 'Denied', 'gate-only': 'Gate-only test' };
+const VERDICT: { [k: string]: string } = { hold: 'Held', allow: 'Allowed', deny: 'Denied', 'gate-only': 'Gate-only test' };
 
 export function GateRecordWidget() {
   const { data, error } = usePoll<Record>('/api/gate-record', 15000);
   const c = data?.counts;
   return (
-    <Panel title="Gate record" subtitle={c ? `${c.proposed} money moves proposed · ${c.held} held for the owner · ${c.past_limit} past the limit` : 'Loading'}>
+    <Panel title="Gate record" subtitle={c ? undefined : 'Loading'}>
       <div id="gate-record" />
       {error && <div className="jd-result jd-err">{error}</div>}
-      {data?.daily_total && <div className="jd-sub">Approved in advance today (UTC): ${data.daily_total.approved_in_advance} of ${data.daily_total.max}, {data.daily_total.calls} {data.daily_total.calls === 1 ? 'call' : 'calls'}. Offers count even though no money moves until a buyer accepts. Past the total, calls wait for you.</div>}
+      {data?.daily_total && <div className="jd-sub" title="Offers count even though no money moves until a buyer accepts. Past the total, calls wait for you.">Approved in advance today (UTC): ${data.daily_total.approved_in_advance} of ${data.daily_total.max}, {data.daily_total.calls} {data.daily_total.calls === 1 ? 'call' : 'calls'}</div>}
       {c && (
         <div className="jd-counts" aria-label="Gate counts">
           {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Approved by a visitor on their leased case', c.leased_approved] as const] : []), ['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (

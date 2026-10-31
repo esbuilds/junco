@@ -36,15 +36,16 @@ export function StoreDisputeWidget() {
   return (
     <Panel title="Dispute this store" subtitle={data ? `${left} live case${left === 1 ? '' : 's'} left` : 'Loading'} live>
       <div id="store-dispute" />
-      <p className="jd-muted">
-        Take a real PayPal sandbox dispute against our demo store, filed by the sandbox buyer as "item not received", and
-        watch JUNCO work it. The case is yours for 30 minutes; nobody else can approve or send anything on it. Never
-        shipped: JUNCO should hold an accept for you to approve or reject. Delivered: the store has a delivery record it
-        entered itself, and JUNCO should send it to PayPal on its own. PayPal's sandbox opens some of these as ordinary
-        cases and some as chargebacks under review, where only supporting info or an accept is possible. An AI agent bought it:
-        the buyer's shopping agent paid with PayPal the buyer saved for this store, and the buyer says the item isn't what
-        they wanted; JUNCO weighs what the agent was asked against what it bought, from the store's record of that checkout.
-      </p>
+      <p className="jd-muted">A real PayPal sandbox dispute against our demo store, filed by the sandbox buyer. Yours for 30 minutes.</p>
+      <details className="jd-store-more">
+        <summary className="jd-muted">What each case does</summary>
+        <ul className="jd-muted">
+          <li>Never shipped: JUNCO should hold an accept for you to approve or reject.</li>
+          <li>Delivered: JUNCO should send PayPal the delivery record the store entered itself.</li>
+          <li>AI agent: JUNCO weighs what the agent was asked against what it bought, from the store's record.</li>
+          <li>PayPal's sandbox opens some as chargebacks under review, where only supporting info or an accept is possible.</li>
+        </ul>
+      </details>
       <div className="jd-row">
         {KINDS.map((k) => (
           <button key={k} type="button" className="jd-btn jd-primary" disabled={!!busy || !data || !!data.kinds[k].can_run} onClick={() => go(k)}>

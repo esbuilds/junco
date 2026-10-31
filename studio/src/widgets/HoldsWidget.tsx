@@ -47,7 +47,7 @@ export function HoldsWidget() {
       {error && <div className="jd-result jd-err">{error}</div>}
       {err && <div className="jd-result jd-err">{err}</div>}
       {done && <div className="jd-result jd-ok" role="status">{done}</div>}
-      {data && !pending.length && <p className="jd-muted jd-holds-none">No moves waiting. JUNCO holds proposed money moves here.</p>}
+      {data && !pending.length && <p className="jd-muted jd-holds-none">No moves waiting.</p>}
       {shown.length > 0 && (
         <table className="jd-table jd-holds">
           <thead><tr><th>Move</th><th>Payment or case</th><th className="jd-r">Amount</th><th>Why it's held</th><th /></tr></thead>
@@ -58,7 +58,7 @@ export function HoldsWidget() {
                   <td>{human(h.method).replace(/^./, (c) => c.toUpperCase())}{h.asked_by && <div className="jd-sub">Asked by the {h.asked_by}</div>}</td>
                   <td>{target(h)}</td>
                   <td className={amount(h) === '-' ? 'jd-r jd-num jd-no-amount' : 'jd-r jd-num'}>{amount(h)}</td>
-                  <td>{h.recheck ? <span className="jd-flag">Re-check</span> : <span className="jd-muted">{policyWords(h.reason)}</span>}</td>
+                  <td>{h.recheck ? <span className="jd-flag">Re-check</span> : <span className="jd-muted">{policyWords(h.reason).replace(/^Your policy: (.)/, (_, c) => c.toUpperCase())}</span>}</td>
                   <td className="jd-r">{canDecide(h, who) ? <div className="jd-actions">
                     <button type="button" className="jd-btn jd-btn-sm" disabled={busy === h.id} onClick={() => decide(h, 'reject')}>Reject</button>
                     <button type="button" className="jd-btn jd-btn-sm jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>{approveLabel(h.method)}</button>
@@ -67,7 +67,7 @@ export function HoldsWidget() {
                 {h.args?.note_to_payer && <tr className="jd-note-row"><td colSpan={5}><span className="jd-muted">The buyer reads this if you approve:</span> {h.args.note_to_payer}</td></tr>}
                 {h.photo && <tr className="jd-note-row"><td colSpan={5}><span className="jd-hold-photo"><img src={h.photo.thumb} alt="The photo the buyer sent, small copy" /><span>A photo the buyer sent, unverified. {h.photo.visible} {h.photo.looks} {h.photo.limits}</span></span></td></tr>}
                 {/* The re-check reason in full, on its own line under the row, so the buttons keep their place. */}
-                {h.recheck && <tr className="jd-note-row"><td colSpan={5}><span className="jd-attn">Re-check:</span> PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</td></tr>}
+                {h.recheck && <tr className="jd-note-row"><td colSpan={5}><span className="jd-attn">Re-check:</span> {h.args?.capture_id ? 'payment' : 'case'} changed since held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id}, so approving will refuse this.` : 'Approving re-reads it first.'}</td></tr>}
               </Fragment>
             ))}
           </tbody>

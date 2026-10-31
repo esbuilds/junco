@@ -13,7 +13,7 @@ export function StatusLine() {
     // A failing check is the owner's news but rarely the owner's to fix (PayPal's hosted server down): a quiet line, the
     // names and times on hover. Red stays for things the owner must act on.
     : data.check?.failed.length ? ['degraded', checkWords(data.check.failed)]
-    : data.check ? ['ok', `All systems live as of ${time(data.check.at)}`]
+    : data.check ? ['ok', 'All systems live']
     : data.owner ? ['ok', 'Self-check runs a minute after start'] : [];
   if (!text) return null; // visitors see the chip only when the AI is paused; the self-check is the owner's
   const detail = data.check ? [`Self-check ${time(data.check.at)}${data.check.failed.length ? `: ${data.check.failed.join(', ')} failing` : ''}`, ...Object.entries(data.check.checks).map(([k, v]) => `${k}: ${v}`)].join('\n') : undefined;

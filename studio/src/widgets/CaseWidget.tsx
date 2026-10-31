@@ -33,8 +33,8 @@ export function CaseWidget() {
 
   if (!id) {
     return (
-      <Panel id="jd-case" title="Case" subtitle="Pick a case in the queue">
-        <div className="jd-empty">Pick a case to see its evidence and what JUNCO recommends.</div>
+      <Panel id="jd-case" title="Case">
+        <div className="jd-empty">Pick a case in the queue.</div>
       </Panel>
     );
   }
@@ -130,7 +130,7 @@ export function CaseWidget() {
             {row('Asked:', rec, asked ? `"${asked[1]}" (budget ${asked[2]})` : undefined)}
             {row('Bought:', list)}
             {row('Its reason:', why)}
-            <div className="jd-muted jd-src">The store's own record of the agent checkout, not a PayPal mandate.</div>
+            <div className="jd-muted jd-src">The store's record, not a PayPal mandate.</div>
           </div>
         );
       })()}
@@ -163,7 +163,7 @@ export function CaseWidget() {
                 {cl.evidence_ids.map((e) => <button type="button" key={e} className="jd-cite" {...litProps(e)}>{e}</button>)}
                 {(() => { const s = claimSupport(cl, c.evidence); return <>
                   {s.quote && <div className="jd-quote"><q>{s.quote.text}</q> <span className="jd-muted">Quote found in {s.quote.where}.</span></div>}
-                  {s.unquoted && <div className="jd-muted">{UNQUOTED_NOTE}</div>}
+                  {s.unquoted && <div className="jd-muted" title="The evidence item exists; no quote was checked.">{UNQUOTED_NOTE}</div>}
                   {cl.support && <div className={`jd-muted jd-support-${cl.support.replace(' ', '-')}`} title={cl.support_reason}>{SUPPORT_NOTE[cl.support]}</div>}
                   {s.facts.map((f) => <div key={f.id} className="jd-fact"><span className="jd-muted">From {f.from}:</span> {f.text}</div>)}
                 </>; })()}
@@ -185,7 +185,7 @@ export function CaseWidget() {
           )}
           {c.status !== 'RESOLVED' && (
             <details className="jd-scan">
-              <summary className="jd-muted">Add a carrier delivery scan and re-check</summary>
+              <summary className="jd-muted">Add a delivery scan</summary>
               <input type="text" aria-label="Carrier delivery scan" value={scan} onChange={(e) => setScan(e.target.value)}
                 placeholder="e.g. Delivered, front door, San Jose CA 95131, Oct 4 2:14pm" />
             </details>
@@ -193,7 +193,7 @@ export function CaseWidget() {
         </div>
       ) : (
         <>
-          <p className="jd-muted">Not reviewed yet. JUNCO reads the dispute, the PayPal order and tracking, and recommends one action with every claim cited.</p>
+          <p className="jd-muted">Not reviewed yet.</p>
           <input type="text" aria-label="Carrier delivery scan (optional)" value={scan} onChange={(e) => setScan(e.target.value)}
             placeholder="Carrier delivery scan (optional)" />
         </>

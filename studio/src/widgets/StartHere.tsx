@@ -18,18 +18,18 @@ export function StartRail() {
 
   // Step 2 is on the judge's own case (v3.12): visitors approve or reject only there.
   const first: [string, string, () => void] = data?.hold && data.hold.dispute_id === data.own
-    ? ['Approve or reject', `JUNCO wants to ${WANTS[data.hold.method] ?? data.hold.method.replace(/_/g, ' ')} on your case ${data.hold.dispute_id}. Money moves only with your OK.`, desk(undefined, data.hold.dispute_id)]
-    : data?.own ? ['Your case', `${data.own} is yours for 30 minutes. If JUNCO holds an action, you decide.`, desk(undefined, data.own)]
-    : ['Get your own case', data?.own_ready ? 'Dispute this store: take "An order that was never shipped". JUNCO holds an accept for your OK.' : 'Dispute this store gives you a real sandbox case when one is ready; until then, a recorded run.', desk('store-dispute')];
+    ? ['Approve or reject', `JUNCO wants to ${WANTS[data.hold.method] ?? data.hold.method.replace(/_/g, ' ')} on ${data.hold.dispute_id}.`, desk(undefined, data.hold.dispute_id)]
+    : data?.own ? ['Your case', `${data.own} is yours for 30 minutes.`, desk(undefined, data.own)]
+    : ['Get your own case', data?.own_ready ? 'Take "An order that was never shipped" in Dispute this store.' : 'A real sandbox case when one is ready; a recorded run until then.', desk('store-dispute')];
   // BLACK BOX first: the newest AI purchase that was disputed, on the Incident page (it reads ?id= when it mounts).
   const investigate = () => { history.replaceState(null, '', `?page=incident${data?.incident ? `&id=${encodeURIComponent(data.incident)}` : ''}`); go('incident'); };
   const steps: [string, string, () => void][] = [
-    ['Investigate an AI purchase', 'A shopping agent bought it and the buyer disputed it. See what it was allowed, what reached PayPal, and re-run the gate. Or send your own agent shopping and investigate what it buys.', investigate],
+    ['Investigate an AI purchase', 'What the agent was allowed, and what reached PayPal.', investigate],
     first,
-    ['Every money move', 'The Gate record: each one any agent proposed, held for the owner, from every source.', desk('gate-record')],
-    ['Change the owner', 'Policy: try a different limit and see which past actions would have gone out without you.', () => go('policy')],
-    ['Try to break it', 'Break the mandate: talk JUNCO into giving more than the owner allowed.', () => go('mandate')],
-    ['Test the brain', 'Try it: 43 test cases or your own message. Nothing reaches PayPal.', () => go('try')],
+    ['Every money move', 'The Gate record, from every source.', desk('gate-record')],
+    ['Change the owner', 'Try a different limit on past actions.', () => go('policy')],
+    ['Try to break it', 'Talk JUNCO past the owner\'s limit.', () => go('mandate')],
+    ['Test the brain', '43 test cases. Nothing reaches PayPal.', () => go('try')],
   ];
   const keys = steps.map((_, i) => `step-${i + 1}`);
   const { current, done } = startProgress(opened, keys);

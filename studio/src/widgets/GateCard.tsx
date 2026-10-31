@@ -36,13 +36,13 @@ export function GateCard({ name, args, status, result }: { name: string; args: a
       <div><strong>{g.gate === 'held' ? 'Held for the owner' : g.gate === 'refused' ? 'Refused by policy' : g.gate === 'failed' ? 'PayPal refused it' : 'Allowed by policy'}</strong> · {what}</div>
       {g.reason && <div className="jd-muted">{g.gate === 'held' ? 'Why: ' : ''}{g.reason}</div>}
       {g.gate === 'held' && !decided && <div className="jd-muted">Nothing was sent to PayPal.</div>}
-      {g.gate === 'allowed' && <div className="jd-muted">Within the owner's policy, so it went to PayPal.</div>}
+      {g.gate === 'allowed' && <div className="jd-muted">Sent to PayPal.</div>}
       {g.gate === 'held' && g.hold_id && (decided
         ? <div>{holdWords(decided)}</div>
         : <div className="jd-row">
             <button type="button" className="jd-btn jd-primary" disabled={busy} onClick={() => decide('approve')}>Approve</button>
             <button type="button" className="jd-btn jd-danger" disabled={busy} onClick={() => decide('reject')}>Reject</button>
-            <span className="jd-muted">Approving re-reads the case first; a case that moved on is refused.</span>
+            <span className="jd-muted">Approving re-reads the case. If it moved on, it's refused.</span>
           </div>)}
       {err && <div className="jd-err">{err}</div>}
     </div>

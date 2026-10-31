@@ -32,7 +32,7 @@ export function ActivityWidget() {
   return (
     <Panel
       title="Agent activity"
-      subtitle={data?.agent_mode ? 'Agent mode on · PayPal webhooks and scheduled checks' : 'PayPal webhooks and scheduled checks'}
+      subtitle={data?.agent_mode ? 'Agent mode on' : undefined}
       live
       action={items.length > 4 ? <button type="button" className="jd-linkish jd-muted" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'View all'}</button> : undefined}
     >

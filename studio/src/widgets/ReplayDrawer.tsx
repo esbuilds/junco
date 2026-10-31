@@ -11,7 +11,7 @@ export function ReplayDrawer() {
     <aside className="jd-drawer" role="dialog" aria-label="Replay of what JUNCO did">
       <div className="jd-start-head"><strong>Replay: {replay.id}</strong>
         <button type="button" className="jd-btn" onClick={stopReplay}>{done ? 'Close' : 'Stop'}</button></div>
-      <p className="jd-replay-bar">What JUNCO actually did on this case, step by step from its log{done ? '' : ' (replaying)'}. Nothing is sent to PayPal.</p>
+      <p className="jd-replay-bar">From JUNCO's log{done ? '' : ' (replaying)'}. Nothing is sent to PayPal.</p>
       <ol className="jd-drawer-list" aria-live="polite">
         {shown.map((x, i) => (
           <li key={actKey(x)} className={i === 0 && !done ? 'jd-new' : undefined}>
