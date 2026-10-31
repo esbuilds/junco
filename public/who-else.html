@@ -2,63 +2,99 @@
 <meta name="robots" content="noindex"><title>JUNCO Who else?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet"><style>
-/* Graphite, the desk's palette (studio/src/theme.ts), light. */
-*{box-sizing:border-box}body{margin:0 auto;padding:40px 24px;max-width:820px;background:#fff;color:#18181b;font:14px/21px Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-.brand{display:flex;align-items:center;gap:8px;margin:0 0 20px;font-size:13px;color:#52525b}.brand strong{color:#18181b;font-size:15px;font-weight:600;letter-spacing:-.02em}.brand svg{width:20px;height:20px}
-h1{font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.01em;margin:0 0 8px}h2{font-size:15px;font-weight:600;margin:28px 0 8px}.m{color:#52525b}
-a{color:#18181b}.box{border:1px solid #e4e4e7;border-radius:8px;padding:12px 16px;margin:8px 0;overflow-wrap:anywhere}
-button{font:inherit;font-weight:500;padding:7px 14px;border-radius:6px;border:1px solid #18181b;background:#18181b;color:#fff;cursor:pointer}
-button:disabled{background:#f4f4f5;border-color:#e4e4e7;color:#71717a;cursor:default}button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid #1f5c4a;outline-offset:2px}
-select{font:inherit;color:inherit;width:100%;padding:7px 10px;border:1px solid #e4e4e7;border-radius:6px;background:#fff;text-overflow:ellipsis}
-.pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin:16px 0 8px}.pick label{display:grid;gap:2px;font-size:13px;color:#52525b;min-width:0}
-.tag{display:inline-block;font-size:12px;font-weight:600;padding:0 8px;border-radius:999px;border:1px solid #e4e4e7;margin-right:6px;white-space:nowrap}
-.tag.live{color:#1f5c4a;border-color:#1f5c4a}.tag.recorded{color:#52525b;background:#f4f4f5}.err{color:#b42318}.bad{color:#b42318;font-weight:500}
-mark{background:#fff4ed;color:#b5471c;box-shadow:inset 0 -1px #b5471c;padding:0 1px}
-.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0}.score div{border:1px solid #e4e4e7;border-radius:8px;padding:10px 12px}.score b{display:block;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
-dl{display:grid;grid-template-columns:128px minmax(0,1fr);gap:4px 16px;margin:8px 0 0}dt{color:#52525b}dd{margin:0;overflow-wrap:anywhere}
-.head{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between}.head b{font-weight:600}.num{font-variant-numeric:tabular-nums}
-.cause{font-size:15px;margin:0}.cause-q{margin:8px 0 0;padding:0;list-style:none}.cause-q li{margin-top:4px}
-.group-h{display:flex;flex-wrap:wrap;gap:0 12px;align-items:baseline;justify-content:space-between;margin:28px 0 4px}.group-h h2{margin:0}
-/* Never complained is who this page is for: the one group with a heavy edge. */
-.focus .box{border-left:3px solid #1f5c4a}.focus .group-h h2{font-size:17px}
-details{margin-top:28px}summary{cursor:pointer;font-size:15px;font-weight:600}details .box{margin-top:8px}details.more{margin-top:6px}.more summary{font-size:13px;font-weight:500;color:#52525b}
-.cause + .cause{margin-top:8px}[hidden]{display:none!important}#none{font-weight:600}.draft{margin:8px 0 12px}.note{margin:0;padding:6px 10px;background:#f4f4f5;border-radius:6px}
-@media (max-width:560px){body{padding:24px 16px}dl{grid-template-columns:minmax(0,1fr);gap:0}dt{margin-top:6px;font-size:13px}.pick{grid-template-columns:minmax(0,1fr)}.pick button{width:100%}}
+/* Graphite tokens, the same values as studio/src/theme.ts. The same result, quote card and rows as Studio's Who else?, read-only. */
+:root{--bg:#fafafa;--surface:#fff;--surface-2:#f4f4f5;--line:#e4e4e7;--line-2:#ededf0;--ink:#18181b;--muted:#52525b;--accent:#18181b;--accent-ink:#fff;--attn:#c2531f;--attn-text:#b5471c;--attn-bg:#fff4ed;--danger:#b42318;--danger-bg:#fef3f2;--focus:#2563eb;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#111113;--surface:#18181b;--surface-2:#202024;--line:#303036;--line-2:#26262b;--ink:#f4f4f5;--muted:#a1a1aa;--accent:#f4f4f5;--accent-ink:#18181b;--attn:#ed916b;--attn-text:#ed916b;--attn-bg:#302019;--danger:#f97066;--danger-bg:#3a1a17;--focus:#7aa7f0}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0 auto;padding:24px 24px 40px;max-width:1040px;background:var(--bg);color:var(--ink);font:14px/20px Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration-color:var(--line);text-underline-offset:3px}a:hover{text-decoration-color:currentColor}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.brand{display:flex;align-items:center;gap:8px;margin:0 0 20px;font-size:13px;color:var(--muted)}.brand strong{color:var(--ink);font-size:15px;font-weight:600;letter-spacing:-.02em}.brand svg{width:20px;height:20px}.brand a{margin-left:auto}
+button{font:inherit;font-weight:500;padding:7px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer;white-space:nowrap}
+select{font:inherit;color:inherit;max-width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);text-overflow:ellipsis}
+mark{background:var(--attn-bg);color:inherit;border-radius:3px;padding:1px 3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.m{color:var(--muted)}.err{color:var(--danger)}.bad{color:var(--danger);font-weight:500}.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font:500 11px/16px Geist,system-ui,sans-serif;letter-spacing:.04em;padding:0 6px;border-radius:4px;border:1px solid transparent;white-space:nowrap}.tag.live{background:var(--ink);color:var(--surface)}.tag.recorded{border-color:var(--line);color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-height:28px;font-size:13px;color:var(--muted)}
+.top{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:32px;align-items:start;margin:12px 0 28px}
+.big{margin:0;max-width:18em;font-size:20px;line-height:28px;font-weight:500;letter-spacing:-.01em;color:var(--muted)}.big b{display:block;font-size:56px;line-height:60px;font-weight:600;letter-spacing:-.04em;color:var(--ink);font-variant-numeric:tabular-nums}
+.none{margin:8px 0 4px;font-size:32px;line-height:38px;font-weight:600;letter-spacing:-.02em}.sub{margin:0;font-size:16px;color:var(--muted)}
+.stats{display:flex;flex-wrap:wrap;gap:12px 40px;margin:20px 0 0}.stats div{display:flex;flex-direction:column}.stats dd{margin:0;font-size:32px;line-height:38px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.stats dt{order:1;font-size:13px;color:var(--muted)}
+.alert{margin:16px 0 0;font-weight:500;color:var(--danger)}
+.card{margin:0;padding:20px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}.card figcaption{font-size:13px;color:var(--muted)}.card blockquote{margin:8px 0 0;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.005em}
+.said{margin:14px 0 0;padding-top:14px;border-top:1px solid var(--line-2);font-size:13px;line-height:20px}.said span{display:block;color:var(--muted);margin-bottom:2px}
+.pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px;font-size:13px;color:var(--muted)}.pick select{flex:0 1 320px;min-width:0}.grow{flex:1}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.ghead,.row>summary{display:grid;grid-template-columns:96px minmax(0,1fr) 112px 148px;gap:12px;align-items:center;padding:0 16px}
+.ghead{min-height:44px;background:var(--surface-2);font-weight:600;border-top:1px solid var(--line-2)}.list>.ghead:first-child{border-top:0}.ghead .name{grid-column:1/3}.ghead .num{text-align:right}
+button.ghead{width:100%;border:0;border-top:1px solid var(--line-2);border-radius:0;color:var(--ink);text-align:left;font-weight:600;white-space:normal}.ghead i{display:inline-block;width:6px;height:6px;margin:0 10px 2px 2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg)}.ghead[aria-expanded="true"] i{transform:rotate(45deg)}
+.draft{margin:0;padding:12px 16px;border-top:1px solid var(--line-2);overflow-wrap:anywhere}.draft div{font-size:12px;color:var(--muted)}.draft p{margin:2px 0 0}
+.row{border-top:1px solid var(--line-2)}.row>summary{min-height:56px;padding-block:8px;cursor:pointer;list-style:none}.row>summary::-webkit-details-marker{display:none}.row>summary:hover{background:var(--bg)}
+.focus .row>summary,.focus .detail{box-shadow:inset 2px 0 0 var(--ink)}
+.buy{display:grid;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}.buy small{font-size:12px;font-weight:400;color:var(--muted)}
+.quote,.why{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:22px}.why{color:var(--muted)}
+.left{text-align:right}
+.pill{justify-self:start;padding:2px 8px;border-radius:999px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap;background:var(--surface-2);color:var(--muted)}.pill.done{background:var(--accent);color:var(--accent-ink)}.pill.attn{background:var(--attn-bg);color:var(--attn-text)}.pill.bad{background:var(--danger-bg);color:var(--danger)}.pill.ready{background:none;box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.detail{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:8px 32px;padding:14px 16px 16px;background:var(--bg);font-size:13px;overflow-wrap:anywhere}.detail p{margin:0 0 10px;font-weight:500}
+.words dl,.facts{margin:0}.words dt{color:var(--muted);font-size:12px}.words dd{margin:0 0 8px}.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-content:start}.facts dt{display:flex;align-items:center;gap:6px;color:var(--muted);white-space:nowrap}.facts dd{margin:0;font-variant-numeric:tabular-nums}.detail .open{grid-column:1/-1;margin:0;font-weight:400}
+.fix{margin-top:16px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}.fix h2{margin:0 0 10px;font-size:16px;line-height:24px;font-weight:600;letter-spacing:-.01em}.fix h3{margin:14px 0 8px;font-size:14px;font-weight:600}
+.callout{padding:12px 14px;background:var(--surface-2);border-radius:8px}.callout div{font-size:12px;color:var(--muted)}.callout p{margin:2px 0 0}.callout small{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+.trials{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:0;padding:0}.trials li{display:grid;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:18px;color:var(--muted)}.trials strong{font-size:14px;font-weight:600;color:var(--ink)}
+.finding{margin:10px 0 0;padding-left:10px;border-left:2px solid var(--attn);font-weight:500;color:var(--attn-text)}
+.empty{padding:32px 0}.empty h1{margin:0 0 6px;font-size:32px;line-height:38px;font-weight:600;letter-spacing:-.02em}.empty p{margin:0;max-width:34em;font-size:16px;line-height:24px;color:var(--muted)}
+.fine{margin-top:16px;font-size:12px;line-height:18px;color:var(--muted)}.fine p{margin:6px 0 0;max-width:80ch}.fine summary{cursor:pointer;font-size:13px}
+@media (max-width:760px){body{padding:16px 16px 32px}.top{grid-template-columns:minmax(0,1fr);gap:20px;margin-bottom:20px}.big b{font-size:48px;line-height:52px}.none,.empty h1{font-size:26px;line-height:32px}.stats{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:12px 20px}.stats dd{font-size:26px;line-height:32px}.stats dt{line-height:16px}
+.ghead,.row>summary{grid-template-columns:minmax(0,1fr) 76px;gap:4px 8px;padding-inline:12px}.ghead .name{grid-column:1}.row>summary{padding-block:10px}.row .quote,.row .why{grid-column:1/-1;grid-row:2;-webkit-line-clamp:4}.row .left{grid-column:2;grid-row:1}.row .pill{grid-column:1;grid-row:3}
+.draft{padding-inline:12px}.detail{grid-template-columns:minmax(0,1fr);padding:12px}.facts{grid-template-columns:minmax(0,1fr);gap:0}.facts dd{margin-bottom:6px}}
 </style></head><body>
-<p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· who else?</span></p>
-<h1>One dispute shows a mistake. Who else did the agent do it to?</h1>
-<p class="m">The owner says what went wrong on one purchase. Claude finds which other public purchases show that same problem, from what the shopping agent recorded when it bought. Code then sorts them, and a purchase goes in the plan only if PayPal shows money left to refund and nobody has complained. This page moves no money and creates no hold.</p>
-<div class="pick" id="pick" hidden><label>Start from<select id="seed"></select></label><button id="go" disabled>Who else?</button></div>
-<div class="box" id="seed-box" hidden><div class="m">What the owner says went wrong</div><p id="seed-note" class="cause"></p></div>
-<p id="status" class="m" aria-live="polite"></p>
+<p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#5fb497"/></svg><strong>JUNCO</strong><span>who else?</span><a href="/judges">Judges' page</a></p>
+<div class="empty" id="empty" hidden><h1>Nothing has been run yet</h1><p>The owner says what went wrong on one purchase, and Claude finds the others that show it.</p></div>
 <div id="run" hidden>
-  <h2>What the owner says went wrong</h2>
-  <div class="box"><span id="mode" class="tag"></span><span id="state" class="m"></span><p id="none" class="cause" hidden></p><p id="cause" class="cause"></p><ul id="cause-q" class="cause-q"></ul></div>
-  <div id="groups"></div>
-  <div id="fix" hidden><h2>The fix</h2><div id="fix-out"></div></div>
+  <div class="meta"><span id="mode" class="tag"></span><span id="state"></span></div>
+  <div class="top">
+    <div id="result"></div>
+    <figure class="card"><figcaption>What the owner says went wrong</figcaption><blockquote id="cause"></blockquote><div id="said"></div></figure>
+  </div>
 </div>
-<h2>The score</h2>
-<div class="score" id="score"></div>
-<p class="m" id="limit"></p>
-<p class="m">Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. The owner named the problem and Claude found the matching purchases. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
-<p><a href="/judges">Back to the judges' page</a></p>
+<div class="pick" id="pick" hidden><label for="seed" id="from">Started from</label><select id="seed"></select><span class="grow"></span><button id="go">Who else?</button></div>
+<div class="callout" id="seed-box" hidden><div>What the owner says went wrong</div><p id="seed-note"></p></div>
+<p id="status" class="m" aria-live="polite"></p>
+<div class="list" id="groups" hidden></div>
+<section class="fix" id="fix" hidden><h2>The fix</h2><div id="fix-out"></div></section>
+<footer class="fine">
+  <details><summary>How this works</summary>
+    <p>The owner named the problem and Claude found the matching purchases: same, not same or unsure. Code picks the group, and a purchase goes in the plan only if PayPal shows money left to refund and nobody has complained. This page moves no money and creates no hold.</p>
+    <p id="score"></p>
+  </details>
+  <p>Sandbox only, no real money. Every purchase here is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
+</footer>
 <script>
 const $ = (id) => document.getElementById(id);
 const say = (text, bad) => { $('status').textContent = text; $('status').className = bad ? 'err' : 'm'; };
 const fail = async (r) => { try { return (await r.json()).error?.message ?? `The request failed (${r.status}).`; } catch { return `The request failed (${r.status}).`; } };
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const usd = (s) => `$${Number(s).toFixed(2)}`;
+const usd = (n) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const cents = (s) => Math.round(Number(s) * 100);
 const day = (iso) => iso.slice(0, 16).replace('T', ' ');
 const mode = (m) => el('span', `tag ${m}`, m === 'live' ? 'LIVE' : 'RECORDED');
-const FIELD = { instruction: 'The buyer asked', reason: 'The agent said', listing: 'The listing said' };
 // Never complained first: it's who this helps. The dispute desk already has Complained. Not the same stays closed.
-const GROUPS = [['silent', 'Never complained', 'The same problem, and nobody has said anything. These are the purchases a plan can help.'], ['complained', 'Complained', 'An open dispute. The dispute desk works these, so no refund is planned here.'],
-  ['repaired', 'Already repaired', 'The same problem, and PayPal shows nothing left to refund.'], ['unclear', 'Unclear', "Code couldn't confirm these, so they stay out of the plan."], ['not_same', 'Not the same', "The agent's recorded reason doesn't show this problem."]];
+const GROUPS = [['silent', 'Never complained'], ['complained', 'Complained'], ['repaired', 'Already repaired'], ['unclear', 'Unclear'], ['not_same', 'Not the same']];
 // Hold words for someone who isn't the owner: same states as HOLD_STATUS in studio/src/api.ts.
 const HOLD = { pending: 'Waiting for the owner', executing: 'Approved, sending to PayPal now', completed: 'Approved, and PayPal confirmed it ran', failed: 'Approved, but PayPal refused it', unknown: 'Approved, outcome unknown until PayPal is re-read', approved: 'Approved (outcome not recorded)', rejected: 'Rejected by the owner', stale: 'Approved but not run, the case had changed', expired: "Expired: the owner didn't decide within 24 hours, nothing sent" };
 const BAD_HOLD = ['failed', 'unknown', 'stale', 'expired'];
-let seen = null, poller = null; // seen: this visitor's own click produced the run on screen
+// standing and rowStatus repeat studio/src/ui.ts: a row's money and its one pill (check-ui runs both).
+const standing = (m, r) => {
+  const moved = r?.refund_id ? cents(r.amount) : 0;
+  return { paid: cents(m.paid), refunded: cents(m.refunded) + moved, remaining: Math.max(0, cents(m.remaining) - moved) };
+};
+const HOLD_PILL = { pending: { label: 'Waiting for approval', tone: 'attn' }, executing: { label: 'Sending to PayPal', tone: 'attn' }, completed: { label: 'Refunded', tone: 'done' }, failed: { label: 'PayPal refused', tone: 'bad' },
+  unknown: { label: 'Outcome unknown', tone: 'bad' }, approved: { label: 'Approved', tone: 'quiet' }, rejected: { label: 'Rejected', tone: 'quiet' }, stale: { label: 'Not run', tone: 'bad' }, expired: { label: 'Hold expired', tone: 'bad' } };
+const BUCKET_PILL = { silent: { label: 'Not planned', tone: 'ready' }, complained: { label: 'Open dispute', tone: 'quiet' }, repaired: { label: 'Already repaired', tone: 'quiet' }, unclear: { label: 'Unclear', tone: 'quiet' }, not_same: { label: 'Not the same', tone: 'quiet' } };
+const rowStatus = (m, r) => r?.refund_id ? HOLD_PILL.completed : r?.hold_status ? HOLD_PILL[r.hold_status] ?? { label: r.hold_status, tone: 'quiet' }
+  : m.bucket === 'not_same' && !m.sku ? { label: 'Bought nothing', tone: 'quiet' } : BUCKET_PILL[m.bucket];
+const remedyOf = (run, m) => m.capture_id ? run.remedies.find((r) => r.capture_id === m.capture_id) : undefined;
+const left = (run, list) => list.reduce((n, m) => n + standing(m, remedyOf(run, m)).remaining, 0) / 100;
+let seen = null, poller = null, closed = true; // seen: this visitor's own click produced the run on screen; closed: Not the same
 
 // The quoted parts of one recorded field, marked. Text only, never HTML: instructions can be typed by visitors.
 function marked(text, quotes, field) {
@@ -73,65 +109,52 @@ function marked(text, quotes, field) {
   out.append(text.slice(i));
   return out;
 }
+function line(dl, name, ...value) { const dt = el('dt'); dt.append(...[name].flat()); const dd = el('dd'); dd.append(...value); dl.append(dt, dd); }
 
-function line(dl, name, ...value) { const dd = el('dd'); dd.append(...value); dl.append(el('dt', '', name), dd); }
-
-function paypalSays(m, run) {
-  if (m.payment_status === null) return [mode('recorded'), el('span', 'bad', "PayPal didn't answer on this run.")];
-  const back = cents(m.refunded) > 0 ? `, ${usd(m.refunded)} already back` : '';
-  return [mode(run.mode), `${m.payment_status}${back}`];
-}
-
-// Never complained shows everything. Other groups open a row on request, so a phone reaches them without scrolling past repeats.
+// A row: the purchase, the agent's quoted words, what's left and one pill. It opens in place for the records.
 function row(m, run) {
-  const box = el('article', 'box'), head = el('div', 'head'), left = el('span');
-  const link = el('a', '', `Purchase ...${m.incident_id.slice(-6)}`);
+  const r = remedyOf(run, m), s = standing(m, r), st = rowStatus(m, r), box = el('details', 'row'), head = el('summary'), buy = el('span', 'buy');
+  const link = el('a', '', `...${m.incident_id.slice(-6)}`);
   link.href = `/incident/${encodeURIComponent(m.incident_id)}`;
-  left.append(link, ` · ${m.sku}`);
-  if (m.incident_id === run.seed) left.append(' · where this started');
-  if (m.dispute_id) left.append(` · dispute ${m.dispute_id}`);
-  head.append(left, el('span', 'num m', `${usd(m.remaining)} left of ${usd(m.paid)}`));
-  const d = el('dl');
-  box.append(head, el('div', 'm', m.why));
-  if (m.bucket === 'silent') box.append(d);
-  else { const more = el('details', 'more'); more.append(el('summary', '', 'What the records say'), d); box.append(more); }
+  buy.append(link);
+  if (m.incident_id === run.seed) buy.append(el('small', '', 'Started here'));
+  const q = m.quotes.filter((x) => x.field === 'reason'), words = el('span', q.length ? 'quote' : 'why');
+  if (q.length) words.append(...q.map((x) => el('mark', '', x.text))); else words.textContent = m.why;
+  head.append(buy, words, el('span', 'left num', usd(s.remaining / 100)), el('span', `pill ${st.tone}`, st.label));
+  const detail = el('div', 'detail'), side = el('div', 'words'), d = el('dl'), f = el('dl', 'facts');
+  side.append(el('p', '', m.why), d);
   line(d, 'The buyer asked', marked(m.instruction, m.quotes, 'instruction'));
   line(d, 'The agent said', marked(m.reason, m.quotes, 'reason'));
-  if (m.quotes.some((q) => q.field === 'listing')) line(d, 'The listing said', marked(m.listing, m.quotes, 'listing'));
-  line(d, 'PayPal says', ...paypalSays(m, run));
-  line(d, 'Left to refund', el('span', 'num', usd(m.remaining)));
-  line(d, 'Fingerprint', m.fingerprint);
-  const r = run.remedies.find((x) => x.capture_id === m.capture_id);
-  if (r) {
-    line(d, 'Note to the buyer', el('p', 'note', r.note_to_payer));
-    line(d, 'Planned refund', el('span', 'num', usd(r.amount)));
-    line(d, 'Hold', mode('recorded'), el('span', BAD_HOLD.includes(r.hold_status) ? 'bad' : '', r.hold_status ? HOLD[r.hold_status] ?? r.hold_status : 'Not held yet'));
-    if (r.refund_id) line(d, 'PayPal refund', mode('live'), `${r.refund_id}${r.refund_status ? `, ${r.refund_status}` : ''}`);
-  }
+  if (m.quotes.some((x) => x.field === 'listing')) line(d, 'The listing said', marked(m.listing, m.quotes, 'listing'));
+  if (r) line(d, 'Note to the buyer', r.note_to_payer);
+  if (m.sku) line(f, 'Bag', m.sku);
+  line(f, 'Paid', usd(s.paid / 100));
+  line(f, 'Refunded', usd(s.refunded / 100));
+  line(f, 'Left to refund', usd(s.remaining / 100));
+  line(f, 'Fingerprint', m.fingerprint);
+  line(f, [mode(run.mode), ' PayPal said'], `${m.payment_status ?? (m.sku ? 'PayPal unread' : 'No payment')}${r?.refund_id ? ', before this refund' : ''}`);
+  if (r) line(f, [mode('recorded'), ' Hold'], el('span', BAD_HOLD.includes(r.hold_status) ? 'bad' : '', r.hold_status ? HOLD[r.hold_status] ?? r.hold_status : 'Not held yet'));
+  if (r?.refund_id) line(f, [mode('live'), ' PayPal refund'], `${r.refund_id}${r.refund_status ? `, ${r.refund_status}` : ''}`);
+  detail.append(side, f);
+  const open = el('p', 'open'), to = el('a', '', 'Open the incident');
+  to.href = link.href; open.append(to); detail.append(open);
+  box.append(head, detail);
   return box;
 }
 
-function group([bucket, name, blurb], run) {
+function group([bucket, name], run) {
   const members = run.members.filter((m) => m.bucket === bucket);
-  if (!members.length && (bucket !== 'silent' || noOther(run))) return null;
-  const total = members.reduce((n, m) => n + cents(m.remaining), 0);
-  const title = `${name} (${members.length})`, sum = bucket === 'silent' || bucket === 'complained' ? `${usd(total / 100)} left to refund` : '';
-  if (bucket === 'not_same') {
-    const d = el('details'), s = el('summary', '', noOther(run) ? `What was checked (${members.length})` : title);
-    d.open = noOther(run);
-    d.append(s, el('p', 'm', blurb), ...members.map((m) => row(m, run)));
-    return d;
-  }
-  const sec = el('section', bucket === 'silent' ? 'focus' : ''), h = el('div', 'group-h');
-  h.append(el('h2', '', title), el('span', 'num m', sum));
-  sec.append(h, el('p', 'm', members.length ? blurb : 'The finder found no purchase like this on this run.'));
-  if (bucket === 'silent' && members.length) {
-    const draft = el('div', 'draft');
-    draft.append(el('div', 'm', 'What each buyer will read through PayPal'), el('p', 'note', run.draft_note));
-    sec.append(draft);
-  }
-  sec.append(...members.map((m) => row(m, run)));
-  return sec;
+  if (!members.length) return [];
+  const sec = el('div', bucket === 'silent' ? 'focus' : ''), title = `${name} (${members.length})`, sum = usd(left(run, members));
+  const shut = bucket === 'not_same' && closed && !noOther(run), h = el(bucket === 'not_same' ? 'button' : 'div', 'ghead');
+  if (bucket === 'not_same') { h.type = 'button'; h.setAttribute('aria-expanded', String(!shut)); h.onclick = () => { closed = !closed; show(onRun); }; }
+  const label = el('span', 'name');
+  if (bucket === 'not_same') label.append(el('i'));
+  label.append(title);
+  h.append(label, el('span', 'num', sum));
+  if (bucket === 'silent' && members.some((m) => !remedyOf(run, m))) { const draft = el('div', 'draft'); draft.append(el('div', '', 'What each buyer will read through PayPal'), el('p', '', run.draft_note)); sec.append(h, draft); } else sec.append(h);
+  if (!shut) sec.append(...members.map((m) => row(m, run)));
+  return [sec];
 }
 
 // The correction and the trials, shown as they came out, including a trial that still buys the wrong bag.
@@ -140,15 +163,13 @@ function fix(run) {
   $('fix').hidden = !applied.length && !run.trials.length;
   if ($('fix').hidden) return;
   const fixed = applied.map((c) => c.sku);
-  const out = applied.map((c) => { const b = el('div', 'box'); b.append(el('div', 'm', `${c.sku} listing, corrected ${day(c.at)} UTC. Records already made keep the listing the agent saw.`), el('p', 'note', c.text)); return b; });
+  const out = applied.map((c) => { const b = el('div', 'callout'); b.append(el('div', '', `${c.sku} now says`), el('p', '', c.text), el('small', '', `Corrected ${day(c.at)} UTC. Records already made keep the listing the agent saw.`)); return b; });
   if (run.trials.length) {
-    const b = el('div', 'box'), still = run.trials.filter((t) => t.outcome === 'bought' && fixed.includes(t.sku)).length, moved = run.trials.filter((t) => t.outcome === 'bought' && !fixed.includes(t.sku));
-    b.append(el('div', 'head', `The same ask, ${run.trials.length} time${run.trials.length === 1 ? '' : 's'}, no order placed`));
-    if (still) b.append(el('p', 'bad', `The agent still bought the corrected bag in ${still} of ${run.trials.length}.`));
-    if (moved.length) b.append(el('p', 'bad', `${moved.length} of ${run.trials.length} bought ${[...new Set(moved.map((t) => t.sku))].join(', ')}, and that listing hasn't been corrected.`));
-    const d = el('dl');
-    run.trials.forEach((t, i) => line(d, `Trial ${i + 1}: ${t.outcome === 'bought' ? `bought ${t.sku}` : 'bought nothing'}`, t.reason));
-    b.append(d); out.push(b);
+    const still = run.trials.filter((t) => t.outcome === 'bought' && fixed.includes(t.sku)).length, moved = run.trials.filter((t) => t.outcome === 'bought' && !fixed.includes(t.sku)), list = el('ol', 'trials');
+    list.append(...run.trials.map((t) => { const li = el('li'); li.append(el('strong', '', t.outcome === 'bought' ? `Bought ${t.sku}` : 'Bought nothing'), el('span', '', t.reason)); return li; }));
+    out.push(el('h3', '', `The same ask, ${run.trials.length} time${run.trials.length === 1 ? '' : 's'}, no order placed`), list);
+    if (still) out.push(el('p', 'finding', `The agent still bought the corrected bag in ${still} of ${run.trials.length}.`));
+    if (moved.length) out.push(el('p', 'finding', `${moved.length} of ${run.trials.length} bought ${[...new Set(moved.map((t) => t.sku))].join(', ')}, and that listing hasn't been corrected.`));
   }
   $('fix-out').replaceChildren(...out);
 }
@@ -157,19 +178,36 @@ function fix(run) {
 const others = (run) => run.members.filter((m) => m.incident_id !== run.seed);
 const noOther = (run) => others(run).length > 0 && others(run).every((m) => m.bucket === 'not_same');
 
+function result(run) {
+  const out = $('result');
+  if (noOther(run)) { out.replaceChildren(el('h1', 'none', 'No other purchase shows this problem'), el('p', 'sub', `${others(run).length} checked, so there's nothing to plan.`)); return; }
+  const silent = run.members.filter((m) => m.bucket === 'silent'), refunded = run.remedies.filter((r) => r.refund_id).length;
+  const complained = others(run).filter((m) => m.bucket === 'complained').length, failed = run.remedies.filter((r) => !r.refund_id && BAD_HOLD.includes(r.hold_status)).length;
+  const big = el('p', 'big'), stats = el('dl', 'stats');
+  big.append(el('b', '', silent.length), `more purchase${silent.length === 1 ? '' : 's'} show${silent.length === 1 ? 's' : ''} this problem, and nobody complained`);
+  for (const [v, k] of [[usd(left(run, silent)), 'left to refund'], [refunded, 'refunded, confirmed by PayPal'], ...(complained ? [[complained, 'also complained']] : [])]) { const d = el('div'); d.append(el('dd', '', v), el('dt', '', k)); stats.append(d); }
+  out.replaceChildren(big, stats, ...(failed ? [el('p', 'alert', `${failed} refund${failed === 1 ? '' : 's'} didn't run. The rows below say why.`)] : []));
+}
+
+let onRun = null, onScreen = null, chosen = false;
 function show(run) {
-  $('run').hidden = false;
+  onRun = run;
+  $('run').hidden = $('groups').hidden = false;
+  $('empty').hidden = true;
   onScreen = run.seed;
+  if (!chosen && notes.some((s) => s.incident_id === run.seed)) $('seed').value = run.seed; // the picker shows the run on screen
   seedNote();
   const mine = run.id === seen && run.mode === 'live', recorded = !mine;
   $('mode').textContent = recorded ? 'RECORDED' : 'LIVE';
   $('mode').className = `tag ${recorded ? 'recorded' : 'live'}`;
-  $('state').textContent = recorded ? `Latest finished run, from ${day(run.at)} UTC.` : `Read just now. ${run.members.length} purchases looked at.`;
-  $('none').hidden = !noOther(run);
-  $('none').textContent = `No other purchase shows this problem. ${others(run).length} checked, so there's nothing to plan.`;
+  $('state').textContent = recorded ? `Latest finished run, ${day(run.at)} UTC` : `Read just now, ${run.members.length} records`;
   $('cause').textContent = run.cause.summary;
-  $('cause-q').replaceChildren(...run.cause.quotes.map((q) => { const li = el('li', 'm', `${FIELD[q.field]}: `); li.append(el('mark', '', q.text)); return li; }));
-  $('groups').replaceChildren(...GROUPS.map((g) => group(g, recorded ? { ...run, mode: 'recorded' } : run)).filter(Boolean));
+  const q = run.cause.quotes.find((x) => x.field === 'reason') ?? run.cause.quotes[0], said = el('p', 'said');
+  if (q) { said.append(el('span', '', 'The agent said'), el('mark', '', q.text)); $('said').replaceChildren(said); } else $('said').replaceChildren();
+  result(run);
+  const view = recorded ? { ...run, mode: 'recorded' } : run, open = [...document.querySelectorAll('.row[open] a')].map((a) => a.href);
+  $('groups').replaceChildren(...GROUPS.flatMap((g) => group(g, view)));
+  for (const a of document.querySelectorAll('.row summary a')) if (open.includes(a.href)) a.closest('details').open = true;
   fix(run);
   // Hold states change after the page opens, and a hold that expires has to show.
   clearTimeout(poller);
@@ -181,50 +219,51 @@ async function load(id) {
   if (r?.ok) show(await r.json());
 }
 
-function score(s, left) {
-  $('score').replaceChildren(...[['Runs', s.runs], ['Purchases read', s.purchases_read], ['Never complained, found', s.silent_found], ['Refunds proposed', s.refunds_proposed], ['Refunds PayPal confirmed', s.refunds_confirmed]].map(([k, v]) => {
-    const d = el('div'), b = el('b', '', v); d.append(b, k); return d;
-  }));
-  $('limit').textContent = left > 0 ? `Real counts from this sandbox. ${left} run${left === 1 ? '' : 's'} left today.` : "Real counts from this sandbox. Today's runs are used up, so the page shows the latest finished run.";
-  $('go').disabled = !(left > 0) || !$('seed').value;
+function score(s, runs) {
+  $('score').textContent = `${s.runs} run${s.runs === 1 ? '' : 's'} so far, ${s.purchases_read} purchases read, ${s.silent_found} never complained, ${s.refunds_confirmed} of ${s.refunds_proposed} proposed refunds confirmed by PayPal. Real counts from this sandbox. ${runs > 0 ? `${runs} run${runs === 1 ? '' : 's'} left today.` : "Today's runs are used up, so this is the latest finished run."}`;
+  $('go').hidden = !(runs > 0) || !$('seed').value;
+  if (!(runs > 0) && !notes.length) $('pick').hidden = true;
 }
 
 async function refresh(fresh) {
   const r = await fetch('/api/who-else').catch(() => null);
   if (!r?.ok) { say(r ? await fail(r) : "The desk didn't answer.", true); return; }
   const b = await r.json();
-  if (fresh) seeds(b.seeds);
+  if (fresh) { seeds(b.seeds); $('empty').hidden = !!b.latest; }
   score(b.score, b.left);
   if (fresh && b.latest) await load(b.latest.id).then(() => $('run').hidden && show(b.latest));
 }
 
 // Only purchases the owner wrote a note on. Visitors can't type one, so with none there's nothing to run and no button.
-let notes = [], onScreen = null;
+let notes = [];
 function seeds(list) {
   notes = list;
   $('pick').hidden = !list.length;
-  if (!list.length) { say("The owner hasn't written what went wrong on any purchase yet, so there's nothing to run."); return; }
-  $('seed').replaceChildren(...list.map((s) => new Option(`...${s.incident_id.slice(-6)} · ${s.title}`, s.incident_id)));
+  if (!list.length) return;
+  $('seed').replaceChildren(...list.map((s) => new Option(`...${s.incident_id.slice(-6)}, ${s.title}`, s.incident_id)));
+  $('seed').hidden = list.length < 2; // one purchase is a fact, not a choice
+  if (list.length < 2) $('from').textContent = `Started from purchase ...${list[0].incident_id.slice(-6)}`;
   // ?seed= comes from an incident page's link.
   const want = new URLSearchParams(location.search).get('seed');
-  if (want && list.some((s) => s.incident_id === want)) $('seed').value = want;
+  if (want && list.some((s) => s.incident_id === want)) { $('seed').value = want; chosen = true; }
   else if (want) say("The owner hasn't written what went wrong on that purchase yet. Here are the ones with a note.");
   seedNote();
 }
 function seedNote() {
   const s = notes.find((n) => n.incident_id === $('seed').value);
-  $('seed-box').hidden = !s || s.incident_id === onScreen; // the run below already shows this note
+  $('seed-box').hidden = !s || s.incident_id === onScreen; // the run on screen already shows this note
   $('seed-note').textContent = s?.text ?? '';
 }
-$('seed').onchange = seedNote;
+$('seed').onchange = () => { chosen = true; seedNote(); };
 
 $('go').onclick = async () => {
   $('go').disabled = true;
   say('Claude is looking for other purchases with this problem. This can take a minute.');
   const r = await fetch('/api/who-else/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seed: $('seed').value }) }).catch(() => null);
+  $('go').disabled = false;
   if (!r?.ok) { say(r ? await fail(r) : "The desk didn't answer.", true); await refresh(false); return; }
   const run = await r.json();
-  seen = run.id;
+  seen = run.id; chosen = false;
   say('');
   show(run);
   await refresh(false);
