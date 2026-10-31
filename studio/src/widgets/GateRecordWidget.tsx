@@ -22,7 +22,7 @@ export function GateRecordWidget() {
       {data?.daily_total && <div className="jd-sub" title="Offers count even though no money moves until a buyer accepts. Past the total, calls wait for you.">Approved in advance today (UTC): ${data.daily_total.approved_in_advance} of ${data.daily_total.max}, {data.daily_total.calls} {data.daily_total.calls === 1 ? 'call' : 'calls'}</div>}
       {c && (
         <div className="jd-counts" aria-label="Gate counts">
-          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Leased visitor', c.leased_approved] as const] : []),['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed by policy', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
+          {([['Proposed', c.proposed], ['Held', c.held], ['Approved', c.approved], ...(c.demo_approved ? [['Demo approver', c.demo_approved] as const] : []), ...(c.leased_approved ? [['Leased visitor', c.leased_approved] as const] : []),['Rejected', c.rejected], ['Stale', c.stale], ['Waiting', c.pending], ['Allowed', c.allowed], ['Denied', c.denied], ['Gate-only tests', c.gate_only], ['Past the limit', c.past_limit]] as const).map(([k, v]) => (
             <div key={k} title={COUNT_TITLE[k]}><span>{k}</span><strong>{v}</strong></div>
           ))}
         </div>
