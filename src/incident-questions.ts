@@ -2,6 +2,9 @@
 // PayPal). Shared by the desk's server code and Studio; public/incident.html repeats these few lines in plain JS.
 import type { BooksRow, Incident, IncidentEvent, Match, Mode, ThreeRecords } from './incident-types.js';
 
+// Ids in running text, set in mono so a sentence reads past them: PayPal's dispute, capture and refund ids, and a hold's short id.
+export const ID_TOKEN = /\b(?:PP-[A-Z0-9-]{6,}|(?=[A-Z]*\d)[A-Z0-9]{13,}|(?=[a-f]*\d)[0-9a-f]{8})\b/g;
+
 // The AI's own words (a refund ask's support agent) are often markdown. Shown as plain text, at display time only: bold,
 // underline and code marks dropped, each list item or paragraph its own line. Never HTML; callers escape as before.
 export const aiLines = (s: string) => s.split(/\n+|\s+-\s+(?=\*\*)/) // a list run onto one line: " - **Label:**"
@@ -52,6 +55,22 @@ export function threeRecords(inc: Incident): ThreeRecords | null {
       { label: 'Fingerprint', value: fp?.summary ?? 'Not recorded at PayPal (placed before fingerprints).' }] },
   ] };
 }
+
+// The one line a reader should take first: what the agent bought, for how much, and how it ended, from the records alone.
+// public/incident.html repeats this body in plain JS (check-incident-desk compares them).
+export const verdict = (inc: Incident) => {
+  const p = inc.purchase;
+  if (!p) return 'The agent bought nothing.';
+  const item = p.listing.startsWith(`${p.sku} `) ? p.listing.split(',')[0] : p.sku;
+  const read = inc.events.find((e) => e.id === 'reconciliation:read'), status = read?.ref?.payment_status;
+  const back = inc.events.filter((e) => e.kind === 'reconciliation' && ['matched', 'settled', 'paypal_only'].includes(e.match ?? '')).map((e) => e.ref?.amount);
+  const waiting = inc.events.some((e) => e.kind === 'hold' && !inc.events.some((x) => x.id === `approval:${e.ref?.hold_id}`));
+  const ends = [inc.dispute_id && 'the buyer disputed it', back.length && `PayPal shows ${back.join(' and ')} refunded`, waiting && 'a held action is waiting for the owner',
+    inc.counts.outcome_unknown && 'a money move ended with its outcome unknown'].filter(Boolean);
+  if (!read || read.match === 'unread') ends.push(`PayPal ${read ? "didn't answer" : "wasn't read"}, so how it ended isn't confirmed`);
+  else if (!ends.length) ends.push(status === 'COMPLETED' ? 'PayPal shows it paid, with no dispute or refund on record' : `PayPal lists the payment as ${status}`);
+  return `The agent bought ${item} for ${p.amount}, and ${ends.length > 1 ? `${ends.slice(0, -1).join(', ')} and ${ends[ends.length - 1]}` : ends[0]}.`;
+};
 
 // "Which actions reached PayPal?": the LIVE events, to highlight.
 export function reachedPayPal(inc: Incident) {

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { acceptedText, modeOf, paypalRefund, receiptPage } from './incident-view.js';
-import { NOTHING_PROPOSED, notInRecords, reachedPayPal, threeRecords, whatIfPreset } from './incident-questions.js';
+import { ID_TOKEN, NOTHING_PROPOSED, notInRecords, reachedPayPal, threeRecords, verdict, whatIfPreset } from './incident-questions.js';
 import type { Incident, IncidentEvent } from './incident-types.js';
 
 const refund = (result: string, method = 'create_refund') => paypalRefund({ method, result });
@@ -63,6 +63,29 @@ const quiet = whatIfPreset({ ...inc, purchase: { ...inc.purchase!, amount: '6.00
 assert.deepEqual([quiet.limit, quiet.targets, quiet.none], [0, [], NOTHING_PROPOSED]); // never below 0; says how a move gets proposed
 const pageJs = readFileSync('public/incident.html', 'utf8');
 assert.ok(pageJs.includes(NOTHING_PROPOSED) && pageJs.includes('(amount - 10)') && pageJs.includes('const modeOf = (e) => e.mode ?? (') && pageJs.includes("/^allow:/") && pageJs.includes("!e.id.endsWith(':leased')")); // the page's plain-JS copy keeps step
+// The verdict: one sentence from the records, the same on both pages, never claiming more than they show.
+const body = (t: string) => t.match(/verdict = \([^)]*\) => \{([\s\S]*?)\n\};/)?.[1].replace(/\s+/g, ' ');
+assert.ok(body(pageJs) && body(pageJs) === body(readFileSync('src/incident-questions.ts', 'utf8')), 'public/incident.html no longer repeats verdict');
+assert.ok(pageJs.includes(ID_TOKEN.toString()), 'public/incident.html no longer repeats ID_TOKEN');
+{
+const buy = { sku: 'WKD-01', listing: 'WKD-01 Waxed canvas weekender, $62.00. 50 x 28 x 25 cm.', reason: 'fits', amount: '62.00 USD' };
+const said = (o: Partial<Incident>, ...events: Partial<IncidentEvent>[]) => verdict({ purchase: buy, dispute_id: null, counts: { proposed: 0, approved: 0, executed: 0, outcome_unknown: 0 }, events: events as IncidentEvent[], ...o } as Incident);
+const read = (status?: string, match?: IncidentEvent['match']) => ({ id: 'reconciliation:read', kind: 'reconciliation' as const, ref: { payment_status: status }, match });
+const line = (match: IncidentEvent['match'], amount: string) => ({ id: `reconciliation:${amount}`, kind: 'reconciliation' as const, match, ref: { amount } });
+const START = 'The agent bought WKD-01 Waxed canvas weekender for 62.00 USD, and';
+assert.equal(said({}, read('COMPLETED')), `${START} PayPal shows it paid, with no dispute or refund on record.`);
+assert.equal(said({ dispute_id: 'PP-1' }, read('PENDING: BUYER_COMPLAINT'), line('dispute_hold', '59.35 USD')), `${START} the buyer disputed it.`, 'a dispute hold is no refund');
+assert.equal(said({}, read('PARTIALLY_REFUNDED'), line('matched', '10.00 USD')), `${START} PayPal shows 10.00 USD refunded.`);
+assert.equal(said({}, read('PARTIALLY_REFUNDED'), line('paypal_only', '0.90 USD'), line('matched', '1.00 USD')), `${START} PayPal shows 0.90 USD and 1.00 USD refunded.`);
+assert.equal(said({ dispute_id: 'PP-1' }, read(undefined, 'unread')), `${START} the buyer disputed it and PayPal didn't answer, so how it ended isn't confirmed.`);
+assert.equal(said({}), `${START} PayPal wasn't read, so how it ended isn't confirmed.`);
+assert.equal(said({}, read('PENDING')), `${START} PayPal lists the payment as PENDING.`);
+assert.equal(said({}, read('COMPLETED'), { id: 'hold:h1', kind: 'hold', ref: { hold_id: 'h1' } }), `${START} a held action is waiting for the owner.`);
+assert.equal(said({}, read('COMPLETED'), { id: 'hold:h1', kind: 'hold', ref: { hold_id: 'h1' } }, { id: 'approval:h1', kind: 'approval' }), `${START} PayPal shows it paid, with no dispute or refund on record.`, 'a decided hold is not waiting');
+assert.equal(said({ counts: { proposed: 1, approved: 1, executed: 0, outcome_unknown: 1 } }, read('COMPLETED')), `${START} a money move ended with its outcome unknown.`);
+assert.equal(verdict({ purchase: null, decline: { reason: 'no', listings: [] } } as unknown as Incident), 'The agent bought nothing.');
+assert.deepEqual('hold 3f2a1b9c on PP-R-COU-10194957, entry 6E9082945T161501K, order placed for 62.00 USD'.match(ID_TOKEN), ['3f2a1b9c', 'PP-R-COU-10194957', '6E9082945T161501K']);
+}
 console.log('questions: LIVE events highlighted, missing listed or counted, what-if preset at the amount less $10, nothing proposed said plainly');
 
 // Three records: one purchase side by side, from the incident alone. Summaries as reconcile.ts writes them for real payments.
@@ -140,7 +163,7 @@ assert.ok(/records: threeRecords\(/.test(deskSrc), 'the desk adds them to the in
 assert.ok(!readFileSync('src/incident.ts', 'utf8').includes('threeRecords'), "junco_get_incident doesn't carry a verdict for a fresh Claude");
 assert.ok(pageJs.includes('inc.records') && /inc\??\.records/.test(widget));
 assert.ok(/class="mode \$\{c\.mode\}"/.test(pageJs) && /jd-mode jd-mode-\$\{c\.mode\}/.test(widget), 'each column wears the LIVE or RECORDED label the rail uses');
-assert.ok(/dl\(c\.rows\.map/.test(pageJs) && /esc\(c\.title\)/.test(pageJs) && /esc\(inc\.records\.line\)/.test(pageJs), 'the page escapes the records');
+assert.ok(/dl\(c\.rows\.map/.test(pageJs) && /esc\(c\.title\)/.test(pageJs) && /ids\(r\.line\)/.test(pageJs) && pageJs.includes('const ids = (s) => esc(s).replace(ID_TOKEN'), 'the page escapes the records');
 assert.match(pageJs, /@media \(max-width: 760px\)[^\n]*\.records-cols \{ grid-template-columns: minmax\(0, 1fr\)/);
 console.log('three records on the pages: the same JSON, labelled, escaped, one column on a phone');
 console.log('incident-desk: ok');

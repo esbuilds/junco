@@ -28,92 +28,107 @@
   button, input { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   a { color: var(--ink); text-decoration-color: var(--line); text-underline-offset: 3px; }
-  header { padding: 20px 24px 8px; }
-  header .top { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-  header .top strong svg { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 6px; }
-  h1 { margin: 6px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+  /* One verdict, three records, everything else closed. Hairlines and space instead of boxes; matches Studio's Incidents page. */
+  .page { max-width: 1080px; margin: 0 auto; padding: 24px 32px 48px; }
+  .top { display: flex; gap: 8px 16px; align-items: baseline; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .top strong { color: var(--ink); font-size: 14px; }
+  .top strong svg { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 6px; }
+  .top .links { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-left: auto; }
   .muted { color: var(--muted); }
-  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 8px 24px 16px; }
-  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-  .stat .k { color: var(--muted); font-size: 13px; }
-  .stat .v { font-size: 24px; font-weight: 500; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 0 24px 32px; align-items: start; }
-  .card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
-  .card + .card { margin-top: 16px; }
+  h1 { margin: 44px 0 0; max-width: 32em; font-size: 30px; line-height: 38px; font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; overflow-wrap: anywhere; }
+  .status { margin: 14px 0 40px; max-width: 72ch; font-size: 15px; line-height: 22px; color: var(--muted); overflow-wrap: anywhere; text-wrap: pretty; }
+  .status strong { font-weight: 600; color: var(--ink); }
+  .status.differ { padding-left: 12px; border-left: 3px solid var(--warn); color: var(--warn); }
+  .status.differ strong { color: var(--warn); }
+  .status.open strong { color: var(--muted); }
+  code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: .92em; }
   [hidden] { display: none !important; }
-  .card h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ink); }
-  dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
-  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
-  ol.rail { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 1px solid var(--line); display: grid; gap: 10px; }
-  ol.rail li { position: relative; padding: 10px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); overflow-wrap: anywhere; }
-  ol.rail li::before { content: ''; position: absolute; left: -26px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); }
-  ol.rail li.live::before { border-color: var(--ok); background: var(--ok); }
-  ol.rail li.what-if { background: var(--whatif-bg); border: 1px dashed var(--whatif); }
-  ol.rail li.what-if::before { border-color: var(--whatif); border-style: dashed; }
+  dl { display: grid; gap: 16px; margin: 0; }
+  dl:has(.num) { gap: 12px; }
+  .rr dt { font-size: 13px; line-height: 18px; color: var(--muted); }
+  .rr dd { margin: 2px 0 0; line-height: 22px; overflow-wrap: anywhere; }
+  .rr dd ul { margin: 0; padding-left: 18px; }
+  .rr.num { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .rr.num dt { font-size: 14px; line-height: 22px; }
+  .rr.num dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .records-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1.4fr); }
+  .col { min-width: 0; overflow-wrap: anywhere; }
+  .col + .col { margin-left: 32px; padding-left: 32px; border-left: 1px solid var(--line); }
+  .col h2 { margin: 0 0 8px; font-size: 15px; line-height: 22px; font-weight: 600; }
+  .col .mode { display: inline-block; margin-bottom: 20px; }
+  #declined { max-width: 72ch; }
+  .legend { margin: 32px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+  .sections { margin-top: 28px; border-bottom: 1px solid var(--line); }
+  details { border-top: 1px solid var(--line); }
+  summary { display: flex; align-items: center; gap: 12px; min-height: 52px; font-weight: 500; cursor: pointer; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ''; width: 7px; height: 7px; margin-right: 4px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); }
+  details[open] > summary::after { transform: rotate(225deg); }
+  summary > span:first-child { margin-right: auto; }
+  summary .note { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .body { padding: 4px 0 28px; overflow-wrap: anywhere; }
+  .body > p:first-child { margin-top: 0; }
+  .body ul { margin: 0; padding-left: 18px; }
+  ol.rail { list-style: none; margin: 8px 0 0; padding: 0 0 0 20px; border-left: 1px solid var(--line); display: grid; gap: 22px; }
+  ol.rail li { overflow-wrap: anywhere; }
   ol.rail.focus-live li:not(.live) { opacity: .35; }
-  ol.rail.focus-live li.live { border-color: var(--ok); }
-  .ask { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 24px 4px; }
-  .ask button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; }
-  #answer { padding: 4px 24px 12px; margin: 0; min-height: 1.5em; }
-  @media (max-width: 760px) { .ask, #answer { padding-left: 16px; padding-right: 16px; } }
-  .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  ol.rail.focus-live li.live { font-weight: 500; }
+  .result { margin-top: 16px; padding: 12px 14px; background: var(--whatif-bg); border: 1px dashed var(--whatif); border-radius: 8px; overflow-wrap: anywhere; }
+  .ask { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ask button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 500; cursor: pointer; }
+  .ask button:hover:not(:disabled) { background: var(--surface-2); }
+  #answer { margin: 12px 0 0; }
+  #answer:empty { display: none; }
+  .meta { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .mode { font: 500 11px/16px 'Geist Mono', monospace; letter-spacing: 0.04em; padding: 0 6px; border-radius: 4px; border: 1px solid transparent; }
   .mode.live { background: var(--ink); color: var(--surface); }
   .mode.recorded { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
   .mode.what-if { border: 1px dashed var(--whatif); color: var(--whatif); }
   .refs { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .records { padding: 0 24px 16px; }
-  .records-line { margin: 0 0 8px; font-weight: 500; overflow-wrap: anywhere; }
-  .records-line.differ { padding-left: 10px; border-left: 3px solid var(--warn); color: var(--warn); }
-  .records-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
-  .records-cols .card + .card { margin-top: 0; }
-  .records-cols h2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .records-cols dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .records-cols dd { margin-bottom: 8px; }
-  .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
-  label { font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
-  /* The recorded-request options are long event summaries: the select fills its card and ends in an ellipsis instead of
-     stretching the card (a grid label's min-content is its widest child, so the label needs min-width 0 too). */
-  .row > label { min-width: 0; grid-template-columns: minmax(0, 1fr); }
-  select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background-color: var(--surface); }
-  input[type=number] { width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-  .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  .whatif { display: grid; grid-template-columns: minmax(0, 1fr) 160px max-content; gap: 12px; align-items: end; }
+  label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+  /* The recorded-request options are long event summaries: the select fills its column and ends in an ellipsis. */
+  select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background-color: var(--surface); font: inherit; color: var(--ink); }
+  input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .btn { display: inline-block; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; text-decoration: none; }
   .btn:disabled { opacity: .6; cursor: default; }
   .err { color: var(--danger); font-weight: 600; }
-  .demo { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
-  .demo p { margin: 8px 0; }
-  .qr { display: block; max-width: 100%; margin: 8px 0; image-rendering: pixelated; }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px 24px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px 16px; } header { padding: 16px 16px 8px; } .records { padding: 0 16px 16px; } .records-cols { grid-template-columns: minmax(0, 1fr); } }
+  .refund { margin: 0 0 40px; padding: 20px 24px; background: var(--surface-2); border-radius: 8px; overflow-wrap: anywhere; }
+  .refund h2 { margin: 0 0 8px; font-size: 15px; line-height: 22px; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
+  .demo { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin-top: 16px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+  .demo > div { flex: 1 1 280px; min-width: 0; }
+  .demo p { margin: 0 0 10px; }
+  .qr { display: block; width: 148px; max-width: 100%; image-rendering: pixelated; }
+  @media (max-width: 760px) { .page { padding: 20px 16px 32px; } h1 { margin-top: 32px; font-size: 24px; line-height: 30px; } .status { margin-bottom: 32px; } .top .links { margin-left: 0; } .refund { padding: 16px; } .demo { padding: 16px; } .qr { order: 2; } .records-cols { grid-template-columns: minmax(0, 1fr); gap: 24px; } .col + .col { margin-left: 0; padding-left: 0; padding-top: 24px; border-left: 0; border-top: 1px solid var(--line); } .whatif { grid-template-columns: minmax(0, 1fr); } }
+  @media (prefers-reduced-motion: no-preference) { summary::after { transition: transform .12s ease-out; } }
 </style>
 </head>
 <body>
-<header>
-  <div class="top"><strong><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</strong>
-    <span class="muted">Incident: one AI purchase or decline, start to finish, from the records</span>
-    <a href="/judges">For judges</a> <a href="/" title="No password is needed to look; the password lets you act">Desk (sign in to act)</a> <a id="receipt" href="#">Printable receipt</a> <a id="who-else" href="/who-else" hidden>Who else?</a></div>
-  <h1 id="title">Loading the incident...</h1>
-</header>
-<div class="stats" id="counts" aria-label="Money moves"></div>
-<div class="ask" aria-label="Ask the records"><button id="q-live">Which actions reached PayPal?</button><button id="q-missing">What's not in the records?</button><button id="q-whatif">What if the refund limit were lower?</button></div>
-<p id="answer" class="muted" aria-live="polite"></p>
+<div class="page">
+<nav class="top" aria-label="JUNCO"><strong><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="currentColor" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="var(--accent)"/></svg>JUNCO</strong>
+  <span>One AI purchase or decline, start to finish, from the records</span>
+  <span class="links"><a href="/judges">For judges</a> <a href="/" title="No password is needed to look; the password lets you act">Desk (sign in to act)</a> <a id="receipt" href="#">Printable receipt</a> <a id="who-else" href="/who-else" hidden>Who else?</a></span></nav>
+<h1 id="title">Loading the incident...</h1>
+<p class="status" id="status"></p>
+<section class="refund" id="refund-card" hidden><h2>Ask for your money back</h2><div id="refund"></div></section>
 <section class="records" id="records" aria-label="Three records" hidden></section>
-<main>
-  <section class="card" aria-labelledby="rail-h"><h2 id="rail-h">What happened</h2>
-    <p class="muted" style="margin-top:0">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
-    <ol class="rail" id="rail"></ol></section>
-  <div>
-    <section class="card"><h2>What the buyer allowed</h2><div id="authority"></div></section>
-    <section class="card"><h2 id="purchase-h">The purchase</h2><div id="purchase"></div></section>
-    <section class="card" id="refund-card" hidden><h2>Ask for your money back</h2><div id="refund"></div></section>
-    <section class="card" id="whatif-card"><h2>What if</h2>
-      <p class="muted" style="margin:0">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers). Nothing is sent to PayPal.</p>
-      <div class="row"><label style="flex:1 1 100%">Recorded request<select id="target"></select></label>
-        <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
-        <button class="btn" id="rerun">Re-run</button></div>
-      <div id="wi-out" aria-live="polite"></div></section>
-    <section class="card" id="missing-card" hidden><h2>Not in the records</h2><ul id="missing" style="margin:0;padding-left:18px"></ul></section>
-  </div>
-</main>
+<section id="declined" hidden></section>
+<p class="legend">LIVE: PayPal's sandbox did it. RECORDED: the desk's own record. WHAT-IF: the gate re-run on a recorded request; it never reaches PayPal.</p>
+<div class="sections">
+  <details id="rail-card"><summary><span>What happened</span><span class="note" id="rail-note"></span></summary><div class="body"><ol class="rail" id="rail"></ol></div></details>
+  <details id="missing-card"><summary><span>What's not in the records</span><span class="note" id="missing-note"></span></summary><div class="body"><p id="missing-line"></p><ul id="missing"></ul></div></details>
+  <details id="ask-card"><summary><span>Ask the records</span></summary><div class="body"><div class="ask"><button id="q-live">Which actions reached PayPal?</button><button id="q-missing">What's not in the records?</button><button id="q-whatif">What if the refund limit were lower?</button></div>
+    <p id="answer" class="muted" aria-live="polite"></p></div></details>
+  <details id="whatif-card"><summary><span>What if</span><span class="note">Nothing reaches PayPal</span></summary><div class="body">
+    <p class="muted">Re-run the gate on a recorded request with a different amount limit on its tool (refunds and offers).</p>
+    <div class="whatif"><label>Recorded request<select id="target"></select></label>
+      <label>Amount limit (USD)<input type="number" id="limit" min="0" max="10000" step="1" value="30"></label>
+      <button class="btn" id="rerun">Re-run</button></div>
+    <div id="wi-out" aria-live="polite"></div></div></details>
+  <details id="purchase-card"><summary><span>Purchase details</span></summary><div class="body" id="purchase"></div></details>
+</div>
+</div>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -124,42 +139,63 @@ const LIVE = ['purchase', 'payment', 'dispute', 'paypal', 'webhook'];
 const modeOf = (e) => e.mode ?? ((LIVE.includes(e.kind) && !e.id.endsWith(':leased')) || (e.kind === 'gate' && /^allow:/.test(e.ref?.rule ?? '')) ? 'live' : 'recorded');
 const LABEL = { live: 'LIVE', recorded: 'RECORDED', 'what-if': 'WHAT-IF' };
 const when = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-const dl = (pairs) => `<dl>${pairs.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+// Ids set in mono, so a sentence reads past them. ID_TOKEN repeats src/incident-questions.ts (checked by check-incident-desk).
+const ID_TOKEN = /\b(?:PP-[A-Z0-9-]{6,}|(?=[A-Z]*\d)[A-Z0-9]{13,}|(?=[a-f]*\d)[0-9a-f]{8})\b/g;
+const ids = (s) => esc(s).replace(ID_TOKEN, '<code>$&</code>');
+const dl = (pairs) => `<dl>${pairs.filter(([, v]) => v).map(([k, v]) => `<div class="rr${/^\d+$/.test(v) ? ' num' : ''}"><dt>${ids(k)}</dt><dd>${ids(v)}</dd></div>`).join('')}</dl>`;
 const item = (mode, at, actor, summary, refs) => `<li class="${mode}"><div class="meta"><span class="mode ${mode}">${LABEL[mode]}</span><span>${esc(at)}</span><span>${esc(actor)}</span></div>
-  <div>${summary}</div>${refs ? `<div class="refs">${esc(refs)}</div>` : ''}</li>`;
+  <div>${summary}</div>${refs ? `<div class="refs">${ids(refs)}</div>` : ''}</li>`;
+// The one-line verdict: repeats src/incident-questions.ts (checked by check-incident-desk).
+const verdict = (inc) => {
+  const p = inc.purchase;
+  if (!p) return 'The agent bought nothing.';
+  const item = p.listing.startsWith(`${p.sku} `) ? p.listing.split(',')[0] : p.sku;
+  const read = inc.events.find((e) => e.id === 'reconciliation:read'), status = read?.ref?.payment_status;
+  const back = inc.events.filter((e) => e.kind === 'reconciliation' && ['matched', 'settled', 'paypal_only'].includes(e.match ?? '')).map((e) => e.ref?.amount);
+  const waiting = inc.events.some((e) => e.kind === 'hold' && !inc.events.some((x) => x.id === `approval:${e.ref?.hold_id}`));
+  const ends = [inc.dispute_id && 'the buyer disputed it', back.length && `PayPal shows ${back.join(' and ')} refunded`, waiting && 'a held action is waiting for the owner',
+    inc.counts.outcome_unknown && 'a money move ended with its outcome unknown'].filter(Boolean);
+  if (!read || read.match === 'unread') ends.push(`PayPal ${read ? "didn't answer" : "wasn't read"}, so how it ended isn't confirmed`);
+  else if (!ends.length) ends.push(status === 'COMPLETED' ? 'PayPal shows it paid, with no dispute or refund on record' : `PayPal lists the payment as ${status}`);
+  return `The agent bought ${item} for ${p.amount}, and ${ends.length > 1 ? `${ends.slice(0, -1).join(', ')} and ${ends[ends.length - 1]}` : ends[0]}.`;
+};
 let inc;
 
 function render() {
   document.title = `JUNCO Incident ${inc.id}`;
-  $('#title').textContent = inc.title;
+  $('#title').textContent = verdict(inc);
   $('#receipt').href = `/incident/${encodeURIComponent(inc.id)}/receipt`;
   $('#who-else').hidden = !inc.dispute_id; $('#who-else').href = `/who-else?seed=${encodeURIComponent(inc.id)}`;
-  const c = inc.counts, d = inc.decline;
-  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved]] : []), ...(c.leased_approved ? [['Approved by a visitor on their leased case', c.leased_approved]] : []), ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
-    .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const d = inc.decline, r = inc.records;
   // A decline: the agent bought nothing, so there are no money moves to count and nothing for the what-if to re-run.
-  $('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
-  $('#records').hidden = !inc.records;
-  if (inc.records) $('#records').innerHTML = `<p class="records-line${inc.records.agree === false ? ' differ' : ''}">${esc(inc.records.line)}</p><div class="records-cols">`
-    + inc.records.columns.map((c) => `<div class="card"><h2><span class="mode ${c.mode}">${LABEL[c.mode]}</span>${esc(c.title)}</h2>${dl(c.rows.map((r) => [r.label, r.value]))}</div>`).join('') + '</div>';
-  $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, esc(e.summary),
+  $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
+  $('#status').className = `status${!r ? '' : r.agree === false ? ' differ' : r.agree ? '' : ' open'}`;
+  $('#status').innerHTML = r ? ids(r.line).replace(/^([^.]+\.)/, '<strong>$1</strong>') : 'No order was placed and no money moved.';
+  $('#records').hidden = !r;
+  if (r) $('#records').innerHTML = `<div class="records-cols">`
+    + r.columns.map((c) => `<div class="col"><h2>${esc(c.title)}</h2><span class="mode ${c.mode}">${LABEL[c.mode]}</span>${dl(c.rows.map((r) => [r.label, r.value]))}</div>`).join('') + '</div>';
+  $('#rail-note').textContent = `${inc.events.length} event${inc.events.length === 1 ? '' : 's'}`;
+  $('#rail').innerHTML = inc.events.map((e) => item(modeOf(e), when(e.at), `${e.actor} · ${e.source}`, ids(e.summary),
     Object.entries(e.ref ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · '))).join('');
   const a = inc.authority, p = inc.purchase;
-  $('#authority').innerHTML = a ? dl([['Instruction', a.instruction], ['Budget', a.budget], ['Agent', a.agent]]) : '<p class="muted">Not in the records.</p>';
-  $('#purchase-h').textContent = d ? 'What the agent chose not to buy' : 'The purchase';
-  if (d) $('#purchase').innerHTML = dl([['Outcome', 'Bought nothing. No order was placed and no money moved.'], ['Why the agent declined', d.reason]])
-    + (d.listings.length ? `<p class="muted" style="margin:12px 0 4px">Listings it saw</p><ul style="margin:0;padding-left:18px">${d.listings.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
-  else $('#purchase').innerHTML = p ? dl([['Item', p.listing], ['Amount', p.amount], ['Why the agent chose it', p.reason], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]) : '<p class="muted">Not in the records.</p>';
-  $('#missing-card').hidden = !inc.missing.length;
+  $('#declined').hidden = !d;
+  if (d) $('#declined').innerHTML = dl([['Asked', a?.instruction ?? 'not in the records'], ['Budget', a?.budget ?? 'not in the records'], ['Why it declined', d.reason]])
+    + (d.listings.length ? `<p class="muted" style="margin:16px 0 4px;font-size:13px">Listings it saw</p><ul style="margin:0;padding-left:18px">${d.listings.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
+  $('#purchase-card').hidden = !p;
+  if (p) $('#purchase').innerHTML = dl([['Incident', inc.id], ['Agent', a?.agent ?? 'not in the records'], ['Listing it saw', p.listing], ['Order', p.order_id], ['Capture', p.capture_id], ['Dispute', inc.dispute_id]]);
+  const n = inc.missing.length;
+  $('#missing-note').textContent = n ? `${n} listed` : 'Nothing listed';
+  $('#missing-line').textContent = notInRecords().text;
   $('#missing').innerHTML = inc.missing.map((m) => `<li>${esc(m)}</li>`).join('');
   // The what-if re-runs the gate's decision on a recorded call: a hold or a gate-log event, latest first.
   const calls = inc.events.filter((e) => e.kind === 'gate' || e.kind === 'hold').reverse();
-  $('#target').innerHTML = calls.map((e) => `<option value="${esc(e.id)}">${esc(when(e.at))}: ${esc(e.summary.slice(0, 90))}</option>`).join('') || '<option value="">No recorded money moves</option>';
-  $('#rerun').disabled = !calls.length;
+  $('#target').innerHTML = calls.map((e) => `<option value="${esc(e.id)}">${esc(when(e.at))}: ${esc(e.summary.slice(0, 90))}</option>`).join('');
+  if (!calls.length) $('#whatif-card').hidden = true;
   $('#q-whatif').textContent = whatIfPreset().label;
 }
 
 const answer = (t) => { $('#answer').textContent = t; };
+const reveal = (d) => { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
 const reachedPayPal = () => { const ids = inc.events.filter((e) => modeOf(e) === 'live').map((e) => e.id), n = inc.events.length;
   return { ids, text: ids.length ? `${ids.length} of ${n} events reached PayPal or came from it (LIVE). The other ${n - ids.length} stayed inside the desk.` : 'Nothing in this incident reached PayPal.' }; };
 const notInRecords = () => { const facts = inc.events.length + Object.values(inc.authority ?? {}).filter(Boolean).length + Object.values(inc.purchase ?? {}).filter(Boolean).length + (inc.dispute_id ? 1 : 0);
@@ -175,12 +211,12 @@ async function runWhatIf(eventId, limit) {
   const w = await r.json();
   if (!r.ok) throw Object.assign(new Error(w.error?.message ?? r.status), { status: r.status });
   const same = w.before.verdict === w.after.verdict;
-  $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.${w.note ? ` ${esc(w.note)}` : ''}`)}</ol>`;
+  $('#wi-out').innerHTML = `<div class="result"><div class="meta"><span class="mode what-if">WHAT-IF</span><span>${esc(w.change)}</span><span>gate, re-run</span></div><div>${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}</div><div class="refs">PayPal calls: ${w.paypal_calls}. Nothing was sent.${w.note ? ` ${esc(w.note)}` : ''}</div></div>`;
   return w;
 }
 
-$('#q-live').addEventListener('click', () => { $('#rail').classList.add('focus-live'); answer(reachedPayPal().text); });
-$('#q-missing').addEventListener('click', () => { $('#rail').classList.remove('focus-live'); const q = notInRecords(); answer(q.text); if (q.missing.length) $('#missing-card').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('#q-live').addEventListener('click', () => { $('#rail').classList.add('focus-live'); answer(reachedPayPal().text); reveal($('#rail-card')); });
+$('#q-missing').addEventListener('click', () => { $('#rail').classList.remove('focus-live'); answer(notInRecords().text); reveal($('#missing-card')); });
 $('#q-whatif').addEventListener('click', async (ev) => {
   $('#rail').classList.remove('focus-live');
   const p = whatIfPreset();
@@ -189,7 +225,7 @@ $('#q-whatif').addEventListener('click', async (ev) => {
   try {
     // Newest recorded move first; one without an amount limit (an accept, a message) answers 400 and the next is tried.
     for (const t of p.targets) {
-      try { const w = await runWhatIf(t, p.limit); $('#target').value = t; answer(`Re-ran ${w.method.replace(/_/g, ' ')} at a $${p.limit} limit: ${w.before.verdict} then, ${w.after.verdict} now. Nothing was sent to PayPal.`); $('#wi-out').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      try { const w = await runWhatIf(t, p.limit); $('#target').value = t; answer(`Re-ran ${w.method.replace(/_/g, ' ')} at a $${p.limit} limit: ${w.before.verdict} then, ${w.after.verdict} now. Nothing was sent to PayPal.`); reveal($('#whatif-card')); return; }
       catch (e) { if (e.status !== 400) throw e; }
     }
     answer('None of the recorded moves has an amount limit to change: accepts and messages have none. Nothing was sent to PayPal.');
@@ -222,10 +258,10 @@ const askText = (a) => {
   return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<p class="muted">The support agent's reply, in the AI's own words:<br>${aiLines(a.ai).map(esc).join('<br>')}</p>` : ''}`;
 };
 // "Approve it yourself": only ever on this visitor's own held ask; the desk adds it for them and nobody else (demo-approver.ts).
-const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><h2>Approve it yourself</h2>
+const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><img class="qr" src="${esc(d.qr)}" alt="QR code for your approve link"><div><h2>Approve it yourself</h2>
   <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
-  <img class="qr" src="${esc(d.qr)}" alt="QR code for your approve link"><p><a href="${esc(d.url)}">Open your approve link here</a></p>
-  <p class="muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div>`
+  <p><a class="btn" href="${esc(d.url)}">Open your approve link here</a></p>
+  <p class="muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div></div>`
   : `<p class="muted">${esc(d.why)}</p>`;
 function renderRefund() {
   const r = inc.refund;
@@ -234,7 +270,7 @@ function renderRefund() {
   if (r.ask) { $('#refund').innerHTML = askText(r.ask) + demoBox(r.demo); return; }
   if (!r.can_ask) return;
   $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
-    <div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
+    <div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"></label>
     <button class="btn" id="refund-ask">Ask the support agent for a refund</button></div><div id="refund-out" aria-live="polite"></div>`;
   $('#refund-ask').addEventListener('click', async (ev) => {
     ev.target.disabled = true; ev.target.textContent = 'The support agent is reading your purchase...';

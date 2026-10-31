@@ -69,7 +69,7 @@ assert.equal(whatIfPreset(d).none, NOTHING_BOUGHT);
 assert.equal(reachedPayPal(d).text, 'Nothing in this incident reached PayPal.');
 assert.ok(!/undefined/.test(notInRecords(d).text));
 assert.throws(() => whatIf(`decline:${ID}`, { max_amount: 1 }), /No recorded request/);
-assert.ok(page.includes(NOTHING_BOUGHT) && page.includes("$('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;"), 'the page no longer hides counts and the what-if for a decline');
+assert.ok(page.includes(NOTHING_BOUGHT) && page.includes("$('#whatif-card').hidden = $('#q-whatif').hidden = !!d;"), 'the page no longer hides the what-if for a decline');
 console.log('render: receipt, questions and page say bought nothing; no counts, no what-if');
 
 const { gate, loadPolicy } = await import('./gate.js');
