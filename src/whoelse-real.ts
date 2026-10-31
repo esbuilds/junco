@@ -1,13 +1,14 @@
 // Who else? on the real records, run by hand after a deploy: reads the hosted desk's public incidents (GETs only, no hold, no
 // write) and runs the finder three times on each seed, with the owner's note given here. Not in CI: it calls Claude, about $0.05 a run. Spec: docs/superpowers/specs.
 //   npm run whoelse-real            both tests   DESK_URL= points it at another desk
+//   npm run whoelse-real agents     each remaining silent purchase's agent reads the notice, 3 times, with a fake request_remedy: no hold, nothing reaches the desk
 //   npm run whoelse-real trial      a proposed correction, then the seed's ask 3 times with it, in a temp folder: no order, nothing kept
 // The cohort comes from the records as they stand, so a new purchase or a new dispute needs no edit here.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { correctListing, shop } from './shopper.js';
-import { assemble, ask, proposeCorrection, type Finding } from './whoelse.js';
+import { assemble, ask, buyerAgent, buyerContext, noticeText, proposeCorrection, type Finding } from './whoelse.js';
 import type { Incident } from './incident-types.js';
 import type { Member } from './whoelse-types.js';
 
@@ -33,6 +34,26 @@ if (process.argv[2] === 'trial') {
   console.log(`proposed for ${seed.purchase!.sku}: ${fix.text}`);
   correctListing(seed.purchase!.sku, fix.text);
   for (let n = 1; n <= RUNS; n++) console.log(`trial ${n}:`, JSON.stringify(await shop(seed.authority!.instruction, parseFloat(seed.authority!.budget).toFixed(2))));
+  process.exit(0);
+}
+if (process.argv[2] === 'agents') {
+  process.chdir(mkdtempSync(join(tmpdir(), 'junco-whoelse-agents-'))); // the spend meter stays here
+  const run = (await get('/api/who-else')).latest, planned = new Set(run.remedies.map((r: any) => r.capture_id));
+  const budget = (id: string) => all.find((i) => i.id === id)?.authority?.budget ?? 'not in the records';
+  const silent = run.members.filter((m: Member) => m.bucket === 'silent' && !planned.has(m.capture_id));
+  // Controls: all the silent purchases share one ask, so asking alone proves nothing. The same notice goes to purchases whose person didn't ask for carry-on.
+  const fair = run.members.filter((m: Member) => m.sku === 'WKD-03').slice(0, 2);
+  const roadTrip = { ...silent[0], instruction: 'A nice weekend bag for road trips in the car. Keep it under $70.', reason: 'At $62 it\'s under the $70 budget, and the waxed canvas and leather handles look nice for road trips.' };
+  const cases: [string, Member, string][] = [...silent.map((m: Member) => ['silent', m, budget(m.incident_id)] as [string, Member, string]), ...fair.map((m: Member) => ['control, real', m, budget(m.incident_id)] as [string, Member, string]), ['control, SYNTHETIC ask', roadTrip, '70.00 USD']];
+  const notice = noticeText(run.cause.summary);
+  console.log(`notice: ${notice}\n`);
+  let spent = 0;
+  for (let n = 1; n <= RUNS; n++) for (const [kind, m, b] of cases) {
+    const r = await buyerAgent(buyerContext(m, b), notice, async () => "Your request is with the store's owner. Nothing happens until they decide.");
+    spent += r.usd;
+    console.log(`run ${n} ${kind} ${m.incident_id.slice(-6)} ${m.sku}: ${r.asked !== null ? 'ASKED' : r.words ? 'DECLINED' : 'FAILED'}${r.read ? '' : ' (never read the notice)'}: ${r.asked ?? r.words}`);
+  }
+  console.log(`\n$${spent.toFixed(2)}`);
   process.exit(0);
 }
 let usd = 0, failed = 0;

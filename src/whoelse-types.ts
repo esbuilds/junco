@@ -48,6 +48,10 @@ export type Correction = { sku: string; text: string; at: string | null }; // at
 // The same ask, after a correction, run through the shopping agent with no order placed.
 export type Trial = { at: string; instruction: string; budget: string; outcome: 'bought' | 'declined'; sku: string | null; reason: string };
 
+// What a buyer's own shopping agent did with the store's notice. asked: it asked for the remedy and the gate holds a refund for the
+// owner. declined: it read the notice and said this doesn't apply to what its person asked for, a real, good outcome. failed: nothing was held.
+export type AgentNotice = { capture_id: string; incident_id: string; at: string; outcome: 'asked' | 'declined' | 'failed'; reason: string; hold_id: string | null };
+
 export type WhoElseRun = {
   id: string;
   at: string;
@@ -55,7 +59,9 @@ export type WhoElseRun = {
   cause: { summary: string; quotes: Quote[] }; // summary: the owner's own note on the seed, word for word; quotes: the seed's records that show it
   members: Member[];            // every purchase looked at, seed included
   draft_note: string;           // what note_to_payer will say, built by code from the owner's note, shown before the owner plans
-  remedies: Remedy[];           // empty until the owner plans; one per silent purchase they kept
+  notice: string;               // what a buyer's agent reads, built by code from the owner's note, shown before the owner sends it
+  remedies: Remedy[];           // empty until the owner plans or a buyer's agent asks; one per silent purchase
+  notices: AgentNotice[];       // one per purchase told; [] on any run stored before agents could be told
   corrections: Correction[];
   trials: Trial[];
   mode: 'live' | 'recorded';    // live: this run's PayPal reads answered. recorded: shown after the cap, from a finished run
@@ -63,16 +69,17 @@ export type WhoElseRun = {
   cost_usd: number;
 };
 
-export type WhoElseScore = { runs: number; purchases_read: number; silent_found: number; refunds_proposed: number; refunds_confirmed: number };
+export type WhoElseScore = { runs: number; purchases_read: number; silent_found: number; refunds_proposed: number; refunds_confirmed: number; agents_told: number; agents_asked: number; agents_declined: number }; // agents_*: purchases, not buyers
 
 // What the owner says went wrong on one purchase. The model never decides this: PayPal's reason code names no cause, and the
 // sandbox drops the buyer's words. A run needs a note on its seed.
 export type SeedNote = { incident_id: string; title: string; text: string; at: string };
 
-// GET  /api/who-else                      public   { latest: WhoElseRun | null, score: WhoElseScore, left: number, seeds: SeedNote[] }
+// GET  /api/who-else                      public   { latest: WhoElseRun | null, score: WhoElseScore, left: number, agents_left: number, seeds: SeedNote[] }
 // POST /api/who-else/note { seed, text }  owner    sets the note on a seed
 // POST /api/who-else/run  { seed }        public   runs the finder on a seed with a note, capped; moves no money and makes no hold
 // GET  /api/who-else/run/<id>             public   a run, with hold and refund states read fresh
 // POST /api/who-else/run/<id>/plan  { captures: string[] }   owner   one held create_refund per capture, from `silent` only
+// POST /api/who-else/run/<id>/notify { captures: string[] } owner   tells each purchase's agent, from `silent` only; capped; an agent that asks makes one held create_refund
 // POST /api/who-else/run/<id>/approve-all                    owner   runs each pending hold in order, one by one, through decideHold
 // POST /api/who-else/run/<id>/correct { sku, text }          owner   applies a listing correction, then runs 3 trials

@@ -27,7 +27,7 @@ const closed: [string, string][] = [
   ['POST', '/drill'], ['GET', '/drill/x'], ['GET', '/api/drill'], ['POST', '/api/drill'], ['GET', '/api/drill/run'], ['POST', '/api/drill/run/x'], ['PUT', '/api/drill/run'],
   ['POST', '/api/drill/score'], ['GET', '/api/drill/run/x/y'], ['GET', `/api/drill/run/${'x'.repeat(65)}`],
   ['POST', '/who-else'], ['GET', '/who-else/x'], ['POST', '/api/who-else'], ['GET', '/api/who-else/note'], ['POST', '/api/who-else/note'], ['GET', '/api/who-else/run'], ['POST', '/api/who-else/run/x'],
-  ['GET', '/api/who-else/run/x/y'], ['POST', '/api/who-else/run/x/plan'], ['POST', '/api/who-else/run/x/approve-all'], ['POST', '/api/who-else/run/x/correct'], ['GET', `/api/who-else/run/${'x'.repeat(65)}`],
+  ['GET', '/api/who-else/run/x/y'], ['POST', '/api/who-else/run/x/plan'], ['POST', '/api/who-else/run/x/approve-all'], ['POST', '/api/who-else/run/x/notify'], ['POST', '/api/who-else/run/x/correct'], ['GET', `/api/who-else/run/${'x'.repeat(65)}`],
 ];
 for (const [m, p] of open) assert.ok(isPublic(m, p), `${m} ${p} should open`);
 for (const [m, p] of closed) assert.ok(!isPublic(m, p), `${m} ${p} must stay behind the password`);
