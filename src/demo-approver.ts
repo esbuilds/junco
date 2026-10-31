@@ -120,7 +120,7 @@ export function demoPage(h: Hold | null, q: Q, id: string, note?: { ok: boolean;
     <h1>${esc(holdAction(h))}</h1>
     <p>${esc(YOU_ARE)}</p>
     ${(() => { const p = h && photoForHold(id); return p ? photoHtml({ thumb: p.thumb, visible: p.vision.visible, looks: looksLine(p.vision), limits: LIMITS }) : ''; })()}
-    <p class="m">This is PayPal's sandbox, so no real money moves. This link proves you hold it, not who you are, and you aren't the store's owner: the record will say ${esc(DEMO_APPROVER)}.</p>
+    <p class="m">PayPal's sandbox, no real money. This link proves you hold it, not who you are. The record will say ${esc(DEMO_APPROVER)}, never the owner.</p>
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && h.recheck ? `<p class="err">PayPal says this changed since it was held (${esc(h.recheck.event)}). Approving re-reads it first.</p>` : ''}
     ${open ? `<form method="post">
@@ -128,7 +128,7 @@ export function demoPage(h: Hold | null, q: Q, id: string, note?: { ok: boolean;
       <button name="verb" value="approve" class="a">Approve</button>
       <button name="verb" value="reject" class="r">Reject</button>
     </form>
-    <p class="m">It works once. Approving re-reads the payment on PayPal first, and if it has changed since this was held, nothing is sent.</p>`
+    <p class="m">It works once. Approving re-reads PayPal first. If it changed, nothing is sent.</p>`
     : !note ? `<p>${esc(used(id) ? 'This link has been used.' : ENDED[h.status] ?? `This hold is already ${h.status}.`)}</p>` : ''}
     ${!open ? '<p class="m">The incident page you came from shows this too.</p>' : ''}`; // no link: a visitor's purchase is closed to a phone with no password
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
