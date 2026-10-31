@@ -25,7 +25,7 @@ export function QueueWidget() {
     { field: 'amount', headerName: 'Amount', width: 108, type: 'rightAligned', cellClass: 'jd-num', valueFormatter: (p) => `${money(p.value, p.data?.currency).replace(/[^\d.,]/g, '')} ${p.data?.currency ?? ''}` },
     {
       // Status and deadline in one column: "Your turn · 10 days". Sorting follows the deadline.
-      field: 'status', headerName: 'Status', flex: 1.3, minWidth: 140,
+      field: 'status', headerName: 'Status', flex: 1.3, minWidth: 140, sort: 'asc', // soonest deadline on page one
       comparator: (_a: string, _b: string, na: any, nb: any) => (na.data?.due ? Date.parse(na.data.due) : Infinity) - (nb.data?.due ? Date.parse(nb.data.due) : Infinity),
       cellRenderer: (p: { data?: CaseRow }) => {
         // Copper only when it's the merchant's move; every other status is gray.
@@ -48,11 +48,8 @@ export function QueueWidget() {
   // Re-style the selected row when the selection changes elsewhere on the dashboard.
   useEffect(() => { gridApi.current?.redrawRows(); }, [selected]);
 
-  const total = (data ?? []).reduce((s, r) => s + r.amount, 0);
-  const cur = data?.[0]?.currency ?? 'USD';
-
   return (
-    <Panel title="Dispute queue" subtitle={data ? `${data.length} open · ${money(total, cur)} in dispute` : 'Loading'} live>
+    <Panel title="Dispute queue" subtitle={data ? undefined : 'Loading'} live>
       {error && <div className="jd-result jd-err">{error}</div>}
       <div className="jd-grid">
         <AgGridReact<CaseRow>
@@ -67,6 +64,9 @@ export function QueueWidget() {
           // The case opens under the queue, so a click brings it into view.
           onRowClicked={(e) => { if (e.data) { selectCase(e.data.id); setTimeout(() => document.getElementById('jd-case')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); } }}
           domLayout="autoHeight"
+          pagination
+          paginationPageSize={6}
+          paginationPageSizeSelector={false}
           overlayNoRowsTemplate='<span class="jd-muted">No disputes in this sandbox account.</span>'
         />
       </div>
