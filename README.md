@@ -2,7 +2,7 @@
 
 [![checks](https://github.com/esbuilds/junco/actions/workflows/checks.yml/badge.svg)](https://github.com/esbuilds/junco/actions/workflows/checks.yml)
 
-**JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.** This sandbox demo has two exceptions, both a visitor's own test: they decide holds on a case they lease, and they can approve the one refund on their own demo purchase, which is labelled as theirs.
+**JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.** This sandbox demo has two exceptions, each a visitor's own test and each recorded as theirs: holds on a case they lease, and the one refund on their own demo purchase.
 
 ## For judges
 
