@@ -28,7 +28,7 @@ function ToolMatrix() {
   const keys = [...groups.keys()].sort((a, b) => (CLASS_ORDER.indexOf(a) + 1 || 9) - (CLASS_ORDER.indexOf(b) + 1 || 9));
   return (
     <details className="jd-whatif">
-      <summary><strong>Every tool the gate knows ({data.tools.length})</strong> <span className="jd-muted">JUNCO's and PayPal's hosted MCP server's. A tool with no class is denied.{data.hosted_connected ? '' : " PayPal's hosted server isn't connected right now."}</span></summary>
+      <summary><strong>Every tool the gate knows ({data.tools.length})</strong> <span className="jd-muted">No class means denied.{data.hosted_connected ? '' : " PayPal's hosted server isn't connected."}</span></summary>
       {keys.map((k) => (
         <div key={k} className="jd-matrix-row">
           <strong>{k}</strong>
@@ -65,15 +65,15 @@ export function PolicyWidget() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(data);
 
   return (
-    <Panel hug title="Policy" subtitle="What JUNCO does on its own, and what waits for you">
+    <Panel hug title="Policy">
       <div className="jd-split"><div>
       <label className="jd-policy-row">
-        <span><strong>Auto-offer limit</strong><span className="jd-muted">Partial refund offers up to this amount go out without asking. Larger offers wait for you.</span></span>
+        <span><strong>Auto-offer limit</strong><span className="jd-muted">Larger offers wait for you.</span></span>
         <span className="jd-money-input">$<input type="number" min={0} max={500} step={1} value={draft.offer_limit}
           onChange={(e) => setDraft({ ...draft, offer_limit: Number(e.target.value) })} aria-label="Auto-offer limit in dollars" /></span>
       </label>
       <label className="jd-policy-row">
-        <span><strong>Ship-by window</strong><span className="jd-muted">Shipment watch flags a paid order with no tracking on PayPal after this many days.</span></span>
+        <span><strong>Ship-by window</strong><span className="jd-muted">Paid orders with no tracking get flagged.</span></span>
         <span className="jd-money-input"><input type="number" min={1} max={30} step={1} value={draft.ship_within_days}
           onChange={(e) => setDraft({ ...draft, ship_within_days: Number(e.target.value) })} aria-label="Ship-by window in days" /> days</span>
       </label>
@@ -95,12 +95,12 @@ export function PolicyWidget() {
       </div><div>
       {what && what.total > 0 && (
         <div className="jd-whatif" aria-live="polite">
-          <strong>JUNCO would have handled {what.handled} of {what.total} recommended action{what.total === 1 ? '' : 's'} without you</strong>
-          <span className="jd-muted">{dirty ? 'with these unsaved settings' : 'with the current policy'}, replaying its saved recommendations. The rest would wait for your OK.</span>
+          <strong>{what.handled} of {what.total} recommended action{what.total === 1 ? '' : 's'} would run without you</strong>
+          <span className="jd-muted">{dirty ? 'Unsaved settings' : 'Current policy'}, on saved recommendations.</span>
           <span className="jd-whatif-cases">{what.cases.map((c) => <span key={c.id} className={`jd-badge ${c.handled ? 'jd-b-contest' : 'jd-b-held'}`} title={c.id}>{c.decision} {c.handled ? 'runs' : 'waits'}</span>)}</span>
         </div>
       )}
-      <p className="jd-muted">The desk is yours to arrange: on the Desk, drag any edge of a panel to resize it, and this browser remembers it. <button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem(DESK_LAYOUT_KEY); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
+      <p className="jd-muted" title="On the Desk, drag any edge of a panel to resize it. This browser remembers it."><button type="button" className="jd-linkish" onClick={() => { try { localStorage.removeItem(DESK_LAYOUT_KEY); } catch { /* nothing saved */ } location.reload(); }}>Reset the layout</button></p>
       <ToolMatrix />
       </div></div>
     </Panel>
