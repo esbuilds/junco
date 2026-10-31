@@ -57,17 +57,17 @@ export function OrdersWidget() {
 
   const atRisk = items.filter((o) => o.status === 'at_risk').length;
   return (
-    <Panel title="Shipment watch" subtitle={!data ? 'Loading' : `${items.length} paid order${items.length === 1 ? '' : 's'} watched · ${atRisk} at risk`} live>
+    <Panel title="Shipment watch" subtitle={!data ? 'Loading' : `${items.length} paid order${items.length === 1 ? '' : 's'} · ${atRisk} at risk`} live>
       {error && <div className="jd-result jd-err">{error}</div>}
       <p className="jd-muted" style={{ margin: '0 0 8px' }}>
-        Every captured PayPal payment is watched until it has tracking. Seller Protection needs a verifiable tracking number and shipping to the address on the order (<a href={data?.seller_protection_page} target="_blank" rel="noreferrer">PayPal's Seller Protection terms</a>). Ship-by time is your policy.
+        Watched until tracking is on PayPal. <a href={data?.seller_protection_page} target="_blank" rel="noreferrer" title="Seller Protection needs a verifiable tracking number and shipping to the address on the order.">Seller Protection terms</a>
       </p>
       <div className="jd-grid">
         <AgGridReact<Watched>
           theme={gridTheme} rowData={sorted} loading={!data && !error} columnDefs={columns} getRowId={(p) => p.data.capture_id}
           rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
           onRowClicked={(e) => { if (e.data) { setPick(e.data.capture_id); setMsg(null); } }}
-          domLayout="autoHeight" overlayNoRowsTemplate='<span class="jd-muted">No captured payments yet. New ones appear here within seconds.</span>'
+          domLayout="autoHeight" overlayNoRowsTemplate='<span class="jd-muted">No captured payments yet.</span>'
         />
       </div>
       {sel && sel.status !== 'protected' && (
