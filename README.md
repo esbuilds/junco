@@ -28,7 +28,7 @@
 
 ## Why
 
-Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates to a claim can also cost a [$15 dispute fee](https://www.paypal.com/us/webapps/mpp/merchant-fees#statement-19), which [PayPal doesn't charge](https://www.paypal.com/us/legalhub/paypal/useragreement-full) when it's resolved with the buyer first. And shopping agents now buy things for people, so a buyer can dispute an order their own agent picked, and the seller still has to answer it.
+Small online sellers lose PayPal disputes they could have won. Pulling the order, the tracking and the messages together takes an evening, the 10-day response window slips by, and refunding starts to feel easier. A case that escalates to a claim can also cost a [$15 dispute fee](https://www.paypal.com/us/webapps/mpp/merchant-fees#statement-19), which [PayPal may not charge](https://www.paypal.com/us/legalhub/paypal/useragreement-full) when it's resolved with the buyer first. And shopping agents now buy things for people, so a buyer can dispute an order their own agent picked, and the seller still has to answer it.
 
 JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends one action: message the buyer, offer a partial refund, contest with evidence, accept, or wait while PayPal reviews. Every claim it makes cites a numbered piece of evidence, and plain code checks those citations, the quotes and the message to the buyer before anything happens. What the AI concludes is still the AI's. What it's allowed to do is checked against PayPal's case and the owner's policy.
 
