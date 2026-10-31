@@ -5,7 +5,7 @@
 // visitor's private purchase lists only for them and the owner. PayPal's GET comes from the desk; this file holds no client.
 import { byDifference, threeRecords } from './incident-questions.js';
 import type { BooksRow, Incident } from './incident-types.js';
-import { buildIncident, listIncidents, reconciled, replay } from './incident.js';
+import { buildIncident, listIncidents, reconciled, replay, totalNote } from './incident.js';
 import type { PayPalGet } from './reconcile.js';
 
 const READS_AT_ONCE = 4; // ponytail: a cold page is purchases / 4 of about 1.3 s each; a queue if the books ever reach hundreds
@@ -23,8 +23,9 @@ export function bookRow(inc: Incident, at: string): BooksRow {
     holds: inc.events.filter((e) => e.kind === 'hold').length,
     fingerprint: !fp ? 'Before fingerprints' : FINGERPRINT[fp.match as keyof typeof FINGERPRINT] ?? 'Not read',
     reconciliation: records?.agree === false ? 'Differ' : records?.agree ? 'Agree' : 'Unread', line: records?.line ?? '',
-    replay: !moves.length ? 'No moves' : moves.some((m) => m.before !== m.after) ? 'Changed today' : 'Same today',
-    replay_detail: moves.map((m) => `${m.method.replace(/_/g, ' ')}: ${m.before} then, ${m.after} today.`).join(' ') || 'No money moves to re-run.',
+    // A hold made by the daily total reads as allow on a re-run of one call. That isn't a rule that changed.
+    replay: !moves.length ? 'No moves' : moves.some((m) => m.before !== m.after && !m.by_total) ? 'Changed today' : 'Same today',
+    replay_detail: [moves.map((m) => `${m.method.replace(/_/g, ' ')}: ${m.before} then, ${m.after} today.`).join(' ') || 'No money moves to re-run.', moves.length ? totalNote() : undefined].filter(Boolean).join(' '),
   };
 }
 

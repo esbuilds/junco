@@ -103,7 +103,7 @@ export async function run(ctx: Ctx, method: string, a: any): Promise<string> {
   const tool = tools.find((t) => t.method === method) as Tool | undefined;
   if (!tool) return JSON.stringify({ error: { message: `Unknown method ${method}` } });
   const parsed = tool.parameters.safeParse(a);
-  if (!parsed.success) return JSON.stringify({ error: { message: parsed.error.issues.map((i) => i.message).join('; ') } });
+  if (!parsed.success) return JSON.stringify({ error: { message: parsed.error.issues.map((i) => i.message).join('; '), type: 'invalid_arguments' } });
   a = parsed.data;
   const bad = checkArgs(method, a);
   if (bad) return JSON.stringify({ error: { message: bad, type: 'invalid_arguments' } });

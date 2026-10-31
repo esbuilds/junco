@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { mirror } from './persist.js';
-import { decide as policyDecide, gate as wrap, jsonStore, type Decision, type Guard, type Hold as PkgHold, type Policy as PkgPolicy, type Verdict } from '../packages/junco-gate/src/index.js';
+import { dayTotal, decide as policyDecide, gate as wrap, jsonStore, jsonTotal, type DayTotal, type Decision, type Guard, type Hold as PkgHold, type Policy as PkgPolicy, type Verdict } from '../packages/junco-gate/src/index.js';
 
 export type { Verdict, Rule, HoldStatus, Guard } from '../packages/junco-gate/src/index.js';
 export type Policy = PkgPolicy & { ship_within_days?: number };
@@ -26,7 +26,7 @@ const SAVED_POLICY = '.junco/policy.json';
 // Saved edits only cover owner-editable tools, so the repo's default and its newer tool entries always apply.
 export const loadActivePolicy = (): Policy => {
   const repo = loadPolicy();
-  try { const saved = loadPolicy(SAVED_POLICY); return { ...saved, default: repo.default, tools: { ...repo.tools, ...saved.tools } }; } catch { return repo; }
+  try { const saved = loadPolicy(SAVED_POLICY); return { ...saved, default: repo.default, daily_total: repo.daily_total, tools: { ...repo.tools, ...saved.tools } }; } catch { return repo; }
 };
 // One line per tool for the Policy page matrix.
 export function toolClass(policy: Policy, name: string): string {
@@ -102,6 +102,20 @@ export const logMove = (source: string) => (d: Decision) => {
   mkdirSync('.junco', { recursive: true }); writeFileSync(MOVES, JSON.stringify(all, null, 2)); mirror(MOVES, all);
 };
 
+// The gate's daily total (policy.daily_total), in one file every gate in this process shares, mirrored so a restart keeps it.
+// What it counts for the desk: every money tool, a standing accept at the disputed amount. Anything else is the package's default.
+const totals = jsonTotal('.junco/daily-total.json', mirror);
+export const moneyCall = (method: string, args: any) => {
+  if (!MONEY.includes(method)) return undefined;
+  const b = method === 'accept_dispute_claim' && args?.dispute_id ? readBudgets()[args.dispute_id] : undefined;
+  if (b) return { value: b.amount, currency: b.currency };
+  const value = amountOf(args);
+  return { value: value === null || Number.isNaN(value) ? null : value, currency: args?.offer_amount?.currency_code ?? args?.amount?.currency_code };
+};
+// For the Gate record. Offers count though no money moves until a buyer accepts, so this reads "approved in advance", never money out.
+export const dailyTotalView = (policy: Policy) => { const t: DayTotal = dayTotal(totals.read()); return policy.daily_total
+  ? { day: t.day, approved_in_advance: (t.cents / 100).toFixed(2), max: policy.daily_total.max, calls: t.calls, currency: 'USD' } : null; };
+
 export type RecordRow = { at: string; source: string; dispute_id: string | null; method: string; amount: string | null;
   verdict: Verdict | 'gate-only'; outcome: string; hold_id?: string; run_id?: string; reason: string };
 const OUTCOME: Record<string, string> = { pending: 'held, waiting for the owner', executing: 'approved by the owner, running',
@@ -162,7 +176,7 @@ export async function settleResolved(getCase: (id: string) => Promise<any>) {
 export function gate(server: any, policy: Policy, onHold?: (h: Hold) => void, getCase?: (id: string) => Promise<any>, origin?: string, log?: (d: Decision) => void, getCapture?: (id: string) => Promise<any>) {
   const hooks = paypalDisputeHooks(getCase ?? (async () => null), getCapture, readHolds);
   return wrap(server, policy, {
-    store, guards, origin, log, onHold: onHold as (h: PkgHold) => void,
+    store, guards, origin, log, onHold: onHold as (h: PkgHold) => void, totals, money: moneyCall,
     allow: (method, args) => standing(method, args),
     ...hooks,
     // The one-refund rule's second witness: a refund PayPal itself reported on this payment after the hold was made.

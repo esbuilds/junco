@@ -98,7 +98,8 @@ assert.deepEqual(shuffled.map((r) => r.purchase), rows.map((r) => r.purchase), '
 console.log('order: differences pinned first, then what went unread');
 
 assert.deepEqual([row('CAPREPLAY').holds, row('CAPREPLAY').replay], [1, 'Changed today']);
-assert.equal(row('CAPREPLAY').replay_detail, 'create refund: hold then, hold today. create refund: allow then, hold today.'); // oldest first
+const { NO_TOTAL } = await import('./incident.js');
+assert.equal(row('CAPREPLAY').replay_detail, `create refund: hold then, hold today. create refund: allow then, hold today. ${NO_TOTAL}`); // oldest first
 assert.equal(row('CAPAGREE').replay, 'No moves');
 const same = await asOwner(() => { put('gate-log.json', []); return books(get); });
 assert.equal(same.find((r) => r.purchase === txn('CAPREPLAY'))!.replay, 'Same today');

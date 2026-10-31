@@ -84,4 +84,5 @@ export type WhatIf = {
   before: { verdict: string; reason: string };
   after: { verdict: string; reason: string };
   paypal_calls: 0;   // by construction: the what-if path has no PayPal client
+  note?: string;     // what the re-run can't show: set while the policy has a daily total
 };

@@ -1,5 +1,6 @@
 {
   "default": "deny",
+  "daily_total": { "max": 100, "over": "hold" },
   "tools": {
     "list_disputes": "read",
     "get_dispute": "read",

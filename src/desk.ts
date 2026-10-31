@@ -17,7 +17,7 @@ import { createHostedServer, hosted, hostedHealth } from './hosted.js';
 import { paypal } from './disputes.js';
 import { recommend, collectEvidence, gatherFromPayPal } from './recommend.js';
 import { randomUUID } from 'node:crypto';
-import { guards, settleResolved, flagHolds, readHolds, gateRecord, logMove, readMoves, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
+import { dailyTotalView, guards, settleResolved, flagHolds, readHolds, gateRecord, logMove, readMoves, savePolicy, readBudgets, setBudget, movesMoney, toolClass, decide as gateDecide, type Hold, type Policy } from './gate.js';
 import { makeAgent, readRecs, saveRec, readActivity, allowedOf } from './agent.js';
 import { makePlans, readPlans } from './plan.js';
 import { allow as tryAllowed, listScenarios, runTry } from './try.js';
@@ -209,7 +209,7 @@ function gateRecordView() {
   return { counts: { proposed: rows.length, held: n((r) => !!r.hold_id), approved: n((r) => /^approved/.test(r.outcome)),
     rejected: n((r) => /^rejected/.test(r.outcome)), stale: n((r) => /^stale/.test(r.outcome)), pending: n((r) => /^held, waiting/.test(r.outcome)),
     allowed: n((r) => r.verdict === 'allow'), denied: n((r) => r.verdict === 'deny'), gate_only: n((r) => r.verdict === 'gate-only'),
-    past_limit: challengeStats().past_limit }, rows };
+    past_limit: challengeStats().past_limit }, daily_total: dailyTotalView(policy), rows };
 }
 const holdsFor = (id: string) => readHolds().filter((h) => h.args?.dispute_id === id).map(tagged);
 

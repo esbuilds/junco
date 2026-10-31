@@ -172,7 +172,7 @@ async function runWhatIf(eventId, limit) {
   const w = await r.json();
   if (!r.ok) throw Object.assign(new Error(w.error?.message ?? r.status), { status: r.status });
   const same = w.before.verdict === w.after.verdict;
-  $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.`)}</ol>`;
+  $('#wi-out').innerHTML = `<ol class="rail" style="margin-top:12px">${item('what-if', w.change, 'gate, re-run', `${esc(w.method.replace(/_/g, ' '))}: was <strong>${esc(w.before.verdict)}</strong> (${esc(w.before.reason)}), would be <strong>${esc(w.after.verdict)}</strong> (${esc(w.after.reason)}).${same ? ' Same verdict.' : ''}`, `PayPal calls: ${w.paypal_calls}. Nothing was sent.${w.note ? ` ${esc(w.note)}` : ''}`)}</ol>`;
   return w;
 }
 

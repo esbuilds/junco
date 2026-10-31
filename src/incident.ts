@@ -205,11 +205,14 @@ function recorded(eventId: string): { method: string; args: any; verdict: string
   return null;
 }
 
+// The daily total hangs on the other calls that day, which a re-run of one request doesn't have.
+export const NO_TOTAL = "This re-run applies each call's own rules. It doesn't re-run the daily total, which depended on the other calls made that day.";
+export const totalNote = () => (loadActivePolicy().daily_total ? NO_TOTAL : undefined);
 // The same re-run with nothing changed: what the gate decided then, and what today's policy and standing approvals decide.
 // decide() only, so a lease or kill-switch refusal then shows as what the policy alone says today.
 export function replay(eventId: string) {
   const r = recorded(eventId);
-  return r && { method: r.method, before: r.verdict, after: decide(loadActivePolicy(), r.method, r.args, readBudgets()).verdict };
+  return r && { method: r.method, before: r.verdict, after: decide(loadActivePolicy(), r.method, r.args, readBudgets()).verdict, by_total: /daily total/.test(r.reason) };
 }
 
 // Re-runs decide() (gate.ts) on the recorded request: `before` is what the gate decided then, `after` is today's policy
@@ -247,7 +250,7 @@ export function whatIf(eventId: string, change: Change): WhatIf {
   return { mode: 'what-if', event_id: eventId, method: r.method, args: r.args, change: text,
     before: { verdict: r.verdict, reason: r.reason },
     after: { verdict: after.verdict, reason: today.verdict === r.verdict ? after.reason : `${after.reason} (today's rules without the change already give ${today.verdict}: ${today.reason})` },
-    paypal_calls: 0 };
+    paypal_calls: 0, ...(totalNote() && { note: totalNote() }) };
 }
 
 const reply = async (f: () => unknown) => {
@@ -283,7 +286,8 @@ export function addIncidentTools(server: any, get?: PayPalGet) {
       + '(hold:<id> or gate:<time> from junco_get_incident) and exactly one change: max_amount sets the amount limit on that call\'s tool '
       + '(make_dispute_offer or create_refund; below it the gate allows, above it holds), or budget sets the standing approval on its '
       + 'dispute (JUNCO may act alone on moves up to it; null removes it). Returns before (what the gate decided then) and after. '
-      + 'This is a simulation: it never calls PayPal and changes no rule. To change a rule for real, propose it to the owner.',
+      + 'This is a simulation: it never calls PayPal and changes no rule. To change a rule for real, propose it to the owner. '
+      + 'It re-runs one call, so it cannot re-run a daily total, which depends on the other calls that day; `note` says so when the policy has one.',
     inputSchema: {
       event_id: z.string().regex(/^(hold|gate):[\w:.-]{1,40}$/),
       max_amount: z.number().min(0).max(100000).optional(),

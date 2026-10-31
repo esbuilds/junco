@@ -54,6 +54,7 @@
     "check-ui": "tsx studio/check-ui.ts",
     "check-drill": "tsx src/check-drill.ts",
     "check-whoelse": "tsx src/check-whoelse.ts",
+    "check-daily-total": "tsx src/check-daily-total.ts",
     "whoelse-real": "tsx src/whoelse-real.ts",
     "planter": "tsx src/planter.ts"
   },
