@@ -230,8 +230,8 @@ assert.equal(hold.status, 'pending'); assert.deepEqual(hold.args, { capture_id: 
 assert.equal(photoForHold(hold.id)?.capture_id, 'CAPA2');
 assert.equal(photoForHold('nosuchhold'), undefined);
 const onePage = holdPage({ ...hold, photo: { thumb: 'data:image/jpeg;base64,AA', visible: '<b>x</b>', looks: 'l', limits: P.LIMITS } }, { e: '1', s: 'x' }, BASE);
-assert.ok(onePage.includes('A photo the buyer sent, unverified.') && onePage.includes('&#60;b&#62;x') && onePage.includes(P.LIMITS.replace("'", '&#39;')));
-assert.ok(!holdPage(hold, { e: '1', s: 'x' }, BASE).includes('photo'), "no photo, and the owner's page is as it was");
+assert.ok(onePage.includes('A photo the buyer sent, unverified<') && onePage.includes('&#60;b&#62;x') && onePage.includes(P.LIMITS.replace("'", '&#39;')));
+assert.ok(!holdPage(hold, { e: '1', s: 'x' }, BASE).includes('A photo the buyer sent'), "no photo, and the owner's page has no photo card");
 // The agent's reply can quote the photo, so it follows the photo: the connector's copy and other visitors don't get it.
 for (const who of [{ owner: true, session: 'connector-abc' }, visitor(B)]) {
   const j = actor.run(who, () => buildIncident('CAPA2'))!;

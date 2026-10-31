@@ -42,15 +42,16 @@ export const fullRefund = (h: any): string | null => {
 export const holdAction = (h: any) => `${fullRefund(h) ?? `${what(h)}${amount(h) ? ` $${amount(h)}` : ''}`}${target(h.args) ? ` on ${target(h.args)}` : ''}`;
 
 // A photo sent with a refund ask, on the page that decides it. Text in it is the buyer's, unverified, and escaped like everything else.
-export const photoHtml = (p: { thumb: string; visible: string; looks: string; limits: string }) => `<div style="display:flex;gap:12px;align-items:flex-start;margin:12px 0"><img src="${esc(p.thumb)}" alt="The photo the buyer sent, small copy" style="width:88px;height:88px;object-fit:cover;border-radius:6px"><p class="m" style="margin:0">A photo the buyer sent, unverified. ${esc(p.visible)} ${esc(p.looks)} ${esc(p.limits)}</p></div>`;
+export const photoHtml = (p: { thumb: string; visible: string; looks: string; limits: string }) => `<div class="card photo"><img src="${esc(p.thumb)}" alt="The photo the buyer sent, small copy"><div><p class="label">A photo the buyer sent, unverified</p><p>${esc(p.visible)} ${esc(p.looks)}</p><p class="m">${esc(p.limits)}</p></div></div>`;
 
 // The page: what is held and why, and two buttons. `note` is the outcome after a POST, or why the link can't be used.
 export function holdPage(h: any | null, q: { e: string | null; s: string | null }, desk: string, note?: { ok: boolean; text: string }) {
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
     <h1>${esc(holdAction(h))}</h1>
-    <p class="m">Held for you. ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
+    <p class="m">Held for you. ${esc(String(h.reason).replace(/^policy: \w+ = hold$/, 'Your policy: this waits for you'))}.${h.asked_by ? ` Asked by ${/^(a|an|the) /.test(h.asked_by) ? '' : 'the '}${esc(h.asked_by)}.` : ''}</p>
     ${h.case && 'stage' in h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">When it was held the payment was ${esc(h.case.status)}.</p>` : ''}
     ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: PayPal says this changed since it was held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)} on this payment, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
+    ${h.args?.note_to_payer ? `<div class="card"><p class="label">The buyer reads this if you approve</p><p>${esc(h.args.note_to_payer)}</p></div>` : ''}
     ${h.photo ? photoHtml(h.photo) : ''}
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && !(note && !note.ok && /link/.test(note.text)) ? `
@@ -62,14 +63,19 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
     <p class="m">Approving re-reads the case on PayPal first. If it has moved on since this was held, nothing is sent.</p>`
     : !note ? `<p>${h.status === 'expired' ? "This hold expired: the owner didn't decide within 24 hours, so nothing moved." : `This hold is already ${esc(h.status)}.`}</p>` : ''}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>JUNCO: a hold for you</title><style>
-:root{color-scheme:light dark;--bg:#f7f5f0;--ink:#1d2421;--m:#5d6662;--acc:#1f5c4a;--danger:#a8322a}
-@media (prefers-color-scheme:dark){:root{--bg:#141816;--ink:#e8ece9;--m:#9aa49f;--acc:#5fb497;--danger:#ef8a80}}
-body{margin:0;padding:24px 16px;background:var(--bg);color:var(--ink);font:16px/1.45 Inter,system-ui,sans-serif;max-width:560px}
-h1{font-size:21px;margin:0 0 8px}.m{color:var(--m)}.ok{color:var(--acc);font-weight:600}.err{color:var(--danger);font-weight:600}
-form{display:flex;gap:12px;margin:20px 0 8px}button{flex:1;font:inherit;font-weight:600;padding:14px;border-radius:10px;border:1px solid var(--m);background:transparent;color:var(--ink)}
-button.a{background:var(--acc);border-color:var(--acc);color:#fff}button.r{color:var(--danger);border-color:var(--danger)}a{color:var(--acc)}
-</style></head><body><p class="m"><strong>JUNCO</strong> · a hold for you</p>${body}<p class="m"><a href="${esc(desk)}">Open the desk</a></p></body></html>`;
+<meta name="robots" content="noindex"><title>JUNCO: a hold for you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet"><style>
+/* Graphite tokens, the same values as studio/src/theme.ts. */
+:root{--bg:#fafafa;--surface:#fff;--ink:#18181b;--muted:#52525b;--line:#e4e4e7;--accent:#18181b;--accent-ink:#fff;--danger:#b42318;--focus:#2563eb;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#111113;--surface:#18181b;--ink:#f4f4f5;--muted:#a1a1aa;--line:#303036;--accent:#f4f4f5;--accent-ink:#18181b;--danger:#f97066;--focus:#7aa7f0}}
+body{margin:0 auto;padding:24px 16px 40px;max-width:560px;background:var(--bg);color:var(--ink);font:16px/24px Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+h1{margin:0 0 8px;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}.m{color:var(--muted)}.ok{font-weight:600}.err{color:var(--danger);font-weight:600}
+.card{margin:16px 0;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:8px}.card p{margin:0}.card p+p{margin-top:4px}.label{color:var(--muted);font-size:14px;line-height:20px;font-weight:500;margin-bottom:4px!important}
+.photo{display:flex;gap:16px;align-items:flex-start}.photo img{flex:none;width:88px;height:88px;object-fit:cover;border-radius:6px}
+form{display:flex;gap:12px;margin:24px 0 8px}button{flex:1;font:inherit;font-weight:600;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.a{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}button.r{color:var(--danger)}button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}a{color:inherit}
+</style></head><body><p class="m"><strong>JUNCO</strong>, a hold for you</p>${body}<p class="m"><a href="${esc(desk)}">Open the desk</a></p></body></html>`;
 }
 
 // Offline check: npx tsx src/onetap.ts
@@ -84,6 +90,7 @@ if (process.argv[1]?.endsWith('onetap.ts')) {
   assert.match(linkRefusal(undefined, 'abc123', e, s)!, /off/);
   const page = holdPage({ method: 'make_dispute_offer', args: { dispute_id: '<x>', offer_amount: { value: '40.00' } }, reason: 'r', status: 'pending' }, { e, s }, 'https://d');
   assert.ok(page.includes('&#60;x&#62;') && page.includes('method="post"'));
+  assert.ok(holdPage({ method: 'create_refund', args: { capture_id: 'C', note_to_payer: '<b>sorry</b>' }, reason: 'r', status: 'pending' }, { e, s }, 'https://d').includes('The buyer reads this if you approve</p><p>&#60;b&#62;sorry&#60;/b&#62;</p>')); // the words the owner is sending
   assert.ok(!holdPage({ method: 'm', args: {}, reason: 'r', status: 'rejected' }, { e, s }, 'https://d').includes('<form'));
   assert.ok(holdPage(null, { e, s }, 'https://d', { ok: false, text: 'this link is not valid' }).includes('this link is not valid'));
   // A refund with no amount is the whole payment: the title says so, with the captured amount from the hold's snapshot.
