@@ -50,8 +50,8 @@ ${row('Money moves', !inc.decline && `${inc.counts.proposed} proposed, ${inc.cou
 ${row('Events on record', ((a, b) => `${inc.events.length}, ${a === b ? a : `${a} to ${b}`}`)(inc.events[0]?.at.slice(0, 10) ?? '', inc.events.at(-1)?.at.slice(0, 10) ?? ''))}
 ${row('Not in the records', inc.missing.join(' '))}
 </table>
-<div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true })}<div><div>The whole incident, event by event:</div><div class="u">${esc(pageUrl)}</div></div></div>
-<p class="m">Built from the desk's records and PayPal's sandbox. Nothing on it was written by a model.</p>
+<div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true })}<div><div>Full incident:</div><div class="u">${esc(pageUrl)}</div></div></div>
+<p class="m">From the desk's records and PayPal's sandbox. No model wrote it.</p>
 <p class="np"><button onclick="print()">Print</button></p>
 </body></html>`;
 }
@@ -88,25 +88,25 @@ td:first-child{white-space:nowrap;color:#52525b;font-variant-numeric:tabular-num
 </style></head><body>
 <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· for judges</span></p>
 <h1>JUNCO works a small seller's PayPal disputes, and nothing that moves money goes out without the owner's OK.</h1>
-<p class="m">Everything here runs on PayPal's sandbox with test accounts; no real money moves. No password is needed to look. The password lets you act.</p>
-<p class="m">This demo has two exceptions to the owner's OK, each a visitor's own test and each recorded as theirs: holds on a case they lease, and the one refund on their own demo purchase.</p>
+<p class="m">Runs on PayPal's sandbox with test accounts; no real money moves. No password is needed to look. The password lets you act.</p>
+<p class="m">Two exceptions to the owner's OK, each a visitor's own test and recorded as theirs: holds on a case they lease, and the one refund on their own demo purchase.</p>
 <h2>AI purchases on record</h2>
-<p class="m">Orders a shopping agent placed for a buyer. Each incident joins what the agent was allowed, what reached PayPal and every money move the gate held, allowed or denied. Nothing in it comes from a model.</p>
+<p class="m">What the agent was allowed, what reached PayPal and every gated money move. Nothing here comes from a model.</p>
 ${purchases ? `<table>${purchases}</table>` : '<p class="m">None on record yet.</p>'}
-${d.decline ? `<h2>When the agent buys nothing</h2><div class="box">${esc(d.decline.title)}<div class="m">No order, no payment. What it was asked, the listings it saw and why it declined are on record.</div><div>${links(d.decline.id)}</div></div>` : ''}
+${d.decline ? `<h2>When the agent buys nothing</h2><div class="box">${esc(d.decline.title)}<div class="m">No order, no payment.</div><div>${links(d.decline.id)}</div></div>` : ''}
 <h2>Escape room</h2>
-<p class="m">Visitors try to get the owner's money out past the policy, in five rooms. An escape is money PayPal accepted beyond the owner's limit, read from the gate's and PayPal's records, never from what the AI says.</p>
+<p class="m">An escape is money PayPal accepted beyond the owner's limit, read from the records, never from the AI.</p>
 <div class="box"><span class="count">${plural(d.escape.attempts, 'attempt')}, ${plural(d.escape.escapes, 'escape')}.</span>${d.escape.escapes ? `<div>Money got out in ${d.escape.escape_runs.map((id) => `<a href="/run/${encodeURIComponent(id)}">run ${esc(id)}</a>`).join(', ')}.</div>` : ''}</div>
 ${rooms ? `<ul>${rooms}</ul>` : ''}
 ${d.drill ? `<h2>The drill</h2>
-<p class="m">A gate stops what goes through it. So a separate program refunds a small amount straight in PayPal, outside the gate, and a fresh Claude with read tools is sent to find it. Sandbox only.</p>
+<p class="m">A separate program refunds outside the gate. A fresh Claude with read tools goes to find it. Sandbox only.</p>
 <div class="box"><span class="count">${d.drill.hidden} hidden, ${d.drill.found} found, ${d.drill.missed} missed, ${plural(d.drill.false_alarms, 'false alarm')}.</span><div>Money moved by the investigator: $${d.drill.money_moved_usd.toFixed(2)}.</div><div><a href="/drill">Run the drill</a></div></div>` : ''}
 ${d.whoElse ? `<h2>Who else?</h2>
-<p class="m">The owner says what the shopping agent got wrong on one purchase. Claude finds the other public purchases that show the same problem, code sorts them, and the owner decides. Sandbox only, one test buyer.</p>
+<p class="m">Claude finds other purchases with the owner's problem, code sorts them, the owner decides. Sandbox only, one test buyer.</p>
 <div class="box"><span class="count">${plural(d.whoElse.runs, 'run')}, ${d.whoElse.silent_found} never complained, found.</span><div>${d.whoElse.refunds_confirmed} of ${plural(d.whoElse.refunds_proposed, 'proposed refund')} confirmed by PayPal.${d.whoElse.claims_proposed ? ` ${d.whoElse.claims_settled} of ${plural(d.whoElse.claims_proposed, 'open dispute')} the owner accepted, settled by PayPal.` : ''}</div><div><a href="/who-else">Run Who else?</a></div></div>` : ''}
 <h2>Sign in to act</h2>
-<div class="box act">The password is in the Devpost submission's testing instructions. It lets you:
-<ul><li>send your own shopping agent and investigate what it buys</li><li>try the Escape room's rooms yourself</li><li>get your own sandbox dispute and approve or reject what JUNCO holds on it</li><li>connect your own Claude to the desk (<a href="${DOCS}">how</a>)</li></ul>
+<div class="box act">The password is in the Devpost testing instructions.
+<ul><li>Send your own shopping agent</li><li>Try the Escape room</li><li>Get a sandbox dispute and decide what JUNCO holds</li><li>Connect your own Claude (<a href="${DOCS}">how</a>)</li></ul>
 <a class="btn" href="/">Open the desk</a></div>
 </body></html>`;
 }
