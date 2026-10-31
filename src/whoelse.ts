@@ -19,7 +19,11 @@ import type { Bucket, Member, Quote, Remedy, SeedNote, Trial, WhoElseRun, WhoEls
 export const MODEL = 'claude-sonnet-5-5';
 const MAX_TOKENS = 16000;
 const REFUNDABLE = ['COMPLETED', 'PARTIALLY_REFUNDED'];
-const FILE = '.junco/whoelse.json', PER_DAY = 10, READS_AT_ONCE = 4, TRIALS = 3, NOTE_MAX = 300, RUNS_KEPT = 200;
+const FILE = '.junco/whoelse.json', PER_DAY = 10, READS_AT_ONCE = 4, TRIALS = 3, CORRECTION_MAX = 300, RUNS_KEPT = 200;
+// The buyer's message is this wording and the owner's note, from code, never a model. PayPal's note_to_payer takes 255 characters, so the note is capped to fit.
+const REFUND_WORDING = "We're refunding what's left of this payment. What went wrong: ";
+export const NOTE_MAX = 255 - REFUND_WORDING.length;
+export const buyerNote = (note: string) => `${REFUND_WORDING}${note}`;
 const ID = /^[\w-]{1,64}$/;
 const no = (code: number, message: string) => Object.assign(new Error(message), { code });
 
@@ -63,7 +67,7 @@ export async function proposeCorrection(note: string, seed: Incident): Promise<{
       + "Write one short sentence to add to the listing so a shopping agent reading it won't repeat the problem. Use only facts in the note and the listing, and say \"may\" where the note isn't certain. "
       + `Reply with the sentence alone.\n\n${JSON.stringify({ owner_note: note, listing: seed.purchase?.listing })}` }] });
     const text = res.content.find((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')?.text.trim();
-    return text ? { text: text.slice(0, NOTE_MAX), usd: usdOf(res.usage) } : null;
+    return text ? { text: text.slice(0, CORRECTION_MAX), usd: usdOf(res.usage) } : null;
   } catch (e: any) { console.error('[who else] no proposed correction', e.message); return null; }
 }
 
@@ -165,7 +169,7 @@ export function setNote(seed: unknown, text: unknown): SeedNote {
   ownerOnly();
   const note = typeof text === 'string' ? text.trim() : '';
   if (typeof seed !== 'string' || !ID.test(seed)) throw no(400, 'seed looks wrong.');
-  if (note.length < 10 || note.length > NOTE_MAX) throw no(400, `Say what went wrong in 10 to ${NOTE_MAX} characters.`);
+  if (note.length < 10 || note.length > NOTE_MAX) throw no(400, `Say what went wrong in 10 to ${NOTE_MAX} characters: it goes to the buyer with the refund, and PayPal's note holds 255.`);
   const inc = asPublic(() => buildIncident(seed));
   if (!inc?.purchase?.capture_id) throw no(404, 'No public purchase with that id.');
   const saved: SeedNote = { incident_id: inc.id, title: inc.title, text: note, at: new Date().toISOString() }, s = read();
@@ -199,7 +203,7 @@ export async function runFinder(deps: Pick<Deps, 'get'>, seed: unknown): Promise
       const { finding, usd } = await ask(note.text, first, others), { cause, members } = assemble(note.text, first, others, finding);
       const found = others.some((o) => members.some((m) => m.incident_id === o.id && ['complained', 'silent', 'repaired'].includes(m.bucket)));
       const fix = found ? await proposeCorrection(note.text, first) : null;
-      const run: WhoElseRun = { id: randomUUID(), at: new Date().toISOString(), seed, cause, members, remedies: [], corrections: fix ? [{ sku: first.purchase.sku, text: fix.text, at: null }] : [],
+      const run: WhoElseRun = { id: randomUUID(), at: new Date().toISOString(), seed, cause, members, draft_note: buyerNote(note.text), remedies: [], corrections: fix ? [{ sku: first.purchase.sku, text: fix.text, at: null }] : [],
         trials: [], mode: 'live', model: MODEL, cost_usd: Number((usd + (fix?.usd ?? 0)).toFixed(3)) };
       saveRun(run);
       return run;
@@ -211,7 +215,6 @@ export async function runFinder(deps: Pick<Deps, 'get'>, seed: unknown): Promise
   });
 }
 
-const buyerNote = (sku: string, amount: string) => `Your shopping agent bought ${sku} for you, and we found it may not fit what you asked for, so we're refunding the ${amount} USD left on this payment. You don't need to do anything.`;
 const DEAD = ['rejected', 'expired', 'stale', 'failed']; // a hold that will never run; the owner may plan that purchase again
 
 // Owner only: one held create_refund per kept silent purchase. The capture is the record's and the amount is what PayPal shows
@@ -234,7 +237,7 @@ export async function plan(deps: Pick<Deps, 'get' | 'policy' | 'connect'>, id: s
       forget(capture_id); // the run may be hours old: what's left is PayPal's now
       const inc = await asPublic(async () => reconciled(buildIncident(m.incident_id), deps.get)), f = inc && paypalFacts(inc);
       if (!inc || !f?.payment_status || f.differs || inc.dispute_id || !REFUNDABLE.includes(f.payment_status) || !f.remaining) { skip(`PayPal no longer shows this as refundable (${f?.payment_status ?? 'unread'}${inc?.dispute_id ? ', disputed' : ''}).`); continue; }
-      const amount = dollars(Math.min(f.remaining, cents(m.remaining))), note_to_payer = buyerNote(m.sku, amount);
+      const amount = dollars(Math.min(f.remaining, cents(m.remaining))), note_to_payer = run.draft_note;
       const args = { capture_id, amount: { currency_code: 'USD', value: amount }, note_to_payer };
       if (decide(deps.policy(), 'create_refund', args, readBudgets()).verdict !== 'hold') { skip('Refunds here must wait for the owner, and the policy would run this one.'); continue; }
       const out = await conn.call('create_refund', args).then(JSON.parse).catch(() => null);
@@ -271,7 +274,7 @@ export async function correct(id: string, sku: unknown, text: unknown) {
   const run = whoElseRun(id), line = typeof text === 'string' ? text.trim() : '';
   if (!run) throw no(404, 'No such run');
   if (!CATALOG.some((c) => c.sku === sku)) throw no(400, 'sku must be a catalog item.');
-  if (line.length < 3 || line.length > NOTE_MAX) throw no(400, `The correction is 3 to ${NOTE_MAX} characters.`);
+  if (line.length < 3 || line.length > CORRECTION_MAX) throw no(400, `The correction is 3 to ${CORRECTION_MAX} characters.`);
   const at = new Date().toISOString(), seed = asPublic(() => buildIncident(run.seed));
   if (!seed?.authority) throw no(404, "This run's seed is gone.");
   correctListing(sku as string, line);

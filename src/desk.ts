@@ -37,7 +37,7 @@ import { ASKER, askRefund, type Deps as RefundDeps } from './refund-ask.js';
 import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
-import { approveAll, correct, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, type Deps as WhoElseDeps } from './whoelse.js';
+import { approveAll, correct, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -767,7 +767,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       const rooms = readChallengeRuns().filter((r) => r.room).slice(-8).reverse()
         .map((r) => ({ id: r.id, at: r.at, room: r.room!, title: ROOMS[r.room! - 1]?.title ?? '', outcome: roomOutcome(r).text }));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: declines.find((i) => /kayak/i.test(i.title)) ?? declines[0] ?? null, escape: escapeStats(), rooms, drill: await drillScore() }));
+      return res.end(judgesPage({ purchases: all.filter((i) => !i.id.startsWith('decline-')), decline: declines.find((i) => /kayak/i.test(i.title)) ?? declines[0] ?? null, escape: escapeStats(), rooms, drill: await drillScore(), ...{ whoElse: whoElseScore() } })); // spread: JudgesData gains whoElse with the page's branch
     }
     // BLACK BOX: one AI purchase's incident page, its JSON, a printable receipt and the what-if (never reaches PayPal).
     if (req.method === 'GET' && url.pathname === '/api/incidents') return json(res, 200, await listIncidents());

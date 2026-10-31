@@ -101,7 +101,9 @@ await fails(() => W.runFinder({ get }, 'SEED'), 400, /no owner's note/);
 assert.equal(asked.length, 0);
 await fails(() => as(PUBLIC, () => W.setNote('SEED', NOTE)), 403, /Owner only/);
 await fails(() => as(SIGNED_IN, () => W.setNote('SEED', NOTE)), 403, /Owner only/);
-await fails(() => as(OWNER, () => W.setNote('SEED', 'short')), 400, /10 to 300/);
+await fails(() => as(OWNER, () => W.setNote('SEED', 'short')), 400, /10 to \d+ characters/);
+await fails(() => as(OWNER, () => W.setNote('SEED', 'x'.repeat(W.NOTE_MAX + 1))), 400, /it goes to the buyer with the refund/);
+assert.equal(W.buyerNote('x'.repeat(W.NOTE_MAX)).length, 255, 'the longest note fits PayPal\'s field exactly');
 await fails(() => as(OWNER, () => W.setNote('NOSUCH', NOTE)), 404, /No public purchase/);
 await fails(() => as(OWNER, () => W.setNote('CAPPRIV', NOTE)), 404, /No public purchase/);
 await fails(() => as(OWNER, () => W.setNote('decline-20261029162810201', NOTE)), 404, /No public purchase/);
@@ -123,6 +125,7 @@ const want: Record<string, string> = { SEED: 'complained', PLAIN: 'silent', PART
 for (const [id, b] of Object.entries(want)) assert.equal(row(run, id).bucket, b, `${id}: ${row(run, id).why}`);
 assert.equal(run.members.length, Object.keys(want).length);
 assert.equal(run.cause.summary, NOTE, 'the cause is the note, word for word');
+assert.equal(run.draft_note, W.buyerNote(NOTE), 'the run carries the buyer\'s note from the start'); assert.ok(run.draft_note.endsWith(NOTE));
 assert.deepEqual(run.cause.quotes, [{ field: 'reason', text: QUOTE }], 'a made-up seed quote never shows');
 assert.match(row(run, 'FAKE').why, /word for word/); assert.deepEqual(row(run, 'FAKE').quotes, []);
 assert.match(row(run, 'DOWN').why, /didn't answer/); assert.equal(row(run, 'DOWN').payment_status, null);
@@ -189,7 +192,7 @@ for (const r of planned.remedies) {
   assert.deepEqual([h.method, h.status, h.args.capture_id, h.args.amount.value, h.args.note_to_payer], ['create_refund', 'pending', r.capture_id, r.amount, r.note_to_payer]);
   assert.equal(tags[h.id], `Who else? plan ${run.id}`);
   assert.ok(Math.abs(Date.parse(h.expires!) - Date.parse(h.created) - 24 * 3600_000) < 60_000, '24-hour expiry');
-  assert.ok(r.note_to_payer.length <= 255 && r.note_to_payer.includes(r.amount));
+  assert.equal(r.note_to_payer, run.draft_note, 'a remedy\'s note is the draft, exactly'); assert.ok(r.note_to_payer.length <= 255);
 }
 // Asking again never makes a second hold; a policy that would run a refund outright is refused here too.
 const again = await as(OWNER, () => W.plan(deps, run.id, ['CAPPLAIN']));
