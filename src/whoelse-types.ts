@@ -54,6 +54,7 @@ export type WhoElseRun = {
   seed: string;                 // the incident it started from
   cause: { summary: string; quotes: Quote[] }; // summary: the owner's own note on the seed, word for word; quotes: the seed's records that show it
   members: Member[];            // every purchase looked at, seed included
+  draft_note: string;           // what note_to_payer will say, built by code from the owner's note, shown before the owner plans
   remedies: Remedy[];           // empty until the owner plans; one per silent purchase they kept
   corrections: Correction[];
   trials: Trial[];
