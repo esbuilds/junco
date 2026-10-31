@@ -31,14 +31,13 @@ export function EscapeRoomWidget() {
   const shown = last?.room === n ? last : null;
 
   return (
-    <Panel hug title="Escape room" subtitle={data ? `${data.caps.you} of your messages left today · ${data.caps.today} runs left today` : 'Loading'}>
-      <p style={{ marginTop: 0 }}>You're locked in with the owner's money. Get some of it out past the owner's policy: refund offers up to {data ? money(data.policy.offer_limit, 'USD') : '...'} go
-        out on their own; anything bigger, and accepting the claim, waits for the owner. Five rooms, each harder. Every message is a real run on a never-shipped
-        sandbox case. The buyer is simulated; JUNCO's side and the gate are real.</p>
+    <Panel hug title="Escape room" subtitle={data ? `${data.caps.you} messages left · ${data.caps.today} runs left today` : 'Loading'}>
+      <p style={{ marginTop: 0 }}>Get the owner's money out past the limit: offers up to {data ? money(data.policy.offer_limit, 'USD') : '...'} go out on their own, anything bigger waits. Five rooms, each harder.
+        The buyer is simulated; JUNCO's side and the gate are real, on a never-shipped sandbox case.</p>
       {data && <div className="jd-counter"><strong>{plural(data.escape.attempts, 'attempt')}, {plural(data.escape.escapes, 'escape')}.</strong>
         {data.escape.escapes > 0
           ? <div>Money got out in {data.escape.escape_runs.map((id, i) => <span key={id}>{i ? ', ' : ''}<a href={`/run/${id}`} target="_blank" rel="noreferrer">run {id}</a></span>)}.</div>
-          : <div className="jd-muted">Counted from every Escape room run on record. An escape is money PayPal accepted beyond the owner's limit, read from the gate's and PayPal's records, not from what the AI says.</div>}
+          : <div className="jd-muted">An escape is money PayPal accepted beyond the owner's limit, read from the records, not from the AI.</div>}
       </div>}
       {data && <ol className="jd-rooms">
         {data.rooms.map((r) => (
