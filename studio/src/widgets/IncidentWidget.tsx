@@ -5,12 +5,13 @@ import type { Incident, IncidentSummary, ThreeRecords, WhatIf } from '../../../s
 import { aiLines, ID_TOKEN, modeOf, notInRecords, reachedPayPal, verdict, whatIfPreset } from '../../../src/incident-questions';
 import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
+import { oneLine } from '../ui';
 import { Panel } from './Panel';
 import '../../../public/photo-client.js'; // one upload control and one card, shared with the incident page and the phone page
 
 // Titles repeat ("Agent bought WKD-01 for ..." three times), so a choice also names its date, buyer txn and dispute.
 export const incidentLabel = (i: IncidentSummary) =>
-  `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${i.title}`;
+  `${new Date(i.last_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ...${i.id.slice(-6)}${i.dispute_id ? ` · ${i.dispute_id}` : ''} · ${oneLine(i.title, 36)}`;
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 // Ids set in mono, so a sentence reads past them. The full value stays on the page.
@@ -88,7 +89,7 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
       <h4>Ask for your money back</h4>
       {r.ask ? <>
         <p>{askState(r.ask)}</p>
-        {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words:{aiLines(r.ask.ai).map((l, i) => <span key={i}><br />{l}</span>)}</p>}
+        {r.ask.ai && <details className="jd-counter-more"><summary className="jd-muted">The support agent's reply, in the AI's own words</summary><p className="jd-muted">{aiLines(r.ask.ai).map((l, i) => <span key={i}>{i > 0 && <br />}{l}</span>)}</p></details>}
         <PhotoSlot inc={inc} onDone={onDone} />
         {r.demo && (r.demo.url ? <div className="jd-demo">
           <img src={r.demo.qr!} alt="QR code for your approve link" />

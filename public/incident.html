@@ -256,7 +256,7 @@ const askText = (a) => {
     : a.hold_status === 'rejected' ? `${Who} rejected it${hold}. Nothing was sent to PayPal.`
     : a.hold_status === 'completed' ? `${Who} approved it${hold}, and PayPal made the refund.`
     : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
-  return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<p class="muted">The support agent's reply, in the AI's own words:<br>${aiLines(a.ai).map(esc).join('<br>')}</p>` : ''}`;
+  return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<details><summary class="muted">The support agent's reply, in the AI's own words</summary><p class="muted">${aiLines(a.ai).map(esc).join('<br>')}</p></details>` : ''}`;
 };
 // "Approve it yourself": only ever on this visitor's own held ask; the desk adds it for them and nobody else (demo-approver.ts).
 const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><img class="qr" src="${esc(d.qr)}" alt="QR code for your approve link"><div><h2>Approve it yourself</h2>
