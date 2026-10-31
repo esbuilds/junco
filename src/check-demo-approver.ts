@@ -61,7 +61,7 @@ async function asked(capture_id: string, session: string) {
   saveRefundAsk({ capture_id, session, at: new Date().toISOString(), reason: '', outcome: 'held', hold_id: r.hold_id });
   return r.hold_id as string;
 }
-const deps = { key: () => KEY, desk: BASE, decide: (id: string, verb: 'approve' | 'reject', session: string) => actor.run({ owner: false, session, demo: true }, () => g[verb](id)) };
+const deps = { key: () => KEY, decide: (id: string, verb: 'approve' | 'reject', session: string) => actor.run({ owner: false, session, demo: true }, () => g[verb](id)) };
 const visitor = (session: string) => ({ owner: false, session });
 const parts = (id: string, session = A) => { const u = new URL(demoOffer(KEY, BASE, id, visitor(session))!.url!); return { e: u.searchParams.get('e'), s: u.searchParams.get('s') }; };
 const status = (id: string) => readHolds().find((h: any) => h.id === id)?.status;
@@ -183,7 +183,7 @@ assert.ok(!done.html.includes('<form'));
 assert.deepEqual([status(h1), paypalCalls], ['completed', 1]);
 assert.deepEqual(seen, { ...visitor(A), demo: true }, 'it ran as the visitor who asked, never the owner');
 assert.deepEqual(readDemoDecisions().map((d: any) => [d.hold_id, d.capture_id, d.session, d.verb]), [[h1, 'CAPA1', A, 'approve']]);
-assert.ok(done.html.includes(`${BASE}/incident/CAPA1`));
+assert.ok(!done.html.includes('/incident/'), "no link a phone with no password can't open");
 console.log("approve: runs once through the gate as that visitor, and the phone shows PayPal's refund id");
 
 // A used link: refused on POST, either verb, and GET says so with no buttons.

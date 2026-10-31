@@ -67,31 +67,31 @@ export function demoOffer(key: string | undefined, base: string, id: string | nu
   return { url, qr: qr.createDataURL(5, 8), why: null, expires: t.hold.expires! };
 }
 
-export type DemoDeps = { key: () => string | undefined; desk: string; decide: (id: string, verb: 'approve' | 'reject', session: string) => Promise<Hold> };
+export type DemoDeps = { key: () => string | undefined; decide: (id: string, verb: 'approve' | 'reject', session: string) => Promise<Hold> };
 type Q = { e: string | null; s: string | null };
-const page = (status: number, deps: DemoDeps, id: string, q: Q, note?: { ok: boolean; text: string }, why?: string) => ({ status, html: demoPage(why ? null : demoTarget(id)?.hold ?? null, q, deps.desk, id, note) });
+const page = (status: number, id: string, q: Q, note?: { ok: boolean; text: string }, why?: string) => ({ status, html: demoPage(why ? null : demoTarget(id)?.hold ?? null, q, id, note) });
 
 export function demoShow(deps: DemoDeps, id: string, q: Q, now = Date.now()) {
   const why = demoRefusal(deps.key(), id, q.e, q.s, now);
-  return why ? page(403, deps, id, q, { ok: false, text: why }, why) : page(200, deps, id, q);
+  return why ? page(403, id, q, { ok: false, text: why }, why) : page(200, id, q);
 }
 
 export async function demoDecide(deps: DemoDeps, id: string, q: Q, verb: 'approve' | 'reject', now = Date.now()) {
   const why = demoRefusal(deps.key(), id, q.e, q.s, now);
-  if (why) return page(403, deps, id, q, { ok: false, text: why }, why);
+  if (why) return page(403, id, q, { ok: false, text: why }, why);
   const t = demoTarget(id)!;
-  if (used(id)) return page(409, deps, id, q, { ok: false, text: 'This link has been used.' });
-  if (t.hold.status !== 'pending') return page(409, deps, id, q);
+  if (used(id)) return page(409, id, q, { ok: false, text: 'This link has been used.' });
+  if (t.hold.status !== 'pending') return page(409, id, q);
   const cap = verb === 'approve' ? capRefusal(t.ask.session, now) : null;
-  if (cap) return page(429, deps, id, q, { ok: false, text: cap });
+  if (cap) return page(429, id, q, { ok: false, text: cap });
   // Spent before anything reaches PayPal, with no await before it, so a double tap can't run twice and the caps count first.
   // ponytail: if the owner decides in the same instant, the gate refuses one and this record may still name the visitor.
   saveDemoDecision({ hold_id: id, capture_id: t.ask.capture_id, session: t.ask.session, at: new Date(now).toISOString(), verb });
   try {
     const h = await deps.decide(id, verb, t.ask.session);
     const ok = h.status === 'completed' || h.status === 'rejected';
-    return page(ok ? 200 : 502, deps, id, q, { ok, text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? `Approved. ${acceptedText(h)}.` : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
-  } catch (e: any) { return page(409, deps, id, q, { ok: false, text: e.message }); }
+    return page(ok ? 200 : 502, id, q, { ok, text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? `Approved. ${acceptedText(h)}.` : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
+  } catch (e: any) { return page(409, id, q, { ok: false, text: e.message }); }
 }
 
 // The outcome on a Gate record row, and which count it belongs in. gate.ts words every decision as the owner's.
@@ -102,7 +102,7 @@ export const demoRows = <R extends { hold_id?: string; outcome: string }>(rows: 
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ENDED: Record<string, string> = { expired: 'This hold expired: nobody decided within 24 hours, so nothing moved.', rejected: 'This hold was rejected, so nothing was sent to PayPal.', stale: 'This hold was not run, so nothing was sent to PayPal.' };
-export function demoPage(h: Hold | null, q: Q, desk: string, id: string, note?: { ok: boolean; text: string }) {
+export function demoPage(h: Hold | null, q: Q, id: string, note?: { ok: boolean; text: string }) {
   const open = h?.status === 'pending' && !used(id) && !note;
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
     <h1>${esc(holdAction(h))}</h1>
@@ -117,7 +117,7 @@ export function demoPage(h: Hold | null, q: Q, desk: string, id: string, note?: 
     </form>
     <p class="m">It works once. Approving re-reads the payment on PayPal first, and if it has changed since this was held, nothing is sent.</p>`
     : !note ? `<p>${esc(used(id) ? 'This link has been used.' : ENDED[h.status] ?? `This hold is already ${h.status}.`)}</p>` : ''}
-    ${h.args?.capture_id && !open ? `<p class="m"><a href="${esc(desk)}/incident/${encodeURIComponent(h.args.capture_id)}">See it on the incident</a></p>` : ''}`;
+    ${!open ? '<p class="m">The incident page you came from shows this too.</p>' : ''}`; // no link: a visitor's purchase is closed to a phone with no password
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>JUNCO: approve it yourself</title><style>
 /* Graphite, the desk's palette (studio/src/theme.ts), light. */
