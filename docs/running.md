@@ -51,6 +51,7 @@ npm run typecheck
 npm run check        # tools through the MCP server against the sandbox (add -- --write to send a real message)
 npm run check-gate   # policy decisions, holds, approve and reject, stale approvals, the hold lifecycle, the double refund
 npm run check-gate-pkg  # junco-gate on its own: allowed, held, stale through a real MCP server and client
+npm run check-daily-total  # the gate's daily total on the desk's side: both servers, a standing accept, PayPal's error shapes, offline
 npm run check-ai     # validator, quote and message cases offline, then one real Claude call
 npm run check-agent  # agent triage: acts once per state, no repeat messages
 npm run check-lease  # case leases, who may approve where, the pre-filed pool

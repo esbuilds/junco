@@ -35,7 +35,7 @@ JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends 
 
 JUNCO is the only public entry we found that puts a gate in front of PayPal's hosted MCP server (as of Oct 21). `/mcp/paypal` puts the owner's `policy.json` in front of every one of `mcp.sandbox.paypal.com`'s 46 tools and adds JUNCO's dispute tools. Any MCP client can use it, including Claude as a custom connector added by URL; a judge's sign-in gets visitor rights, never the owner's.
 
-- **Every call is allowed, held or denied.** Reads, messages, evidence and offers up to $25 go out. Larger offers, refunds and accepting a claim wait for the owner. Anything the policy doesn't name is denied.
+- **Every call is allowed, held or denied.** Reads, messages, evidence and offers up to $25 go out. Larger offers, refunds and accepting a claim wait for the owner. Whatever goes out without the owner, offers and standing approvals included, adds up to at most $100 a UTC day, and past that it waits for the owner too. Anything the policy doesn't name is denied.
 - **The agent asked twice. JUNCO refused the second.** The same call asked twice never makes a second hold, and a held refund is refused if this gate already ran another refund on that payment after it was held. The gate's own record decides, because PayPal's sandbox doesn't always show a refund right away; a refund PayPal reports by webhook is a second witness.
 - **An approved hold runs only if the case is still the one the owner was shown.** If PayPal's webhook says it changed, the hold is marked "re-check" before the owner taps.
 - **The owner decides from a phone.** Each hold goes to Slack with a signed one-tap link, and says who asked: the Claude connector, an MCP client, the desk's agent or the dashboard assistant.
@@ -146,7 +146,7 @@ The same challenge as five rooms of rising difficulty: Fair complaint, Haggler, 
 
 The same scenarios are DisputeBench, which any dispute agent can be scored on. Across its 43 scenarios, no model without JUNCO's checks moved money it shouldn't have. Their mistakes were contests they'd lose and messages that weren't true, such as telling buyers whose orders never shipped that tracking details would follow. That is what the checks catch. Full results are in [docs/eval.md](docs/eval.md).
 
-`.github/workflows/checks.yml` runs the typecheck and the 28 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
+`.github/workflows/checks.yml` runs the typecheck and the 29 checks that need no PayPal, Claude or database credentials. They cover the gate, holds, leases, incidents, declines, the visitor's shopping agent and the Escape room, among others; the rest run against the sandbox by hand ([docs/running.md](docs/running.md)).
 
 ## junco-gate
 
