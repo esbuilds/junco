@@ -20,7 +20,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { claude } from './spend.js';
 import { loadPolicy } from './gate.js';
-import { isRead, MODEL, SYSTEM as INVESTIGATE, toolLoop, toolSpec } from './investigate.js';
+import { isRead, MODEL, supportPrompt, SYSTEM as INVESTIGATE, toolLoop, toolSpec } from './investigate.js';
 
 try { process.loadEnvFile(); } catch {}
 const MAX_TURNS = 16, RUNS_PER_INCIDENT = 2, NEVER = '22B5810267205224R';
@@ -68,7 +68,7 @@ const refused: string[] = [];
 const client = claude();
 let usd = 0;
 const tools = offered.map(toolSpec);
-const SYSTEM = PROPOSE ? "You are the store's support agent. Use the tools to act on the owner's request." : INVESTIGATE;
+const SYSTEM = PROPOSE ? supportPrompt('owner') : INVESTIGATE;
 const proposals: any[] = [], proposedArgs: string[] = []; // each create_refund the agent sent, and what the gate answered
 // The PayPal client is loaded only for --propose; the investigation path never holds one.
 const captureStatus = async (id: string) => {

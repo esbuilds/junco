@@ -8,6 +8,11 @@ import type { Policy } from './gate.js';
 export const MODEL = 'claude-sonnet-5-5';
 export const SYSTEM = 'You are investigating a record using the tools available. Answer only from what the tools return, and say plainly when something is not recorded.';
 
+// The language of this desk. With little to go on a model can answer in anything: a blank customer message once got its whole reply in Chinese.
+export const REPLY_LANGUAGE = 'Reply in English, the language of this desk, whatever language the input is in.';
+// The support agent, for a customer (refund-ask.ts) or the owner (fresh-agent --propose): one prompt, so the two can't drift.
+export const supportPrompt = (who: 'customer' | 'owner') => `You are the store's support agent. Use the tools to act on the ${who}'s request. ${REPLY_LANGUAGE}`;
+
 export const isRead = (policy: Policy, name: string) => name.startsWith('junco_') || policy.tools[name] === 'read';
 export const toolSpec = (t: { name: string; description?: string; inputSchema: any }) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Tool.InputSchema });
 

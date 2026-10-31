@@ -15,6 +15,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 const desk = readFileSync('src/desk.ts', 'utf8');
 assert.ok(desk.includes("if (req.method === 'POST' && url.pathname === '/api/refund-ask')") && desk.includes('await askRefund(refundDeps, { session, owner,'), 'the desk no longer routes /api/refund-ask');
 assert.ok(readFileSync('src/public.ts', 'utf8').indexOf('refund') < 0, 'the refund ask must stay behind the password');
+const askSrc = readFileSync('src/refund-ask.ts', 'utf8'), freshSrc = readFileSync('src/fresh-agent.ts', 'utf8');
 
 // Fake Claude: each messages.create takes the next scripted reply.
 let script: any[] = [], claudeCalls = 0;
@@ -80,6 +81,12 @@ await fails(ask(as(A), 'CAPPOOL'), 404, /Only a purchase your own shopping agent
 await fails(ask(as(A), 'POOLPOOLPOOLPOOL1'), 404, /Only a purchase/);
 await fails(ask(as(A), 'CAPDONE'), 409, /CAPDONE is REFUNDED on PayPal, not a completed payment/);
 assert.equal(claudeCalls, 0);
+// The support agent replies in English whatever it's given, and refund-ask and fresh-agent share one prompt, so that can't drift.
+const { REPLY_LANGUAGE, supportPrompt } = await import('./investigate.js');
+for (const who of ['customer', 'owner'] as const) assert.equal(supportPrompt(who), `You are the store's support agent. Use the tools to act on the ${who}'s request. ${REPLY_LANGUAGE}`);
+assert.match(REPLY_LANGUAGE, /^Reply in English\b/);
+for (const [f, s] of [['refund-ask.ts', askSrc], ['fresh-agent.ts', freshSrc]] as const) assert.ok(!s.includes("You are the store's support agent"), `${f} has its own copy of the prompt`);
+assert.ok(askSrc.includes("const SYSTEM = supportPrompt('customer');") && freshSrc.includes("PROPOSE ? supportPrompt('owner') : INVESTIGATE"));
 console.log('who: the public, another visitor, a pool purchase and a refunded payment are refused before Claude');
 
 // The ask: the agent reads the purchase, proposes create_refund, the gate holds it, nothing reaches PayPal.

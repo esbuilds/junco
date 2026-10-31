@@ -341,4 +341,5 @@ await fails(() => as(PUBLIC, () => W.runFinder({ get }, 'SEED')), 429, /used up/
 assert.equal(reads > 0, true);
 console.log('tool: read only; cap: 10 a day counted before Claude, past it the last run labelled recorded');
 
+assert.ok(W.AGENT_SYSTEM.endsWith((await import('./investigate.js')).REPLY_LANGUAGE), "the buyer's agent replies in English");
 console.log('check-whoelse: pass');

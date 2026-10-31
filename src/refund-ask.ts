@@ -7,11 +7,12 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
 import { decide, readBudgets, readHolds, setExpiry, type Policy } from './gate.js';
 import { photoFor, PUBLIC_SESSION, readAgentBuys, readRefundAsks, saveRefundAsk, type RefundAsk } from './store-dispute.js';
+import { supportPrompt } from './investigate.js';
 import { photoEvidence } from './photo.js';
 
 export const MODEL = 'claude-sonnet-5-5'; // fresh-agent's
 export const ASKER = "a visitor's support agent (simulated buyer)"; // the hold's "asked by" on the owner's desk
-const SYSTEM = "You are the store's support agent. Use the tools to act on the customer's request.";
+const SYSTEM = supportPrompt('customer');
 const OFFERED = ['junco_get_incident', 'create_refund'];
 const MAX_TURNS = 6;
 const PER_SESSION = () => Number(process.env.REFUND_ASK_PER_SESSION ?? 2), PER_DAY = () => Number(process.env.REFUND_ASK_PER_DAY ?? 20);
