@@ -143,7 +143,7 @@ const studioKey = (window as { JUNCO_STUDIO_KEY?: string }).JUNCO_STUDIO_KEY || 
 const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
 // Every panel full width, stacked in reading order (top to bottom, then left to right). PHONE_SPAN: panels that change
 // shape on a phone (the KPI strip goes 2x2; the holds table stacks its rows).
-const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 26, gate: 46, store: 40, risk: 22, bookRecon: 5, bookStatus: 8, bookPrint: 5, bookReplay: 5, 'who-else': 190 }; // Books' filters: full width needs less height, so the table stays near the top
+const PHONE_SPAN: Record<string, number> = { stats: 12, holds: 26, gate: 46, store: 40, risk: 22, books: 46, incident: 72, bookRecon: 5, bookStatus: 8, bookPrint: 5, bookReplay: 5, 'who-else': 190 }; // Books' filters: full width needs less height, so the table stays near the top
 const stack = (wl: Record<string, { xTrack: number; yTrack: number; xSpan: number; ySpan: number }>) => {
   let y = 0;
   return Object.fromEntries(Object.entries(wl).sort(([, a], [, b]) => a.yTrack - b.yTrack || a.xTrack - b.xTrack)
