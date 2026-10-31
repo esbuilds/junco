@@ -65,3 +65,18 @@ const bare = await reconcile('CAPBARE', [], real('CAPBARE', 'PENDING', 'BUYER_CO
 const other = await reconcile('CAPELSE', [], real('CAPELSE', 'PENDING', 'ECHECK', 'RFELSE', 'PENDING', '4.00', '0.00'));
 for (const l of [paid, bare, other]) assert.equal(noRecord(l).length, 1, `${l[1].summary}`);
 console.log('outside refund: 88P and near misses of a dispute hold still say the desk has no record of them');
+
+// HHC on Oct 31, after an owner-approved accept: PayPal lists its dispute hold as FAILED beside the refund it paid.
+const accept = { id: 'ef2a0fcc', method: 'accept_dispute_claim', args: { dispute_id: 'PP-R-HHC-10191540', note: 'x' }, reason: 'r', created: '', status: 'completed' } as Hold;
+const both = (cap: string) => async (p: string) => (p.includes('captures')
+  ? { status: 200, body: { status: 'REFUNDED', links: [{ rel: 'up', href: `${API}/v2/checkout/orders/O${cap}` }] } }
+  : { status: 200, body: { purchase_units: [{ payments: { refunds: [['4PC09475GD247335P', 'FAILED', '59.35'], ['2WA839249R304813M', 'COMPLETED', '62.00']].map(([id, status, v]) => ({ id, status, amount: amt(v), links: [{ rel: 'up', href: `${API}/v2/payments/captures/${cap}` }] })) } }] } });
+const hhc = await reconcile('6DK52507E0337070T', [accept], both('6DK52507E0337070T'));
+assert.equal(hhc[0].summary, 'PayPal shows 1 refund on this payment apart from a dispute hold, and lists the payment as REFUNDED.');
+assert.equal(hhc[1].summary, "PayPal's dispute hold of 59.35 USD ended when the dispute settled: entry 4PC09475GD247335P is FAILED, and no money went back on it.");
+assert.equal(hhc[1].match, 'dispute_hold');
+assert.equal(hhc[2].summary, "PayPal shows refund 2WA839249R304813M for 62.00 USD (COMPLETED). The desk didn't send it as a refund: it ran accept dispute claim (hold ef2a0fcc) on this payment's dispute, and PayPal pays a settled dispute back as a refund of its own.");
+assert.equal(hhc[2].match, 'settled'); assert.equal(noRecord(hhc).length, 0);
+const unsettled = await reconcile('CAPFAIL', [], both('CAPFAIL')); // no settled dispute: a FAILED entry is still one the desk can't explain
+assert.equal(noRecord(unsettled).length, 2);
+console.log('settled dispute: the ended hold is no refund, the refund is the settlement, nothing reads as unknown');
