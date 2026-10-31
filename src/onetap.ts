@@ -49,8 +49,8 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
     <h1>${esc(holdAction(h))}</h1>
     <p class="m">Held for you. ${esc(String(h.reason).replace(/^policy: \w+ = hold$/, 'Your policy: this waits for you'))}.${h.asked_by ? ` Asked by ${/^(a|an|the) /.test(h.asked_by) ? '' : 'the '}${esc(h.asked_by)}.` : ''}</p>
-    ${h.case && 'stage' in h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">When it was held the payment was ${esc(h.case.status)}.</p>` : ''}
-    ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: PayPal says this changed since it was held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)} on this payment, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
+    ${h.case && 'stage' in h.case ? `<p class="m">Held at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">Payment ${esc(h.case.status)} when held.</p>` : ''}
+    ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: changed since held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)}, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
     ${h.args?.note_to_payer ? `<div class="card"><p class="label">The buyer reads this if you approve</p><p>${esc(h.args.note_to_payer)}</p></div>` : ''}
     ${h.photo ? photoHtml(h.photo) : ''}
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
@@ -60,7 +60,7 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
       <button name="verb" value="approve" class="a">Approve</button>
       <button name="verb" value="reject" class="r">Reject</button>
     </form>
-    <p class="m">Approving re-reads the case on PayPal first. If it has moved on since this was held, nothing is sent.</p>`
+    <p class="m">Approving re-reads PayPal first. If it moved on, nothing is sent.</p>`
     : !note ? `<p>${h.status === 'expired' ? "This hold expired: the owner didn't decide within 24 hours, so nothing moved." : `This hold is already ${esc(h.status)}.`}</p>` : ''}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>JUNCO: a hold for you</title>
