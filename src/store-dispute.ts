@@ -102,7 +102,9 @@ const fileable = (kind: Kind) => unused(kind);
 
 // Never-shipped cases also serve Break the mandate (v3.12 update 2 ruling 3), so more of them are kept ready.
 export const READY_PER_KIND: Record<Kind, number> = { unshipped: Number(process.env.STORE_READY_UNSHIPPED ?? 4), delivered: Number(process.env.STORE_READY_DELIVERED ?? 2), agent: Number(process.env.STORE_READY_AGENT ?? 2) };
-export const RETIRE_MS = 3 * DAY; // after a case becomes offerable; a judge must never get one whose window is closing
+// After a case becomes offerable; a judge must never get one whose window is closing. PayPal gives the seller 20 days (UUS still
+// took a real offer at 21 on Oct 31), so 10 leaves half the window and a filled pool lasts: at 3 days, 2 ready cases burned one order every 36 hours.
+export const RETIRE_MS = 10 * DAY;
 const waiting = (r: Run) => !!r.dispute_id && !r.leased_at && !r.retired_at;
 export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at && oldEnough(kind, r.buyer_txn));
 // Pre-filed cases waiting for a judge: the agent leaves them alone until leased (or retired).
@@ -328,7 +330,7 @@ export async function fileOne(ctx: Ctx, kind: Kind): Promise<Run> {
   return mine;
 }
 
-// Timer, as the system: note which waiting cases PayPal has unlocked, retire ones older than 3 days (the agent takes
+// Timer, as the system: note which waiting cases PayPal has unlocked, retire ones past RETIRE_MS (the agent takes
 // them over), and file new ones until each kind has READY_PER_KIND waiting. Filing failures are logged, not retried
 // in a loop: the next tick tries the next pool entry.
 export async function keepReady(ctx: Ctx, getDispute: (id: string) => Promise<any>, retire: (id: string) => void, log: (msg: string) => void) {
