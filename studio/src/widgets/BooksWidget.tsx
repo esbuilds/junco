@@ -31,9 +31,9 @@ export function BooksWidget({ widgetApi }: { widgetApi: any }) {
   const list = (rows ?? []).map((r) => Object.fromEntries(COLS.map((c) => [c, val(r, c)])) as unknown as BooksRow).sort(byDifference);
   const differ = list.filter((r) => r.reconciliation === 'Differ').length;
   return (
-    <Panel title="The Books" subtitle={rows ? `${list.length} AI purchase${list.length === 1 ? '' : 's'} · ${differ} differ · click a filter to narrow it` : 'Loading'}>
+    <Panel title="The Books" subtitle={rows ? `${list.length} AI purchase${list.length === 1 ? '' : 's'} · ${differ} differ` : 'Loading'}>
       {err && <div className="jd-result jd-err">{err}</div>}
-      <p className="jd-muted jd-books-note">PayPal's side is read at most once a minute per payment. A dispute hold isn't a difference. Policy replay re-runs each recorded move under today's policy and never reaches PayPal.</p>
+      <p className="jd-muted jd-books-note" title="PayPal's side is read at most once a minute per payment. Policy replay re-runs each recorded move under today's policy.">A dispute hold isn't a difference. Policy replay never reaches PayPal.</p>
       <div className="jd-table-wrap">
         <table className="jd-table jd-books">
           <thead><tr>
