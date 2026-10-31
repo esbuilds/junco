@@ -3,10 +3,13 @@
 // only re-runs decide() on a recorded request (paypal_calls 0, nothing saved). None of those calls Claude or PayPal or writes.
 // The drill is the exception (Oct 30): /drill, its score and its runs are open too, and a run does call Claude and read
 // PayPal, through read tools, capped at 10 a day and metered through spend.ts (drill.ts). It moves no money.
+// Who else? is open the same way (Oct 30): /who-else, its home and its runs, and a finder run on a seed that already has the
+// owner's note, capped at 10 a day and metered. It reads Claude and PayPal, makes no hold and moves no money (whoelse.ts).
+// The note, plan, approve-all and correct stay behind the password and the owner check.
 // The desk serves these as the PUBLIC_SESSION actor (never the owner, no cookie); incident.ts hides a visitor's own
 // shopping runs from it. Everything else stays behind the password. check-public pins both lists.
 export const PUBLIC_SESSION = 'public'; // never a desk session: those are UUIDs (actorOf)
-export const PUBLIC_GET = /^\/(?:judges|drill|api\/drill\/score|api\/drill\/run\/[\w-]{1,64}|api\/incidents|incident\/[\w-]{1,64}(?:\/receipt)?|api\/incident\/[\w-]{1,64}|run\/[\w-]{1,64})$/;
-export const PUBLIC_POST = /^\/api\/(?:incident\/[\w-]{1,64}\/what-if|drill\/run)$/;
+export const PUBLIC_GET = /^\/(?:judges|drill|who-else|api\/who-else|api\/who-else\/run\/[\w-]{1,64}|api\/drill\/score|api\/drill\/run\/[\w-]{1,64}|api\/incidents|incident\/[\w-]{1,64}(?:\/receipt)?|api\/incident\/[\w-]{1,64}|run\/[\w-]{1,64})$/;
+export const PUBLIC_POST = /^\/api\/(?:incident\/[\w-]{1,64}\/what-if|drill\/run|who-else\/run)$/;
 export const isPublic = (method: string | undefined, path: string) =>
   (method === 'GET' && PUBLIC_GET.test(path)) || (method === 'POST' && PUBLIC_POST.test(path));

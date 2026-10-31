@@ -2,7 +2,9 @@
 // catalog, and either buys one item (the store then charges the PayPal account the buyer saved for it) or buys nothing.
 // It runs for the pool filler (src/pool.ts agent) and for desk visitors ("Your AI buys, you investigate", /api/shop).
 // Its choice is whatever the model decides: the cases JUNCO later gets are not scripted to make the agent wrong.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { paypal, type Ctx } from './disputes.js';
+import { mirror } from './persist.js';
 import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
 import { addAgentBuy, addDeclines, addShopTry, declineId, readDeclines, readShopTries } from './store-dispute.js';
 import { fingerprint, type FingerprintRecord } from './fingerprint.js';
@@ -37,14 +39,22 @@ export async function shop(instruction: string, budget: string): Promise<Choice>
         input_schema: { type: 'object', properties: { sku: { type: 'string', enum: CATALOG.map((c) => c.sku) }, reason: { type: 'string' } }, required: ['sku', 'reason'] } },
       { name: 'decline', description: 'Buy nothing and say why.', input_schema: { type: 'object', properties: { reason: { type: 'string' } }, required: ['reason'] } },
     ],
-    messages: [{ role: 'user', content: `Instruction: ${instruction}\nBudget: $${budget}\n\nCatalog:\n${CATALOG.map((c) => `${c.sku} ${c.name}, $${c.price}. ${c.text}`).join('\n')}` }],
+    messages: [{ role: 'user', content: `Instruction: ${instruction}\nBudget: $${budget}\n\nCatalog:\n${CATALOG.map((c) => listing(c.sku)).join('\n')}` }],
   });
   const t: any = r.content.find((b) => b.type === 'tool_use');
   if (t?.name === 'buy' && CATALOG.some((c) => c.sku === t.input.sku)) return { sku: t.input.sku, reason: String(t.input.reason) };
   return { declined: String(t?.input?.reason ?? 'no tool call') };
 }
 
-export const listing = (sku: string) => { const c = CATALOG.find((x) => x.sku === sku)!; return `${c.sku} ${c.name}, $${c.price}. ${c.text}`; };
+// A correction the owner applied (Who else?, whoelse.ts) reads as part of the listing from then on, for the agent and for what a
+// new purchase records. A purchase already made keeps the listing it recorded.
+const CORRECTIONS = '.junco/listing-corrections.json';
+export const readCorrections = (): Record<string, string> => { try { return JSON.parse(readFileSync(CORRECTIONS, 'utf8')); } catch { return {}; } };
+export function correctListing(sku: string, text: string) {
+  const all = { ...readCorrections(), [sku]: text };
+  mkdirSync('.junco', { recursive: true }); writeFileSync(CORRECTIONS, JSON.stringify(all, null, 2)); mirror(CORRECTIONS, all);
+}
+export const listing = (sku: string) => { const c = CATALOG.find((x) => x.sku === sku)!, fix = readCorrections()[sku]; return `${c.sku} ${c.name}, $${c.price}. ${c.text}${fix ? ` ${fix}` : ''}`; };
 
 // The store's side of an agent checkout, for pool.ts and /api/shop: the price is the catalog's, never the agent's; an item
 // over the agent's budget is refused before PayPal is called. One merchant-initiated order on the saved PayPal account,

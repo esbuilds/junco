@@ -37,6 +37,7 @@ import { ASKER, askRefund, type Deps as RefundDeps } from './refund-ask.js';
 import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
+import { approveAll, correct, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, type Deps as WhoElseDeps } from './whoelse.js';
 import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -168,6 +169,19 @@ const drillDeps: DrillDeps = {
     const c = new Client({ name: 'junco-drill', version: '1.0.0' }); await c.connect(b);
     const { tools } = await c.listTools();
     return { tools, call: async (name, args) => { const r: any = await c.callTool({ name, arguments: args }); return { text: String(r?.content?.[0]?.text ?? JSON.stringify(r)), isError: !!r?.isError }; },
+      close: async () => { await c.close(); await s.close(); } };
+  },
+};
+// Who else?: the desk's own /mcp tools in-process, so a planned refund is an ordinary held create_refund, tagged with its run.
+const whoElseDeps: WhoElseDeps = {
+  get: (q) => paypal(ctx, 'GET', q),
+  policy: () => policy,
+  decide: (id) => decideHold(id, 'approve', 'the owner'),
+  connect: async (tag) => {
+    const { server: s } = await createServer(ctx, policy, (h) => { tagHold(h, tag); agent.log(h.args?.capture_id ?? 'mcp', 'mcp', 'waiting for you', `${h.method.replace(/_/g, ' ')} from ${tag}: ${h.reason}`); void notifyHold(h, tag); }, onMcpWrite('', tag));
+    const [a, b] = InMemoryTransport.createLinkedPair(); await s.connect(a);
+    const c = new Client({ name: 'junco-who-else', version: '1.0.0' }); await c.connect(b);
+    return { call: async (name, args) => { const r: any = await c.callTool({ name, arguments: args }); return String(r?.content?.[0]?.text ?? JSON.stringify(r)); },
       close: async () => { await c.close(); await s.close(); } };
   },
 };
@@ -735,6 +749,19 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       catch (e: any) { return json(res, e.code ?? 500, { error: { message: e.code ? e.message : "The drill didn't start. Nothing was sent to Claude." } }); }
     }
     if (req.method === 'GET' && p[0] === 'api' && p[1] === 'drill' && p[2] === 'run' && p[3] && !p[4]) { const r = drillRun(p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); }
+    // Who else? (whoelse.ts): the page, its home and runs, and a capped finder run are public (public.ts). The rest checks the owner in whoelse.ts.
+    if (req.method === 'GET' && url.pathname === '/who-else') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync('public/who-else.html')); }
+    if (p[0] === 'api' && p[1] === 'who-else') {
+      try {
+        if (req.method === 'GET' && !p[2]) return json(res, 200, whoElseHome());
+        if (req.method === 'POST' && p[2] === 'note' && !p[3]) { const b = await readBody(req); return json(res, 200, setNote(b?.seed, b?.text)); }
+        if (req.method === 'POST' && p[2] === 'run' && !p[3]) return json(res, 200, await runFinder(whoElseDeps, (await readBody(req))?.seed));
+        if (p[2] === 'run' && p[3] && !p[4] && req.method === 'GET') { const r = whoElseRun(p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); }
+        if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'plan' && !p[5]) return json(res, 200, await whoElsePlan(whoElseDeps, p[3], (await readBody(req))?.captures));
+        if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'approve-all' && !p[5]) return json(res, 200, await approveAll(whoElseDeps, p[3]));
+        if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'correct' && !p[5]) { const b = await readBody(req); return json(res, 200, await correct(p[3], b?.sku, b?.text)); }
+      } catch (e: any) { return json(res, e.code ?? 500, { error: { message: e.code ? e.message : "Who else? didn't finish. No money moved." } }); }
+    }
     if (req.method === 'GET' && url.pathname === '/judges') { // the judges' door: open without the password (public.ts)
       const all = await listIncidents(), declines = all.filter((i) => i.id.startsWith('decline-'));
       const rooms = readChallengeRuns().filter((r) => r.room).slice(-8).reverse()

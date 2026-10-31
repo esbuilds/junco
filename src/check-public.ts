@@ -11,7 +11,8 @@ import { isPublic, PUBLIC_GET, PUBLIC_POST, PUBLIC_SESSION } from './public.js';
 const ID = 'AAAAAAAAAAAAAAAA1';
 const open: [string, string][] = [['GET', '/judges'], ['GET', '/api/incidents'], ['GET', `/incident/${ID}`], ['GET', `/incident/${ID}/receipt`],
   ['GET', `/api/incident/${ID}`], ['GET', '/incident/decline-20261029162810201'], ['GET', '/run/c5b289d1'], ['POST', `/api/incident/${ID}/what-if`],
-  ['GET', '/drill'], ['GET', '/api/drill/score'], ['POST', '/api/drill/run'], ['GET', '/api/drill/run/0f2c6d1e-aaaa-4bbb-8ccc-123456789abc']];
+  ['GET', '/drill'], ['GET', '/api/drill/score'], ['POST', '/api/drill/run'], ['GET', '/api/drill/run/0f2c6d1e-aaaa-4bbb-8ccc-123456789abc'],
+  ['GET', '/who-else'], ['GET', '/api/who-else'], ['POST', '/api/who-else/run'], ['GET', '/api/who-else/run/0f2c6d1e-aaaa-4bbb-8ccc-123456789abc']];
 const closed: [string, string][] = [
   // the desk, Studio and everything that acts, spends or reads PayPal
   ['GET', '/'], ['GET', '/owner'], ['GET', '/?page=incident'], ['GET', '/api/shop'], ['POST', '/api/shop'], ['GET', '/api/challenge'], ['POST', '/api/challenge'],
@@ -25,6 +26,8 @@ const closed: [string, string][] = [
   ['GET', `/incident/${'x'.repeat(65)}`], ['GET', '/judges?x=1#'],
   ['POST', '/drill'], ['GET', '/drill/x'], ['GET', '/api/drill'], ['POST', '/api/drill'], ['GET', '/api/drill/run'], ['POST', '/api/drill/run/x'], ['PUT', '/api/drill/run'],
   ['POST', '/api/drill/score'], ['GET', '/api/drill/run/x/y'], ['GET', `/api/drill/run/${'x'.repeat(65)}`],
+  ['POST', '/who-else'], ['GET', '/who-else/x'], ['POST', '/api/who-else'], ['GET', '/api/who-else/note'], ['POST', '/api/who-else/note'], ['GET', '/api/who-else/run'], ['POST', '/api/who-else/run/x'],
+  ['GET', '/api/who-else/run/x/y'], ['POST', '/api/who-else/run/x/plan'], ['POST', '/api/who-else/run/x/approve-all'], ['POST', '/api/who-else/run/x/correct'], ['GET', `/api/who-else/run/${'x'.repeat(65)}`],
 ];
 for (const [m, p] of open) assert.ok(isPublic(m, p), `${m} ${p} should open`);
 for (const [m, p] of closed) assert.ok(!isPublic(m, p), `${m} ${p} must stay behind the password`);
