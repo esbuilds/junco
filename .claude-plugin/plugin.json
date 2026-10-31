@@ -1,0 +1,10 @@
+{
+  "name": "junco",
+  "version": "0.1.0",
+  "description": "An owner's approval gate in front of PayPal's own plugin: policy.json decides which PayPal MCP calls run, which wait for the owner, and which are refused. Refunds never leave the editor on an agent's say-so.",
+  "author": { "name": "esbuilds", "url": "https://github.com/esbuilds/junco" },
+  "homepage": "https://github.com/esbuilds/junco",
+  "repository": "https://github.com/esbuilds/junco",
+  "license": "MIT",
+  "keywords": ["paypal", "mcp", "approval", "human-in-the-loop", "refunds", "disputes", "agents"]
+}

@@ -58,7 +58,9 @@
     "check-whoelse": "tsx src/check-whoelse.ts",
     "check-daily-total": "tsx src/check-daily-total.ts",
     "whoelse-real": "tsx src/whoelse-real.ts",
-    "planter": "tsx src/planter.ts"
+    "planter": "tsx src/planter.ts",
+    "build:plugin": "esbuild hooks/gate.ts --bundle --platform=node --format=esm --target=node22 --outfile=hooks/gate.mjs --log-level=warning",
+    "check-plugin": "tsx src/check-plugin.ts"
   },
   "keywords": [],
   "author": "",
@@ -77,6 +79,7 @@
   "devDependencies": {
     "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   },
   "engines": {

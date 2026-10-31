@@ -157,6 +157,10 @@ The same scenarios are DisputeBench, which any dispute agent can be scored on. A
 
 `packages/junco-gate` is the gate as a package for any MCP server: a policy per tool, holds bound to the exact call, a re-check before an approved call runs, tracked outcomes, an action log, and `mirror()` to wrap someone else's server. As a command, `junco-gate --paypal` is an MCP server in front of PayPal's hosted MCP server: refunds and dispute accepts come back held, and `junco-gate approve <id>` re-reads the dispute through PayPal's own server before running the exact held call. It isn't on npm; run it from the repo ([packages/junco-gate/README.md](packages/junco-gate/README.md)).
 
+## The gate inside PayPal's own plugin
+
+PayPal's plugin for coding agents, [paypal/AI-Toolkit](https://github.com/paypal/AI-Toolkit), connects Claude Code to PayPal's sandbox MCP server with a bearer token and no approval step. This repo is also a Claude Code plugin (`claude --plugin-dir /path/to/junco`) that installs next to it: a hook puts `policy.json` in front of every call to PayPal's server, so a refund asked for in the editor comes back held with an id and nothing reaches PayPal until the owner runs `junco-gate approve <id> --toolkit`. Reads and allowed writes pass through untouched. PayPal's hosted sandbox server fails every call today ([paypal/agent-toolkit#119](https://github.com/paypal/agent-toolkit/issues/119)), so those pass-through calls can fail for PayPal's reasons; holds and approvals don't depend on it. Details, records and limits: [docs/plugin.md](docs/plugin.md).
+
 ## Run it yourself
 
 Requires Node 22+, a [PayPal developer](https://developer.paypal.com) sandbox app, and an Anthropic API key.

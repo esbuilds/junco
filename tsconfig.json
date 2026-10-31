@@ -7,5 +7,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "evals"]
+  "include": ["src", "evals", "hooks"]
 }

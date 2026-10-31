@@ -1,0 +1,22 @@
+{
+  "name": "junco",
+  "owner": { "name": "esbuilds", "url": "https://github.com/esbuilds/junco" },
+  "metadata": {
+    "description": "JUNCO: an owner's approval gate in front of PayPal's tools, as a Claude Code plugin.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "junco",
+      "description": "An owner's approval gate in front of PayPal's own plugin: policy.json decides which PayPal MCP calls run, which wait for the owner, and which are refused.",
+      "source": "./",
+      "version": "0.1.0",
+      "author": { "name": "esbuilds" },
+      "license": "MIT",
+      "keywords": ["paypal", "mcp", "approval", "human-in-the-loop", "refunds", "disputes"],
+      "strict": true,
+      "skills": ["./skills/junco-gate"],
+      "hooks": ["./hooks/hooks.json"]
+    }
+  ]
+}

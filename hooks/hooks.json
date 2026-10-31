@@ -1,0 +1,29 @@
+{
+  "description": "JUNCO: the owner's policy.json in front of PayPal's own plugin (MCP server paypal-sandbox) or any MCP server named paypal. Reads and allowed writes pass to Claude Code's own permission flow; refunds, dispute accepts and anything else the policy holds are stored for the owner and never reach PayPal from the editor until `junco-gate approve <id>` runs them.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^mcp__(plugin_paypal_paypal-sandbox|paypal)__",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/gate.mjs"]
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^mcp__(plugin_paypal_paypal-sandbox|paypal)__",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/gate.mjs"]
+          }
+        ]
+      }
+    ]
+  }
+}
