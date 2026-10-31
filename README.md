@@ -73,11 +73,11 @@ With `AGENT_MODE=on` JUNCO works new disputes by itself from PayPal's signature-
 
 ## The desk on AG Studio
 
-The hosted desk is an [AG Studio](https://www.ag-grid.com) report, not a page with a chart library bolted on: 17 JUNCO widget types, an Insights page on Studio's own data engine where filters and charts cross-filter the live PayPal cases, the desk's theme on Studio's native widgets, and an AG Grid dispute queue. The AI assistant is Studio's, with JUNCO as its own agent: asked for a chart of the disputes the seller is about to lose, it hands the query to Studio's data agent, the placement to the page agent and the chart to the widget agent, and the trace shows each hand-off. It gets the same gated PayPal tools as every other agent, so a money move it asks for lands in Waiting for you, tagged "asked by the dashboard assistant". Details are in [docs/ag-studio.md](docs/ag-studio.md).
+The hosted desk is an [AG Studio](https://www.ag-grid.com) report, not a page with a chart library bolted on: 19 JUNCO widget types, an Insights page on Studio's own data engine where filters and charts cross-filter the live PayPal cases, the desk's theme on Studio's native widgets, an AG Grid dispute queue, and an AG Grid for Who else? with groups, money totals and the owner's plan. The AI assistant is Studio's, with JUNCO as its own agent: asked for a chart of the disputes the seller is about to lose, it hands the query to Studio's data agent, the placement to the page agent and the chart to the widget agent, and the trace shows each hand-off. It gets the same gated PayPal tools as every other agent, so a money move it asks for lands in Waiting for you, tagged "asked by the dashboard assistant". Details are in [docs/ag-studio.md](docs/ag-studio.md).
 
 ## When an AI agent did the buying
 
-Dispute this store has a case where a shopping agent did the buying, live in PayPal's sandbox. A shopping agent (Claude Sonnet 5.5) gets an instruction and a budget, reads the store's three-bag catalog and buys one or declines; the store charges the buyer's vaulted PayPal account with Orders v2. Asked for "a carry-on weekend bag that looks nice", it bought the waxed weekender and called it carry-on size, though at 25 cm deep it's over the 23 cm many airlines allow. The buyer disputes it as not as described, and JUNCO compares the store's record of what the agent was asked with what the listing said, through the same checks and gate.
+Dispute this store has a case where a shopping agent did the buying, live in PayPal's sandbox. A shopping agent (Claude Sonnet 5.5) gets an instruction and a budget, reads the store's three-bag catalog and buys one or declines; the store charges the buyer's vaulted PayPal account with Orders v2. Asked for "a carry-on weekend bag that looks nice", it bought the waxed weekender and called it carry-on size, though at 25 cm deep it's over the 9 inches (about 23 cm) [American](https://www.aa.com/i18n/travel-info/baggage/carry-on-baggage.jsp) and [Delta](https://www.delta.com/us/en/baggage/carry-on-baggage) list. The buyer disputes it as not as described, and JUNCO compares the store's record of what the agent was asked with what the listing said, through the same checks and gate.
 
 The checkout record is the store's own, not a mandate signed by PayPal or a card network. JUNCO doesn't use PayPal's Agent Ready or Store Sync, which aren't open in sandbox.
 
@@ -115,6 +115,18 @@ A gate proves little if it's tested on calls that politely go through it. So the
 - **The score** on `/drill` and `/judges` counts real runs: hidden, found, missed, false alarms, money moved by the investigator.
 
 Drill purchases are ordinary public agent orders with one mark that keeps them out of the dispute pool.
+
+## Who else?
+
+One dispute shows a mistake the shopping agent made. `/who-else` finds the other purchases where it made the same one, including buyers who never complained, so the owner can put those right before anyone has to ask, then fix the cause. It runs on PayPal's sandbox, with no password.
+
+- **The owner says what went wrong.** The owner writes one sentence on a purchase, in Studio. A model doesn't decide this: PayPal's reason code names no cause and the sandbox drops the buyer's words. Visitors run the finder on purchases that already have a note and can't type one.
+- **Claude finds the matches.** Claude Sonnet 5.5 reads what the agent recorded on every other public purchase (the buyer's ask, the agent's reason, the listing) and says same, not same or unsure, with quotes. That's all a model decides. Runs are capped at 10 a day against the desk's AI budget, and past the cap the page shows the latest finished run, labelled RECORDED. A run moves no money and makes no hold. No other purchase showing the problem is a normal result, and the page says so.
+- **Code picks the group,** in this order: a quote that isn't word for word goes to Unclear, PayPal not answering goes to Unclear, an open dispute goes to Complained, nothing left to refund goes to Already repaired, a payment status that can't be refunded goes to Unclear, and any other match goes to Never complained. Each row shows the agent's words with the quoted part marked, what PayPal says, what's left to refund and the fingerprint result, and links to its incident.
+- **The owner plans and approves.** On the Studio page, an AG Grid groups the purchases with money totals per group, and the owner keeps or drops Never complained rows. Plan makes one ordinary held `create_refund` per kept row, for what PayPal shows left on that exact capture, with a `note_to_payer` that's shown word for word on the row. A model never sets an amount or a capture, and nothing changes in the gate. Holds wait 24 hours and appear wherever holds appear. Approve all runs them one at a time with the usual re-checks. It isn't all or nothing: it can finish part way, and each row shows how it ended, with PayPal's refund id once there is one.
+- **Fixing the cause.** The owner edits and applies a listing correction, which the shopping agent reads from then on. Records already made keep the listing the agent saw. The same ask then runs 3 times with no order placed, and the page shows what the agent did, including when it still buys the wrong bag.
+
+Disclosures: this is sandbox only, every purchase is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: it called a bag 25 cm deep carry-on size, over the 9 inches (about 23 cm) that [American](https://www.aa.com/i18n/travel-info/baggage/carry-on-baggage.jsp) and [Delta](https://www.delta.com/us/en/baggage/carry-on-baggage) list for a carry-on. Airlines differ, so it may not fit. PayPal confirms payments and refunds, and never whether the mistake is real.
 
 ## Break the mandate
 
@@ -162,7 +174,7 @@ Creating sandbox disputes, agent mode, Slack, carrier lookups, the checks, secur
 - **PayPal (sandbox):** Agent Toolkit 1.11.0 (MCP adapter), the hosted MCP server (`mcp.sandbox.paypal.com`, SSE), Disputes v1 including the sandbox-only buyer-side create, Orders v2 (`vault_id` with `stored_credential`, and `track`), Vault v3, Payments v2, and Webhooks with signature verification. `add_order_tracking` posts tracking to the Orders v2 `track` endpoint, and PayPal's own page for it says ["Adding tracking to an order qualifies holds for early release."](https://developer.paypal.com/api/orders-v2/track-orders/integrate/)
 - **Anthropic:** Claude Opus 5.5 for recommendations; Claude Sonnet 5.5 for the support check, the shopping agent and the Studio assistant.
 - **Model Context Protocol** TypeScript SDK, and Claude custom connectors (OAuth with dynamic client registration).
-- **AG Grid:** AG Studio for the desk (layout, widgets, Insights and the AI assistant) and AG Grid for the dispute queue.
+- **AG Grid:** AG Studio for the desk (layout, widgets, Insights and the AI assistant) and AG Grid for the dispute queue and Who else?.
 - **Render:** one web service and one Postgres.
 - **Slack:** an incoming webhook for holds and one-tap links.
 
