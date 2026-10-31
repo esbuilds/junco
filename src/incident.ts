@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { decide, loadActivePolicy, readBudgets, readHolds, readMoves, EXPIRED_TEXT, MONEY, type Budget, type Hold, type Move, type Policy } from './gate.js';
-import { actor, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
+import { actor, decidedBy, DEMO_APPROVER, PUBLIC_SESSION, readAgentBuys, readDeclines, readPool, readRefundAsks, readRuns, type AgentBuy, type Decline, type PoolEntry } from './store-dispute.js';
 import type { Incident, IncidentEvent, IncidentSummary, WhatIf } from './incident-types.js';
 import { aiText } from './incident-questions.js';
 import { checkAgainstPayPal } from './fingerprint.js';
@@ -27,6 +27,8 @@ const amountText = (args: any) => { const a = args?.offer_amount ?? args?.amount
 const said = (method: string, args: any) => `${method.replace(/_/g, ' ')}${amountText(args) ? ` of ${amountText(args)}` : ''}`;
 const parse = (s?: string) => { try { return JSON.parse(s ?? ''); } catch { return null; } };
 const APPROVED = ['executing', 'completed', 'failed', 'unknown', 'approved'];
+// Who decided a hold, as an actor and at the head of a sentence: the owner, unless the demo approver did (demo-approver.ts).
+const decider = (id: string) => { const by = decidedBy(id); return { by, actor: by.replace(/^the /, ''), Who: by[0].toUpperCase() + by.slice(1) }; };
 
 // Pool agent entries are the incidents: an order a shopping agent placed for the buyer.
 const entries = () => readPool().filter((p) => p.agent);
@@ -83,11 +85,12 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
     events.push({ id: `agent:${x.at}`, at: x.at, kind: 'agent', actor: x.trigger === 'mcp' ? 'MCP client' : x.trigger === 'assistant' ? 'dashboard assistant' : 'JUNCO agent',
       source: 'activity', summary: `${x.step}: ${x.detail}`, ref: dispute_id ? { dispute_id } : undefined });
 
-  const counts = { proposed: 0, approved: 0, executed: 0, outcome_unknown: 0 };
+  const counts: Incident['counts'] = { proposed: 0, approved: 0, executed: 0, outcome_unknown: 0 };
   const tags = holdTags();
   for (const h of readHolds().filter((h) => mine(h.args))) {
     const money = MONEY.includes(h.method), ref = { hold_id: h.id, ...(h.args?.dispute_id && { dispute_id: h.args.dispute_id }), ...(h.args?.capture_id && { capture_id: h.args.capture_id }) };
-    if (money) { counts.proposed++; if (APPROVED.includes(h.status)) counts.approved++; if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
+    const d = decider(h.id);
+    if (money) { counts.proposed++; if (APPROVED.includes(h.status)) { if (d.by === DEMO_APPROVER) counts.demo_approved = (counts.demo_approved ?? 0) + 1; else counts.approved++; } if (h.status === 'completed') counts.executed++; if (h.status === 'unknown' || h.status === 'executing') counts.outcome_unknown++; }
     if (!tags[h.id]) missing.push(`who asked for hold ${h.id}: it carries no caller tag`);
     events.push({ id: `hold:${h.id}`, at: h.created, kind: 'hold', actor: who(tags[h.id]), source: 'holds',
       summary: `${who(tags[h.id])} asked for ${said(h.method, h.args)}; the gate held it for the owner (${h.reason}).${h.expires ? ` If the owner doesn't decide by ${h.expires.slice(0, 16).replace('T', ' ')} UTC, it expires and nothing moves.` : ''}`, ref: { ...ref, rule: `hold: ${h.reason}` } });
@@ -98,13 +101,13 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
     // A visitor's refund ask the owner didn't decide in 24 hours (gate.ts): it never ran, at the time it lapsed.
     if (h.status === 'expired') { events.push({ id: `approval:${h.id}`, at: h.expires ?? h.created, kind: 'approval', actor: 'JUNCO (system)', source: 'holds', ref, summary: EXPIRED_TEXT }); continue; }
     const out = parse(h.result);
-    if (h.ran) events.push({ id: `approval:${h.id}`, at: h.ran, kind: 'approval', actor: 'owner', source: 'holds', summary: `The owner approved ${said(h.method, h.args)}.`, ref });
+    if (h.ran) events.push({ id: `approval:${h.id}`, at: h.ran, kind: 'approval', actor: d.actor, source: 'holds', summary: `${d.Who} approved ${said(h.method, h.args)}.`, ref });
     else {
       // The hold store keeps a run time for approvals only; a rejection or a stale refusal has none.
       missing.push(`when hold ${h.id} was ${h.status}: the hold store records no time for it`);
       const why = out?.error?.message ?? out?.settled;
-      events.push({ id: `approval:${h.id}`, at: h.created, kind: 'approval', actor: out?.settled ? 'JUNCO (system)' : 'owner', source: 'holds', ref,
-        summary: h.status === 'rejected' ? 'The owner rejected it; nothing was sent to PayPal (time not recorded).' : `Not run${why ? `: ${String(why).replace(/^Not run: /, '')}` : ''}; nothing was sent to PayPal (time not recorded).` });
+      events.push({ id: `approval:${h.id}`, at: h.created, kind: 'approval', actor: out?.settled ? 'JUNCO (system)' : d.actor, source: 'holds', ref,
+        summary: h.status === 'rejected' ? `${d.Who} rejected it; nothing was sent to PayPal (time not recorded).` : `Not run${why ? `: ${String(why).replace(/^Not run: /, '')}` : ''}; nothing was sent to PayPal (time not recorded).` });
     }
     if (!h.ran) continue;
     // PayPal's own answer, as the hold stored it. A refund's is the refund object: its id and status.
@@ -151,7 +154,7 @@ function refundView(b: AgentBuy): NonNullable<Incident['refund']> {
   const x = readRefundAsks().find((r) => r.capture_id === b.capture_id && r.outcome !== 'failed'), act = actor.getStore();
   const h = x?.hold_id ? readHolds().find((y) => y.id === x.hold_id) : undefined;
   return { can_ask: !x && !!act && act.session !== PUBLIC_SESSION && (act.owner || act.session === b.session),
-    ask: x ? { at: x.at, reason: x.reason, outcome: x.outcome, ai: x.ai ?? null, hold_id: x.hold_id ?? null, hold_status: h?.status ?? null, expires: h?.expires ?? null } : null };
+    ask: x ? { at: x.at, reason: x.reason, outcome: x.outcome, ai: x.ai ?? null, hold_id: x.hold_id ?? null, hold_status: h?.status ?? null, expires: h?.expires ?? null, decided_by: h ? decidedBy(h.id) : null } : null };
 }
 
 // The agent bought nothing: one RECORDED event, no order, no payment, nothing for the gate (counts stay 0, no what-if).
@@ -189,7 +192,7 @@ export async function reconciled(inc: Incident | null, get?: PayPalGet): Promise
   const cap = inc?.purchase?.capture_id;
   if (!inc || !cap || !get) return inc;
   const mine = (a: any) => a?.capture_id === cap || (!!inc.dispute_id && a?.dispute_id === inc.dispute_id);
-  inc.events.push(...await reconcile(cap, readHolds().filter((h) => mine(h.args)), get, readMoves().filter((m) => mine(m.args))));
+  inc.events.push(...await reconcile(cap, readHolds().filter((h) => mine(h.args)), get, readMoves().filter((m) => mine(m.args)), decidedBy));
   return inc;
 }
 

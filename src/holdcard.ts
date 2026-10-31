@@ -1,10 +1,12 @@
 // S3 spike: the hold as a card inside the agent's chat (MCP Apps, io.modelcontextprotocol/ui, spec 2026-01-26). Every
 // tool the policy can hold carries _meta.ui.resourceUri, so a host that renders apps (Claude web and Desktop) shows this
 // card with the call's result: what was held and why, then how it ended, polled through an app-only status tool.
-// No approve button: whoever is chatting may be the attacker; approval stays with the owner's desk and one-tap link.
+// No approve button: whoever is chatting may be the attacker; approval stays with the owner's desk and one-tap link, and the
+// demo approver's own link for the one refund they asked for (demo-approver.ts).
 import { z } from 'zod';
 import type { Hold, Policy } from './gate.js';
 import { holdAction } from './onetap.js';
+import { decidedBy } from './store-dispute.js';
 
 export const HOLD_CARD = 'ui://junco/hold-card';
 const MIME = 'text/html;profile=mcp-app';
@@ -13,13 +15,14 @@ const MIME = 'text/html;profile=mcp-app';
 export function holdNews(h: Hold | undefined) {
   if (!h) return { done: true, text: 'This hold is no longer on the desk.' };
   const why = (() => { try { return JSON.parse(h.result ?? '{}')?.error?.message as string | undefined; } catch { return undefined; } })();
+  const by = decidedBy(h.id);
   const text: Record<string, string> = {
     pending: h.recheck ? `Waiting for the owner. PayPal says this changed since it was held (${h.recheck.event}); approving re-reads it first.` : 'Waiting for the owner. Nothing has gone to PayPal.',
-    executing: 'Approved by the owner. Sending it to PayPal now.',
-    completed: 'Approved by the owner, and PayPal accepted it.',
-    failed: `Approved by the owner, but PayPal refused it${why ? `: ${why}` : ''}.`,
-    unknown: 'Approved by the owner; the outcome is being checked with PayPal.',
-    rejected: 'Rejected by the owner. Nothing was sent to PayPal.',
+    executing: `Approved by ${by}. Sending it to PayPal now.`,
+    completed: `Approved by ${by}, and PayPal accepted it.`,
+    failed: `Approved by ${by}, but PayPal refused it${why ? `: ${why}` : ''}.`,
+    unknown: `Approved by ${by}; the outcome is being checked with PayPal.`,
+    rejected: `Rejected by ${by}. Nothing was sent to PayPal.`,
     stale: `${why ?? 'Not run: the case changed since it was held'}. Nothing was sent to PayPal.`,
     expired: "Expired: the owner didn't decide within 24 hours, so nothing moved.",
   };

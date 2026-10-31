@@ -56,6 +56,14 @@ export type RefundAsk = { capture_id: string; session: string; at: string; reaso
 const ASKS = '.junco/refund-asks.json';
 export const readRefundAsks = () => read<RefundAsk[]>(ASKS, []);
 export const saveRefundAsk = (a: RefundAsk) => write(ASKS, [...readRefundAsks().filter((x) => !(x.capture_id === a.capture_id && x.at === a.at)), a]);
+// "Approve it yourself" (demo-approver.ts): a visitor's decision on the one hold from their own refund ask, saved before
+// PayPal is called. This is what spends the link and counts for the caps, and how every record tells it from the owner's.
+export const DEMO_APPROVER = 'the demo approver (a desk visitor)';
+export type DemoDecision = { hold_id: string; capture_id: string; session: string; at: string; verb: 'approve' | 'reject' };
+const DEMOS = '.junco/demo-approvals.json';
+export const readDemoDecisions = () => read<DemoDecision[]>(DEMOS, []);
+export const saveDemoDecision = (d: DemoDecision) => write(DEMOS, [...readDemoDecisions(), d]);
+export const decidedBy = (hold: string) => (readDemoDecisions().some((d) => d.hold_id === hold) ? DEMO_APPROVER : 'the owner');
 const used = () => new Set(readRuns().map((r) => r.buyer_txn));
 // Tracked orders without a delivery record (the first M1 pool) are neither kind and stay unused.
 export const kindOf = (p: PoolEntry): Kind | null => (p.drill ? null : p.agent ? 'agent' : !p.tracking ? 'unshipped' : p.scan ? 'delivered' : null);

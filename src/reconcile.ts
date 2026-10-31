@@ -63,8 +63,9 @@ async function readPayPal(capture_id: string, get: PayPalGet): Promise<Read> {
 export const forget = (capture_id: string) => cache.delete(capture_id);
 
 // holds and moves: the incident's own (on its capture or its dispute). moves is the gate log: a move the gate allowed has no
-// hold. Returns one line for the read, then one per money movement.
-export async function reconcile(capture_id: string, holds: Hold[], get: PayPalGet, moves: Move[] = []): Promise<IncidentEvent[]> {
+// hold. decider: who approved a hold, the owner unless the caller knows better. Returns one line for the read, then one per
+// money movement.
+export async function reconcile(capture_id: string, holds: Hold[], get: PayPalGet, moves: Move[] = [], decider: (id: string) => string = () => 'the owner'): Promise<IncidentEvent[]> {
   let c = cache.get(capture_id);
   if (!c || Date.now() - c.t > TTL) cache.set(capture_id, c = { t: Date.now(), read: readPayPal(capture_id, get) });
   const pp = await c.read;
@@ -84,7 +85,7 @@ export async function reconcile(capture_id: string, holds: Hold[], get: PayPalGe
   const out = [ev('read', 'PayPal', `PayPal shows ${n || 'no'} refund${n === 1 ? '' : 's'} on this payment${n < pp.refunds.length ? ' apart from a dispute hold' : ''}, and lists the payment as ${pp.status}.${!n && !ran.length ? ' The desk ran none, so the two agree.' : ''}`, { payment_status: pp.status })];
   for (const r of pp.refunds) {
     const h = ran.find((x) => refundId(x) === r.id);
-    if (h) { out.push(ev(r.id, 'PayPal + holds', `PayPal shows refund ${r.id} for ${money(r.amount)} (${r.status}). The desk made it: hold ${h.id}, approved by the owner.`, { refund_id: r.id, amount: money(r.amount), hold_id: h.id }, 'matched')); continue; }
+    if (h) { out.push(ev(r.id, 'PayPal + holds', `PayPal shows refund ${r.id} for ${money(r.amount)} (${r.status}). The desk made it: hold ${h.id}, approved by ${decider(h.id)}.`, { refund_id: r.id, amount: money(r.amount), hold_id: h.id }, 'matched')); continue; }
     if (disputeHold(r)) { out.push(ev(r.id, 'PayPal', `PayPal's record reads as a dispute hold of ${money(r.amount)}: entry ${r.id} is ${r.status} on a payment held for a buyer complaint, and PayPal records ${money(r.refunded)} refunded, so no money has gone back to the buyer. The desk has nothing to match here.`, { refund_id: r.id, amount: money(r.amount) }, 'dispute_hold')); continue; }
     // ponytail: the gate log keeps no refund id, so this matches by amount, each allowed move once; save the id if allowing refunds ever becomes common
     const m = sent.findIndex((x) => !x.args?.amount?.value || Number(x.args.amount.value) === Number(r.amount?.value));

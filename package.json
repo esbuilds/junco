@@ -50,6 +50,7 @@
     "check-escape": "tsx src/check-escape.ts",
     "check-public": "tsx src/check-public.ts",
     "check-refund-ask": "tsx src/check-refund-ask.ts",
+    "check-demo-approver": "tsx src/check-demo-approver.ts",
     "check-fingerprint": "tsx src/check-fingerprint.ts",
     "check-ui": "tsx studio/check-ui.ts",
     "check-drill": "tsx src/check-drill.ts",

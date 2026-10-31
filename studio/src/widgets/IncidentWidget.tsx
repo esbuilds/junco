@@ -30,14 +30,16 @@ function Records({ r }: { r: ThreeRecords }) {
 }
 
 // Ask for your money back: on the visitor's own shopping agent purchase only (the incident says whether this viewer may
-// ask). The support agent can only propose; every refund waits for the owner, and expires after 24 hours undecided.
+// ask). The support agent can only propose; every refund waits for the owner, and expires after 24 hours undecided. The
+// visitor who asked also gets "Approve it yourself" for that one hold, recorded as the demo approver (demo-approver.ts).
 type Ask = NonNullable<NonNullable<Incident['refund']>['ask']>;
+const decider = (a: Ask) => { const by = a.decided_by ?? 'the owner'; return by[0].toUpperCase() + by.slice(1); };
 const askState = (a: Ask) => a.outcome === 'asking' ? 'The support agent is reading your purchase.'
   : a.outcome !== 'held' ? 'The support agent proposed no refund. Nothing was sent to PayPal.'
   : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner (hold ${a.hold_id}). Waiting for the owner${a.expires ? `; if they don't decide by ${when(a.expires)}, it expires and nothing moves` : ''}.`
   : a.hold_status === 'expired' ? `The owner didn't decide within 24 hours, so nothing moved. Hold ${a.hold_id} expired.`
-  : a.hold_status === 'rejected' ? `The owner rejected it (hold ${a.hold_id}). Nothing was sent to PayPal.`
-  : a.hold_status === 'completed' ? `The owner approved it (hold ${a.hold_id}), and PayPal made the refund.`
+  : a.hold_status === 'rejected' ? `${decider(a)} rejected it (hold ${a.hold_id}). Nothing was sent to PayPal.`
+  : a.hold_status === 'completed' ? `${decider(a)} approved it (hold ${a.hold_id}), and PayPal made the refund.`
   : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
 function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
   const [why, setWhy] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
@@ -55,8 +57,15 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
       {r.ask ? <>
         <p>{askState(r.ask)}</p>
         {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words:{aiLines(r.ask.ai).map((l, i) => <span key={i}><br />{l}</span>)}</p>}
+        {r.demo && (r.demo.url ? <div className="jd-demo">
+          <h3>Approve it yourself</h3>
+          <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
+          <img src={r.demo.qr!} alt="QR code for your approve link" />
+          <p><a className="jd-linkish" href={r.demo.url} target="_blank" rel="noreferrer">Open your approve link here</a></p>
+          <p className="jd-muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p>
+        </div> : <p className="jd-muted">{r.demo.why}</p>)}
       </> : <>
-        <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. Every refund waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves.</p>
+        <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
         <div className="jd-row">
           <input type="text" aria-label="Why you want it back (optional)" placeholder="Why you want it back (optional)" maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} style={{ flex: '1 1 220px' }} />
           <button type="button" className="jd-btn jd-primary" disabled={busy} onClick={ask}>{busy ? 'The support agent is reading your purchase...' : 'Ask the support agent for a refund'}</button>

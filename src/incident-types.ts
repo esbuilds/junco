@@ -47,11 +47,14 @@ export type Incident = {
   decline?: { reason: string; listings: string[] };
   // Only on a desk visitor's own agent buy: whether this viewer may ask the support agent for a refund (their own purchase,
   // signed in, not asked yet), and the ask if there is one, with its hold's state now (expired once 24 h pass undecided).
+  // demo: "Approve it yourself", added by the desk's route for the visitor who asked and nobody else (demo-approver.ts).
   refund?: { can_ask: boolean; ask: { at: string; reason: string; outcome: 'asking' | 'held' | 'no refund' | 'failed'; ai: string | null;
-    hold_id: string | null; hold_status: string | null; expires: string | null } | null };
+    hold_id: string | null; hold_status: string | null; expires: string | null; decided_by: string | null } | null;
+    demo?: { url: string | null; qr: string | null; why: string | null; expires: string } };
   dispute_id: string | null;
   events: IncidentEvent[];                                                            // oldest first
-  counts: { proposed: number; approved: number; executed: number; outcome_unknown: number }; // money moves only
+  // Money moves only. approved is the owner's and the policy's; demo_approved, only when there is one, is the demo approver's.
+  counts: { proposed: number; approved: number; executed: number; outcome_unknown: number; demo_approved?: number };
   missing: string[]; // facts the records don't have, said plainly; never filled in by a model
   records?: ThreeRecords | null; // the desk's incident JSON only; null on a decline. Connector tools don't carry it
 };

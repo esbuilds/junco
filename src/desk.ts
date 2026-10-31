@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { fullRefund, holdPage, linkRefusal, signedLink } from './onetap.js';
+import { demoDecide, demoOffer, demoRows, demoShow, type DemoDeps } from './demo-approver.js';
 import { bearer, challenge as signIn, connectorSessions, oauth, revokeAll } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -38,7 +39,7 @@ import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roo
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
 import { approveAll, correct, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
-import { actor, addDeclines, addToPool, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addDeclines, addToPool, DEMO_APPROVER, isChallenge, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
@@ -197,16 +198,21 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
   const done = verb === 'reject' ? `rejected by ${who}, nothing sent` : h.status === 'completed' ? `approved by ${who}, and ${acceptedText(h)}`
     : `approved by ${who}, ${h.status === 'failed' ? 'but PayPal refused it' : h.status === 'unknown' ? 'outcome unknown until PayPal is re-read' : h.status}`;
   notifyDecision(h, `${done}.`);
-  agent.log(h.args?.dispute_id ?? h.args?.order_id ?? 'owner', 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
+  const demo = who === DEMO_APPROVER; // a visitor's decision goes on its own purchase, never in the owner's name
+  agent.log(h.args?.dispute_id ?? h.args?.order_id ?? (demo ? h.args?.capture_id : 'owner'), demo ? 'demo approver' : 'owner', verb === 'reject' ? 'rejected' : h.status === 'completed' ? 'approved, done' : `approved, ${h.status}`,
     `${h.method.replace(/_/g, ' ')} ${done}${verb === 'approve' && h.status !== 'completed' ? `: ${(h.result ?? '').slice(0, 200)}` : ''}`);
   return h;
 }
 
+// "Approve it yourself": the same decideHold, as the visitor who asked, never as the owner.
+const demoDeps: DemoDeps = { key: () => process.env.OWNER_TOKEN, desk: DESK_URL,
+  decide: (id, verb, session) => actor.run({ owner: false, session }, () => decideHold(id, verb, DEMO_APPROVER)) };
+
 // The Gate record (v3.14): every money move proposed to the gate from every source, with its verdict and outcome.
 function gateRecordView() {
-  const rows = gateRecord(readHolds(), readChallengeRuns(), readMoves(), (h) => (tagged(h) as any).asked_by);
+  const rows = demoRows(gateRecord(readHolds(), readChallengeRuns(), readMoves(), (h) => (tagged(h) as any).asked_by));
   const n = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
-  return { counts: { proposed: rows.length, held: n((r) => !!r.hold_id), approved: n((r) => /^approved/.test(r.outcome)),
+  return { counts: { proposed: rows.length, held: n((r) => !!r.hold_id), approved: n((r) => /^approved by the owner/.test(r.outcome)), demo_approved: n((r) => /^approved by the demo approver/.test(r.outcome)),
     rejected: n((r) => /^rejected/.test(r.outcome)), stale: n((r) => /^stale/.test(r.outcome)), pending: n((r) => /^held, waiting/.test(r.outcome)),
     allowed: n((r) => r.verdict === 'allow'), denied: n((r) => r.verdict === 'deny'), gate_only: n((r) => r.verdict === 'gate-only'),
     past_limit: challengeStats().past_limit }, daily_total: dailyTotalView(policy), rows };
@@ -483,6 +489,17 @@ httpServer(async (req, res) => {
       const h = await actor.run({ owner: true, session: 'one-tap' }, () => decideHold(id, verb, 'the owner (one-tap link)'));
       page({ ok: h.status === 'completed' || h.status === 'rejected', text: verb === 'reject' ? 'Rejected. Nothing was sent to PayPal.' : h.status === 'completed' ? `Approved. ${acceptedText(h)}.` : `Approved, but ${h.status === 'failed' ? 'PayPal refused it' : `the outcome is ${h.status}; the desk will re-read PayPal`}.` });
     } catch (e: any) { page({ ok: false, text: e.message }); }
+  })().catch((e) => json(res, 400, { error: { message: e.message } }));
+  // "Approve it yourself": a capability of its own (demo-approver.ts), for one hold on one visitor's own purchase. It opens on
+  // a phone with no cookie and no password. GET only shows it; the POST from its buttons decides, as that visitor, never the owner.
+  const demoTap = req.url?.match(/^\/demo-approve\/([\w-]+)(?:\?|$)/);
+  if (demoTap) return void (async () => {
+    const u = new URL(req.url!, 'http://x'), id = demoTap[1];
+    const form = req.method === 'POST' ? new URLSearchParams(await readRaw(req, 10_000)) : null, verb = form?.get('verb');
+    const q = { e: form?.get('e') ?? u.searchParams.get('e'), s: form?.get('s') ?? u.searchParams.get('s') };
+    const out = verb === 'approve' || verb === 'reject' ? await demoDecide(demoDeps, id, q, verb) : demoShow(demoDeps, id, q);
+    res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
+    res.end(out.html);
   })().catch((e) => json(res, 400, { error: { message: e.message } }));
   // S1: OAuth for Claude connectors (DCR, PKCE, a password page). An MCP path takes a bearer token or, as before, the
   // desk password (mcp-remote); with neither, the 401 points Claude at the sign-in metadata.
@@ -780,6 +797,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       if (req.method === 'GET' && p[0] === 'incident' && tail === 'receipt') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(receiptPage(inc, `${DESK_URL}/incident/${encodeURIComponent(inc.id)}`)); }
       if (req.method === 'GET' && p[0] === 'api' && !tail) { // with PayPal's refunds lined up against the desk's
         const r = (await reconciled(inc, (q) => paypal(ctx, 'GET', q)))!;
+        if (r.refund) r.refund.demo = demoOffer(process.env.OWNER_TOKEN, DESK_URL, r.refund.ask?.hold_id, actor.getStore()!); // this page's only: never in the connector's copy
         return json(res, 200, { ...r, records: threeRecords(r) });
       }
       if (req.method === 'POST' && p[0] === 'api' && tail === 'what-if') {

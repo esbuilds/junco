@@ -531,3 +531,6 @@ textarea { border-radius: 8px; }
 .jd-whoelse-detail h3:first-child, .jd-whoelse-fix h3:first-child { margin-top: 0; }
 .jd-panel mark { background: var(--jd-attn-bg); color: var(--jd-attn-text); padding: 0 1px; }
 .jd-whoelse-text { display: block; width: 100%; margin-top: 8px; padding: 8px 10px; font: inherit; color: var(--jd-ink); background: var(--jd-surface); border: 1px solid var(--jd-line); border-radius: 8px; box-sizing: border-box; }
+/* Approve it yourself: the visitor's one sandbox refund. */
+.jd-demo { margin-top: 12px; padding: 12px; background: var(--jd-surface-2); border-radius: 8px; overflow-wrap: anywhere; }
+.jd-demo img { display: block; width: 200px; max-width: 100%; margin: 8px 0; image-rendering: pixelated; background: #fff; padding: 8px; border-radius: 8px; box-sizing: border-box; }

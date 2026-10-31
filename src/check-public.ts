@@ -45,7 +45,7 @@ assert.ok(desk.includes("url.pathname !== '/api/studio-ai' && !isPublic(req.meth
 const page = readFileSync('public/incident.html', 'utf8'), fetches = [...page.matchAll(/fetch\((?:`([^`]+)`|'([^']+)')/g)].map((m) => m[1] ?? m[2]);
 assert.deepEqual(fetches.sort(), ['/api/incident/${encodeURIComponent(id)}', '/api/incident/${encodeURIComponent(inc.id)}/what-if', '/api/refund-ask']);
 for (const f of fetches.filter((x) => x !== '/api/refund-ask')) assert.ok(isPublic(f.endsWith('what-if') ? 'POST' : 'GET', f.replace(/\$\{[^}]+\}/, ID)));
-assert.ok(!isPublic('POST', '/api/refund-ask') && page.includes("if (r.ask) { $('#refund').innerHTML = askText(r.ask); return; }\n  if (!r.can_ask) return;"));
+assert.ok(!isPublic('POST', '/api/refund-ask') && page.includes("if (r.ask) { $('#refund').innerHTML = askText(r.ask) + demoBox(r.demo); return; }\n  if (!r.can_ask) return;"));
 assert.ok(page.includes('Desk (sign in to act)'));
 // The drill page: open paths on the desk, and the planter from the visitor's browser.
 const drill = readFileSync('public/drill.html', 'utf8'), drillFetches = [...drill.matchAll(/fetch\((?:`([^`]+)`|'([^']+)')/g)].map((m) => m[1] ?? m[2]);

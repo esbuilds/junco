@@ -80,6 +80,9 @@
   .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .btn:disabled { opacity: .6; cursor: default; }
   .err { color: var(--danger); font-weight: 600; }
+  .demo { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  .demo p { margin: 8px 0; }
+  .qr { display: block; width: 200px; max-width: 100%; margin: 8px 0; image-rendering: pixelated; background: #fff; padding: 8px; border-radius: 8px; }
   @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px 24px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 16px 16px; } header { padding: 16px 16px 8px; } .records { padding: 0 16px 16px; } .records-cols { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
@@ -132,7 +135,7 @@ function render() {
   $('#receipt').href = `/incident/${encodeURIComponent(inc.id)}/receipt`;
   $('#who-else').hidden = !inc.dispute_id; $('#who-else').href = `/who-else?seed=${encodeURIComponent(inc.id)}`;
   const c = inc.counts, d = inc.decline;
-  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
+  $('#counts').innerHTML = [['Proposed', c.proposed], ['Approved', c.approved], ...(c.demo_approved ? [['Approved by the demo approver', c.demo_approved]] : []), ['Executed', c.executed], ['Outcome unknown', c.outcome_unknown]]
     .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   // A decline: the agent bought nothing, so there are no money moves to count and nothing for the what-if to re-run.
   $('#counts').hidden = $('#whatif-card').hidden = $('#q-whatif').hidden = !!d;
@@ -207,23 +210,30 @@ const EXPIRED = "The owner didn't decide within 24 hours, so nothing moved.";
 const aiLines = (s) => s.split(/\n+|\s+-\s+(?=\*\*)/) // a list run onto one line: " - **Label:**"
   .map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/^#+\s*/, '').trim()).filter(Boolean);
 const askText = (a) => {
+  const by = a.decided_by ?? 'the owner', Who = by[0].toUpperCase() + by.slice(1); // the owner, or the demo approver: never the one in the other's name
   const hold = a.hold_id ? ` (hold ${a.hold_id})` : '', until = a.expires ? new Date(a.expires).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const state = a.outcome === 'asking' ? 'The support agent is reading your purchase. Reload in a moment.'
     : a.outcome !== 'held' ? 'The support agent proposed no refund. Nothing was sent to PayPal.'
     : a.hold_status === 'pending' ? `The support agent proposed a refund and the gate held it for the owner${hold}. Waiting for the owner${until ? `; if they don't decide by ${until}, it expires and nothing moves` : ''}.`
     : a.hold_status === 'expired' ? `${EXPIRED}${hold ? ` Hold ${a.hold_id} expired.` : ''}`
-    : a.hold_status === 'rejected' ? `The owner rejected it${hold}. Nothing was sent to PayPal.`
-    : a.hold_status === 'completed' ? `The owner approved it${hold}, and PayPal made the refund.`
+    : a.hold_status === 'rejected' ? `${Who} rejected it${hold}. Nothing was sent to PayPal.`
+    : a.hold_status === 'completed' ? `${Who} approved it${hold}, and PayPal made the refund.`
     : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
   return `<p style="margin-top:0">${esc(state)}</p>${a.ai ? `<p class="muted">The support agent's reply, in the AI's own words:<br>${aiLines(a.ai).map(esc).join('<br>')}</p>` : ''}`;
 };
+// "Approve it yourself": only ever on this visitor's own held ask; the desk adds it for them and nobody else (demo-approver.ts).
+const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><h2>Approve it yourself</h2>
+  <p>You are the demo approver for this one sandbox refund. You can't approve anything else.</p>
+  <img class="qr" src="${esc(d.qr)}" alt="QR code for your approve link"><p><a href="${esc(d.url)}">Open your approve link here</a></p>
+  <p class="muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div>`
+  : `<p class="muted">${esc(d.why)}</p>`;
 function renderRefund() {
   const r = inc.refund;
   $('#refund-card').hidden = !r || (!r.can_ask && !r.ask);
   if (!r) return;
-  if (r.ask) { $('#refund').innerHTML = askText(r.ask); return; }
+  if (r.ask) { $('#refund').innerHTML = askText(r.ask) + demoBox(r.demo); return; }
   if (!r.can_ask) return;
-  $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) reads your purchase and can propose a refund. Every refund waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves.</p>
+  $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
     <div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px"></label>
     <button class="btn" id="refund-ask">Ask the support agent for a refund</button></div><div id="refund-out" aria-live="polite"></div>`;
   $('#refund-ask').addEventListener('click', async (ev) => {
@@ -237,7 +247,10 @@ function renderRefund() {
   });
 }
 
-const load = () => fetch(`/api/incident/${encodeURIComponent(id)}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error?.message ?? r.status); inc = b; render(); renderRefund(); });
+const read = () => fetch(`/api/incident/${encodeURIComponent(id)}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error?.message ?? r.status); return b; });
+const load = () => read().then((b) => { inc = b; render(); renderRefund(); watchDemo(); });
+// The phone decides, and this page then shows it. Only redrawn once the offer ends, so the what-if form keeps its state.
+const watchDemo = () => { if (inc.refund?.demo?.url) setTimeout(async () => { const b = await read().catch(() => null); if (!b || b.refund?.demo?.url) return watchDemo(); inc = b; render(); renderRefund(); }, 5000); };
 load().catch((e) => { $('#title').textContent = `Could not load the incident: ${e.message}`; });
 </script>
 </body>
