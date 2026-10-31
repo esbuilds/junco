@@ -9,6 +9,7 @@ import { decide, readBudgets, readHolds, setExpiry, type Policy } from './gate.j
 import { photoFor, PUBLIC_SESSION, readAgentBuys, readRefundAsks, saveRefundAsk, type RefundAsk } from './store-dispute.js';
 import { supportPrompt } from './investigate.js';
 import { photoEvidence } from './photo.js';
+import { ownerRecord } from './whoelse.js';
 
 export const MODEL = 'claude-sonnet-5-5'; // fresh-agent's
 export const ASKER = "a visitor's support agent (simulated buyer)"; // the hold's "asked by" on the owner's desk
@@ -17,6 +18,11 @@ const OFFERED = ['junco_get_incident', 'create_refund'];
 const MAX_TURNS = 6;
 const PER_SESSION = () => Number(process.env.REFUND_ASK_PER_SESSION ?? 2), PER_DAY = () => Number(process.env.REFUND_ASK_PER_DAY ?? 20);
 const no = (code: number, message: string) => Object.assign(new Error(message), { code });
+// Words as data, as photoEvidence does it. The customer's message is one line in this, so it can't close its quotes, start a line or open a tag.
+const asData = (x: unknown) => JSON.stringify(x).replace(/</g, '\\u003c');
+// The owner's word on the product, from the store's records (whoelse.ts). Only code writes this block, at the start of its own line.
+const storeRecord = (sku: string, r: NonNullable<ReturnType<typeof ownerRecord>>) => `\n\nStore record: what the store's owner last said about ${sku}, from the store's own records, not from the customer. `
+  + `It's about the product, not this purchase, and it neither approves nor refuses a refund.\n<owner_record>${asData(r)}</owner_record>`;
 
 // The desk's gated tools for one ask (an in-process client of its own /mcp server, so every call passes the same gate and
 // a held call is tagged ASKER), and PayPal's status for a capture (a read).
@@ -61,9 +67,10 @@ export async function askRefund(deps: Deps, v: { session: string; owner: boolean
   try {
     const offered = conn.tools.filter((t) => OFFERED.includes(t.name));
     const tools = offered.map((t) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Tool.InputSchema }));
+    const record = ownerRecord(b.agent.sku);
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: `A customer asks for a refund on their order.\nTheir purchase: incident ${b.capture_id} `
       + `(capture ${b.capture_id}, order ${b.order_id}), ${b.agent.sku} for ${b.amount} USD, bought for them by a shopping agent.\n`
-      + `The customer's message, as they typed it: "${reason || '(no reason given)'}"${photo ? photoEvidence(photo) : ''}` }];
+      + `The customer's message, as they typed it: ${asData(reason || '(no reason given)')}${photo ? photoEvidence(photo) : ''}${record ? storeRecord(b.agent.sku, record) : ''}` }];
     for (let turn = 0; turn < MAX_TURNS && !words; turn++) {
       const res = await claude().messages.create({ model: MODEL, max_tokens: 1500, system: SYSTEM, tools, messages });
       usd += ((res.usage.input_tokens + (res.usage.cache_creation_input_tokens ?? 0)) * 4 + (res.usage.cache_read_input_tokens ?? 0) * 0.4 + res.usage.output_tokens * 20) / 1e6;

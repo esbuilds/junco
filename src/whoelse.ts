@@ -189,6 +189,15 @@ export function view(r: WhoElseRun): WhoElseRun {
 }
 export const whoElseRun = (id: string) => { const r = read().runs.find((x) => x.id === id); return r ? view(r) : null; };
 const latest = () => { const r = read().runs.at(-1); return r ? view(r) : null; };
+// The owner's latest word on one product, for the support agent (refund-ask.ts) and nobody else: the note on a run seeded from that
+// SKU, or a listing correction the owner applied. A proposed correction is a model's until then, so it doesn't count.
+export function ownerRecord(sku: string): { kind: 'owner note' | 'listing correction'; text: string; at: string } | null {
+  const said = read().runs.flatMap((r) => [
+    ...(r.members.find((m) => m.incident_id === r.seed)?.sku === sku ? [{ kind: 'owner note' as const, text: r.cause.summary, at: r.at }] : []),
+    ...r.corrections.flatMap((c) => (c.sku === sku && c.at ? [{ kind: 'listing correction' as const, text: c.text, at: c.at }] : [])),
+  ]);
+  return said.sort((a, b) => a.at.localeCompare(b.at)).at(-1) ?? null;
+}
 
 export function whoElseScore(): WhoElseScore {
   const runs = read().runs.map(view), n = (xs: (string | null)[]) => new Set(xs.filter(Boolean)).size, rows = runs.flatMap((r) => r.members), fixes = runs.flatMap((r) => r.remedies), told = runs.flatMap((r) => r.notices);
