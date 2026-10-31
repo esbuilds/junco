@@ -40,7 +40,7 @@ import { ASKER, askRefund, type Deps as RefundDeps } from './refund-ask.js';
 import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roomsFor, OWNER_B, PERSONAS, ROOMS, readChallengeRuns, runPage, stats as challengeStats, type ChallengeRun } from './challenge.js';
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
-import { approveAll, correct, notify as whoElseNotify, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
+import { approveAll, correct, notify as whoElseNotify, plan as whoElsePlan, refreshDisputes, runFinder, setNote, whoElseHome, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
 import { actor, addDeclines, addToPool, decidedField, DEMO_APPROVER, isChallenge, LEASE_VISITOR, photoForHold, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
@@ -797,7 +797,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
         if (req.method === 'GET' && !p[2]) return json(res, 200, whoElseHome());
         if (req.method === 'POST' && p[2] === 'note' && !p[3]) { const b = await readBody(req); return json(res, 200, setNote(b?.seed, b?.text)); }
         if (req.method === 'POST' && p[2] === 'run' && !p[3]) return json(res, 200, await runFinder(whoElseDeps, (await readBody(req))?.seed));
-        if (p[2] === 'run' && p[3] && !p[4] && req.method === 'GET') { const r = whoElseRun(p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); }
+        if (p[2] === 'run' && p[3] && !p[4] && req.method === 'GET') { const r = await refreshDisputes(whoElseDeps, p[3]); return r ? json(res, 200, r) : json(res, 404, { error: { message: 'No such run' } }); } // reads a settled dispute once PayPal has it
         if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'plan' && !p[5]) return json(res, 200, await whoElsePlan(whoElseDeps, p[3], (await readBody(req))?.captures));
         if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'notify' && !p[5]) return json(res, 200, await whoElseNotify(whoElseDeps, p[3], (await readBody(req))?.captures));
         if (req.method === 'POST' && p[2] === 'run' && p[3] && p[4] === 'approve-all' && !p[5]) return json(res, 200, await approveAll(whoElseDeps, p[3]));

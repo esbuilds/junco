@@ -107,8 +107,24 @@ const waiting = (r: Run) => !!r.dispute_id && !r.leased_at && !r.retired_at;
 export const ready = (kind: Kind) => readRuns().filter((r) => r.kind === kind && waiting(r) && r.unlocked_at && oldEnough(kind, r.buyer_txn));
 // Pre-filed cases waiting for a judge: the agent leaves them alone until leased (or retired).
 export const isWaiting = (id: string) => readRuns().some((r) => r.dispute_id === id && waiting(r));
+// The owner's own record on a product (Who else?: the note that named the mistake, the applied correction, the purchases
+// already settled for it), as merchant records on a dispute over that product. whoelse.ts registers the reader at import, so
+// this file doesn't import it (whoelse imports this one). Oct 31: without it, a dispute on a mistake the owner had already
+// named and refunded elsewhere still read "the agent's error, not the store's".
+export type MerchantRecord = { source: string; text: string };
+let ownerWords: (sku: string) => MerchantRecord[] = () => [];
+export const setOwnerWords = (f: typeof ownerWords) => { ownerWords = f; };
+// Who else? settling a pool case: a visitor can't be handed a case the owner is accepting. An active lease wins, an unleased
+// waiting case leaves the ready set, anything else is left as it is. Says what it did, for the remedy's record.
+export function takeFromReady(disputeId: string): { ok: boolean; what: string } {
+  const runs = readRuns(), run = runs.find((r) => r.dispute_id === disputeId);
+  if (!run) return { ok: true, what: 'not a Dispute this store case' };
+  if (run.leased_at && leaseUntil(run) >= Date.now()) return { ok: false, what: `a desk visitor holds this case in Dispute this store until ${new Date(leaseUntil(run)).toISOString().slice(11, 16)} UTC` };
+  if (waiting(run)) { run.retired_at = new Date().toISOString(); write(RUNS, runs); return { ok: true, what: 'taken out of the Dispute this store ready set' }; }
+  return { ok: true, what: run.leased_at ? 'a Dispute this store case whose lease has ended' : 'a retired Dispute this store case' };
+}
 // The demo store's own delivery record for a delivered case, as a merchant record on the case's evidence.
-export const extraFor = (id: string) => {
+export const extraFor = (id: string): MerchantRecord[] => {
   const run = readRuns().find((r) => r.dispute_id === id);
   if (!run) return [];
   const at = new Date(paidAt(run.buyer_txn) + DELIVERED_AFTER).toISOString().slice(0, 16).replace('T', ' ');
@@ -120,6 +136,7 @@ export const extraFor = (id: string) => {
     { source: 'agent checkout record (kept by merchant)', text: `Placed ${paid} UTC through the store's agent checkout by ${a.agent}, acting for the buyer, paid with a PayPal account the buyer saved for this store. Instruction the agent sent with the order: "${a.instruction}" Budget given: $${a.budget}.` },
     { source: 'product listing at time of order (merchant)', text: a.listing },
     { source: "agent's stated reason for the purchase (kept by merchant)", text: a.reason },
+    ...ownerWords(a.sku),
     ...scan,
   ];
 };

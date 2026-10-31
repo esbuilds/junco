@@ -71,9 +71,17 @@ const HOLD_PILL: Record<string, { label: string; tone: RowTone }> = { pending: {
   unknown: { label: 'Outcome unknown', tone: 'bad' }, approved: { label: 'Approved', tone: 'quiet' }, rejected: { label: 'Rejected', tone: 'quiet' }, stale: { label: 'Not run', tone: 'bad' }, expired: { label: 'Hold expired', tone: 'bad' } };
 const BUCKET_PILL: Record<Bucket, { label: string; tone: RowTone }> = { silent: { label: 'Not planned', tone: 'ready' }, complained: { label: 'Open dispute', tone: 'quiet' }, repaired: { label: 'Already repaired', tone: 'quiet' }, unclear: { label: 'Unclear', tone: 'quiet' }, not_same: { label: 'Not the same', tone: 'quiet' } };
 const AGENT_PILL: Record<AgentNotice['outcome'], { label: string; tone: RowTone }> = { asked: { label: 'Agent asked', tone: 'attn' }, declined: { label: 'Agent declined', tone: 'quiet' }, failed: { label: 'Agent failed', tone: 'bad' } };
-export const rowStatus = (m: Pick<Member, 'bucket' | 'sku'>, r?: Pick<Remedy, 'hold_status' | 'refund_id'>, dropped = false, n?: Pick<AgentNotice, 'outcome'>) =>
-  r?.refund_id ? HOLD_PILL.completed : n?.outcome === 'asked' && r?.hold_status === 'pending' ? AGENT_PILL.asked : r?.hold_status ? HOLD_PILL[r.hold_status] ?? { label: r.hold_status, tone: 'quiet' as const }
-  : n && n.outcome !== 'asked' ? AGENT_PILL[n.outcome] : dropped ? { label: 'Dropped', tone: 'quiet' as const } : m.bucket === 'not_same' && !m.sku ? { label: 'Bought nothing', tone: 'quiet' as const } : BUCKET_PILL[m.bucket];
+// An accept's outcome is PayPal's word on the dispute, read after the hold ran, never the hold's own text. A complained row with no
+// remedy says how PayPal shows its dispute. public/who-else.html repeats this (check-ui).
+export const rowStatus = (m: Pick<Member, 'bucket' | 'sku' | 'dispute'>, r?: Pick<Remedy, 'hold_status' | 'refund_id' | 'kind' | 'dispute'>, dropped = false, n?: Pick<AgentNotice, 'outcome'>) =>
+  r?.kind === 'accept' && r.hold_status === 'completed' ? (r.dispute?.status === 'RESOLVED' ? { label: 'Claim accepted', tone: 'done' as const } : { label: 'Accepted, reading PayPal', tone: 'attn' as const })
+  : r?.refund_id ? HOLD_PILL.completed : n?.outcome === 'asked' && r?.hold_status === 'pending' ? AGENT_PILL.asked : r?.hold_status ? HOLD_PILL[r.hold_status] ?? { label: r.hold_status, tone: 'quiet' as const }
+  : n && n.outcome !== 'asked' ? AGENT_PILL[n.outcome] : dropped ? { label: 'Dropped', tone: 'quiet' as const } : m.bucket === 'not_same' && !m.sku ? { label: 'Bought nothing', tone: 'quiet' as const }
+  : m.bucket === 'complained' && m.dispute?.status === 'RESOLVED' ? { label: 'Resolved by PayPal', tone: 'quiet' as const } : BUCKET_PILL[m.bucket];
+
+// A complained row the owner can settle from here: its dispute was read for this run, isn't resolved, and PayPal lists accepting it
+// with a refund. A run stored before disputes were read offers nothing; running again reads them.
+const settleable = (m: Member) => m.bucket === 'complained' && !!m.capture_id && !!m.dispute_id && !!m.dispute && m.dispute.status !== 'RESOLVED' && m.dispute.accept_types.includes('REFUND');
 
 export function whoElseRows(run: WhoElseRun, dropped: ReadonlySet<string>, closed: ReadonlySet<Bucket>, picked: string | null = null): WhoElseRow[] {
   return BUCKETS.flatMap(([bucket, name]) => {
@@ -82,9 +90,10 @@ export function whoElseRows(run: WhoElseRun, dropped: ReadonlySet<string>, close
     const open = !closed.has(bucket);
     const group: WhoElseRow = { id: `group:${bucket}`, kind: 'group', bucket, label: `${name} (${members.length})`, open, ...totals(run, members) };
     return [group, ...(open ? members.flatMap((m): WhoElseRow[] => {
-      const remedy = remedyOf(run, m), s = standing(m, remedy), silent = bucket === 'silent' && !!m.capture_id;
-      const notice = noticeOf(run, m), declined = notice?.outcome === 'declined', held = !!remedy && !planAgain(remedy), isDropped = silent && dropped.has(m.capture_id!);
-      const row: WhoElseRow = { id: m.incident_id, kind: 'member', bucket, label: m.incident_id, member: m, remedy, notice, can_keep: silent && !held && !declined, keep: silent && !declined && (held || !isDropped), paid: s.paid / 100, refunded: s.refunded / 100, remaining: s.remaining / 100, status: rowStatus(m, remedy, isDropped, notice) };
+      const remedy = remedyOf(run, m), s = standing(m, remedy), silent = bucket === 'silent' && !!m.capture_id, settle = settleable(m);
+      const notice = noticeOf(run, m), declined = notice?.outcome === 'declined', held = !!remedy && !planAgain(remedy), isDropped = (silent || settle) && dropped.has(m.capture_id!);
+      const can_keep = silent ? !held && !declined : settle && !held;
+      const row: WhoElseRow = { id: m.incident_id, kind: 'member', bucket, label: m.incident_id, member: m, remedy, notice, can_keep, keep: (silent || settle) && !declined && (held || !isDropped), paid: s.paid / 100, refunded: s.refunded / 100, remaining: s.remaining / 100, status: rowStatus(m, remedy, isDropped, notice) };
       return picked === m.incident_id ? [row, { ...row, id: `detail:${m.incident_id}`, kind: 'detail' }] : [row];
     }) : [])];
   });
@@ -95,31 +104,35 @@ const planAgain = (r: Pick<Remedy, 'hold_status'>) => ['rejected', 'expired', 's
 // Silent purchases the owner kept that aren't held or refunded. Works from run.members, so a collapsed group can't lose a row.
 // An agent's decline takes a row out of the plan: the step doesn't push the owner to refund what the agent said it doesn't need.
 export const toPlan = (run: WhoElseRun, dropped: ReadonlySet<string>) => run.members.filter((m) => { const r = remedyOf(run, m); return m.bucket === 'silent' && m.capture_id && !dropped.has(m.capture_id) && (!r || planAgain(r)) && noticeOf(run, m)?.outcome !== 'declined'; });
+// Complained purchases the owner kept whose open dispute can be accepted from here, and isn't held already.
+export const toSettle = (run: WhoElseRun, dropped: ReadonlySet<string>) => run.members.filter((m) => { const r = remedyOf(run, m); return settleable(m) && !dropped.has(m.capture_id!) && (!r || planAgain(r)); });
 // The kept rows whose agent hasn't answered. A failed agent can be told again.
 export const toTell = (run: WhoElseRun, dropped: ReadonlySet<string>) => toPlan(run, dropped).filter((m) => { const n = noticeOf(run, m); return !n || n.outcome === 'failed'; });
 export const keptTotal = (run: WhoElseRun, dropped: ReadonlySet<string>): WhoElseRow => {
-  const kept = toPlan(run, dropped);
+  const kept = [...toPlan(run, dropped), ...toSettle(run, dropped)];
   return { id: 'total', kind: 'total', bucket: 'silent', label: `In the plan (${kept.length})`, ...totals(run, kept) };
 };
 
 // The top of the page and the four-step path, all from the run. Nothing here reads PayPal or asks a model.
 export type StepId = 'found' | 'plan' | 'approve' | 'fix';
 export function whoElseSummary(run: WhoElseRun, dropped: ReadonlySet<string>) {
-  const silent = run.members.filter((m) => m.bucket === 'silent'), plan = toPlan(run, dropped), held = run.remedies.filter((r) => r.hold_status === 'pending');
+  const silent = run.members.filter((m) => m.bucket === 'silent'), plan = toPlan(run, dropped), settle = toSettle(run, dropped), held = run.remedies.filter((r) => r.hold_status === 'pending');
+  const refunds = run.remedies.filter((r) => r.kind !== 'accept'), accepts = run.remedies.filter((r) => r.kind === 'accept'), accepted = accepts.filter((r) => r.dispute?.status === 'RESOLVED');
   const refunded = run.remedies.filter((r) => r.refund_id), failed = run.remedies.filter((r) => !r.refund_id && ['failed', 'unknown', 'stale', 'expired'].includes(r.hold_status ?? ''));
   const complained = others(run).filter((m) => m.bucket === 'complained').length, fixed = run.corrections.filter((c) => c.at), left = totals(run, silent).remaining;
-  const current: StepId = held.length ? 'approve' : plan.length ? 'plan' : 'fix';
+  const toDo = plan.length + settle.length;
+  const current: StepId = held.length ? 'approve' : toDo ? 'plan' : 'fix';
   // Done means done: a step with work left never wears a check, whichever step is current.
-  const done: Record<StepId, boolean> = { found: true, plan: !plan.length && run.remedies.length > 0, approve: !plan.length && !held.length && run.remedies.length > 0, fix: fixed.length > 0 && !run.trials.some((t) => t.outcome === 'bought') };
+  const done: Record<StepId, boolean> = { found: true, plan: !toDo && run.remedies.length > 0, approve: !toDo && !held.length && run.remedies.length > 0, fix: fixed.length > 0 && !run.trials.some((t) => t.outcome === 'bought') };
   const n = (x: number, w: string) => `${x} ${w}${x === 1 ? '' : 's'}`;
   const asked = run.notices.filter((x) => x.outcome === 'asked').length, declined = run.notices.filter((x) => x.outcome === 'declined').length;
   const lines: Record<StepId, string> = {
     found: `${others(run).length} others read, ${silent.length + complained} show this problem`,
-    plan: `${plan.length ? `${n(plan.length, 'refund')} to plan` : `${n(run.remedies.length, 'refund')} planned`}${declined ? `, ${declined} declined` : ''}`,
-    approve: held.length ? `${n(held.length, 'refund')} waiting` : [refunded.length && `${refunded.length} refunded`, failed.length && `${failed.length} not run`].filter(Boolean).join(', ') || 'Nothing to approve yet',
+    plan: [plan.length ? `${n(plan.length, 'refund')} to plan` : `${n(refunds.length, 'refund')} planned`, settle.length ? `${n(settle.length, 'claim')} to accept` : accepts.length ? `${n(accepts.length, 'claim')} to accept planned` : '', declined ? `${declined} declined` : ''].filter(Boolean).join(', '),
+    approve: held.length ? `${n(held.length, held.some((r) => r.kind === 'accept') ? 'hold' : 'refund')} waiting` : [refunded.length && `${refunded.length} refunded`, accepted.length && `${accepted.length} settled by PayPal`, failed.length && `${failed.length} not run`].filter(Boolean).join(', ') || 'Nothing to approve yet',
     fix: run.trials.length ? `${n(run.trials.length, 'trial')} run` : fixed.length ? 'Corrected' : 'Not corrected yet',
   };
-  return { silent: silent.length, complained, left, refunded: refunded.length, refundedUsd: refunded.reduce((x, r) => x + cents(r.amount), 0) / 100, failed, held, plan, tell: toTell(run, dropped), asked, declined, current, done, lines };
+  return { silent: silent.length, complained, left, refunded: refunded.length, refundedUsd: refunded.reduce((x, r) => x + cents(r.amount), 0) / 100, failed, held, plan, settle, accepted: accepted.length, tell: toTell(run, dropped), asked, declined, current, done, lines };
 }
 
 // Sorting a column reorders members inside their group; a group stays in bucket order with its heading on top, and a row's detail
