@@ -6,6 +6,7 @@ import { aiLines, ID_TOKEN, modeOf, notInRecords, reachedPayPal, verdict, whatIf
 import { api } from '../api';
 import { useSelectedCase, usePoll } from '../store';
 import { Panel } from './Panel';
+import '../../../public/photo-client.js'; // one upload control and one card, shared with the incident page and the phone page
 
 // Titles repeat ("Agent bought WKD-01 for ..." three times), so a choice also names its date, buyer txn and dispute.
 export const incidentLabel = (i: IncidentSummary) =>
@@ -59,6 +60,19 @@ const askState = (a: Ask) => a.outcome === 'asking' ? 'The support agent is read
   : a.hold_status === 'rejected' ? `${decider(a)} rejected it (hold ${a.hold_id}). Nothing was sent to PayPal.`
   : a.hold_status === 'completed' ? `${decider(a)} approved it (hold ${a.hold_id}), and PayPal made the refund.`
   : `Hold ${a.hold_id}: ${a.hold_status ?? 'not found'}.`;
+// An optional photo, before the ask: the upload, then the card. Nothing shows on a purchase that has none and can't add one.
+const juncoPhoto = () => (window as any).juncoPhoto;
+function PhotoSlot({ inc, onDone }: { inc: Incident; onDone: () => void }) {
+  const o = inc.refund?.photo_offer, can = !!o && !o.why, [again, setAgain] = useState(false), el = useRef<HTMLDivElement>(null);
+  const adding = can && !inc.refund?.ask && (!inc.photo || again);
+  useEffect(() => { if (adding && el.current) juncoPhoto().control(el.current, { url: '/api/photo', extra: { capture_id: inc.purchase?.capture_id }, offer: o, onDone: () => { setAgain(false); onDone(); } }); }, [adding, o?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (adding) return <div ref={el} />;
+  return <>
+    {inc.photo && <div dangerouslySetInnerHTML={{ __html: juncoPhoto().card(inc.photo) }} />}
+    {inc.photo && can && !inc.refund?.ask && <p><button type="button" className="jd-linkish" onClick={() => setAgain(true)}>Use a different photo</button></p>}
+    {o?.why && !inc.refund?.ask && <p className="jd-muted">{o.why}</p>}
+  </>;
+}
 function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
   const [why, setWhy] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
   const r = inc.refund!;
@@ -75,6 +89,7 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
       {r.ask ? <>
         <p>{askState(r.ask)}</p>
         {r.ask.ai && <p className="jd-muted">The support agent's reply, in the AI's own words:{aiLines(r.ask.ai).map((l, i) => <span key={i}><br />{l}</span>)}</p>}
+        <PhotoSlot inc={inc} onDone={onDone} />
         {r.demo && (r.demo.url ? <div className="jd-demo">
           <img src={r.demo.qr!} alt="QR code for your approve link" />
           <div>
@@ -86,6 +101,7 @@ function RefundBox({ inc, onDone }: { inc: Incident; onDone: () => void }) {
         </div> : <p className="jd-muted">{r.demo.why}</p>)}
       </> : <>
         <p className="jd-sub">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
+        <PhotoSlot inc={inc} onDone={onDone} />
         <div className="jd-row">
           <input type="text" aria-label="Why you want it back (optional)" placeholder="Why you want it back (optional)" maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} style={{ flex: '1 1 220px' }} />
           <button type="button" className="jd-btn jd-primary" disabled={busy} onClick={ask}>{busy ? 'The support agent is reading your purchase...' : 'Ask the support agent for a refund'}</button>

@@ -10,12 +10,16 @@ export type Mode = 'live' | 'recorded' | 'what-if';
 // the mandate fingerprint on the order, read back at capture and checked against the store's record (src/fingerprint.ts).
 // reconciliation: PayPal's refunds on the capture lined up against the desk's holds (src/reconcile.ts), LIVE when PayPal answered.
 // outside_refund: PayPal's webhook reported a refund the desk didn't make (the drill, or anyone working in PayPal directly).
-export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund';
+// photo: a photo the buyer sent, unverified (RECORDED). Only the desk's route adds it, for that visitor and the owner (photo.ts).
+export type EventKind = 'purchase' | 'decline' | 'payment' | 'dispute' | 'agent' | 'gate' | 'hold' | 'approval' | 'paypal' | 'webhook' | 'paypal_fingerprint' | 'reconciliation' | 'outside_refund' | 'photo';
 
 // What a reconciliation line found. matched, dispute_hold and settled are not differences; paypal_only and desk_only are;
 // unread means PayPal didn't answer, so nothing is known either way. The fingerprint_ ones sit on a fingerprint event; only
 // a mismatch is a difference, and an event without one is a copy that couldn't be read at capture.
 export type Match = 'matched' | 'dispute_hold' | 'settled' | 'paypal_only' | 'desk_only' | 'unread' | 'fingerprint_match' | 'fingerprint_mismatch' | 'fingerprint_none';
+
+// What the page shows of a photo: a small copy and Claude's description, with what no photo can show.
+export type PhotoView = { at: string; sha256: string; thumb: string; visible: string; looks_like_listing: 'yes' | 'no' | "can't tell"; condition: string; text_in_image: string[]; cant_show: string[]; limits: string };
 
 export type IncidentEvent = {
   id: string;        // stable across reads: `${kind}:${record id}`, e.g. 'hold:3f2a', 'gate:2026-10-28T12:00:00.000Z'
@@ -50,7 +54,9 @@ export type Incident = {
   // demo: "Approve it yourself", added by the desk's route for the visitor who asked and nobody else (demo-approver.ts).
   refund?: { can_ask: boolean; ask: { at: string; reason: string; outcome: 'asking' | 'held' | 'no refund' | 'failed'; ai: string | null;
     hold_id: string | null; hold_status: string | null; expires: string | null; decided_by: string | null } | null;
-    demo?: { url: string | null; qr: string | null; why: string | null; expires: string } };
+    demo?: { url: string | null; qr: string | null; why: string | null; expires: string };
+    photo_offer?: { url: string | null; qr: string | null; why: string | null; expires: string | null } };
+  photo?: PhotoView; // a photo the buyer sent, for that visitor and the owner only: never in the public, connector or receipt copies
   dispute_id: string | null;
   events: IncidentEvent[];                                                            // oldest first
   // Money moves only. approved is the owner's and the policy's. Only when there is one: demo_approved is the demo approver's,

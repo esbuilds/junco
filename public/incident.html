@@ -100,6 +100,7 @@
   .demo > div { flex: 1 1 280px; min-width: 0; }
   .demo p { margin: 0 0 10px; }
   .qr { display: block; width: 148px; max-width: 100%; image-rendering: pixelated; }
+  .again { padding: 0; border: 0; background: none; font-size: 13px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
   @media (max-width: 760px) { .page { padding: 20px 16px 32px; } h1 { margin-top: 32px; font-size: 24px; line-height: 30px; } .status { margin-bottom: 32px; } .top .links { margin-left: 0; } .refund { padding: 16px; } .demo { padding: 16px; } .qr { order: 2; } .records-cols { grid-template-columns: minmax(0, 1fr); gap: 24px; } .col + .col { margin-left: 0; padding-left: 0; padding-top: 24px; border-left: 0; border-top: 1px solid var(--line); } .whatif { grid-template-columns: minmax(0, 1fr); } }
   @media (prefers-reduced-motion: no-preference) { summary::after { transition: transform .12s ease-out; } }
 </style>
@@ -129,6 +130,7 @@
   <details id="purchase-card"><summary><span>Purchase details</span></summary><div class="body" id="purchase"></div></details>
 </div>
 </div>
+<script src="/photo-client.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -263,15 +265,25 @@ const demoBox = (d) => !d ? '' : d.url ? `<div class="demo"><img class="qr" src=
   <p><a class="btn" href="${esc(d.url)}">Open your approve link here</a></p>
   <p class="muted">Scan it with your phone, or open it here. It works once and ends with the hold. It proves you hold the link, not who you are, and the record will say the demo approver, never the owner.</p></div></div>`
   : `<p class="muted">${esc(d.why)}</p>`;
+// An optional photo, before the ask: the upload, then the card. Nothing about photos shows on a purchase that has none and can't add one.
+function photoSlot(r, again) {
+  const slot = $('#photo-slot'), o = r.photo_offer, can = o && !o.why;
+  if (inc.photo && !again) {
+    slot.innerHTML = juncoPhoto.card(inc.photo) + (can ? '<p><button type="button" class="again" id="photo-again">Use a different photo</button></p>' : '');
+    if (can) $('#photo-again').addEventListener('click', () => photoSlot(r, true));
+  } else if (can) juncoPhoto.control(slot, { url: '/api/photo', extra: { capture_id: inc.purchase.capture_id }, offer: o, onDone: (p) => { inc.photo = p; photoSlot(r); } });
+  else if (o?.why) slot.innerHTML = `<p class="muted">${esc(o.why)}</p>`;
+}
 function renderRefund() {
   const r = inc.refund;
   $('#refund-card').hidden = !r || (!r.can_ask && !r.ask);
   if (!r) return;
-  if (r.ask) { $('#refund').innerHTML = askText(r.ask) + demoBox(r.demo); return; }
+  if (r.ask) { $('#refund').innerHTML = askText(r.ask) + (inc.photo ? juncoPhoto.card(inc.photo) : '') + demoBox(r.demo); return; }
   if (!r.can_ask) return;
   $('#refund').innerHTML = `<p class="muted" style="margin-top:0">A support agent (Claude) reads your purchase and can propose a refund. It waits for the store owner, who has 24 hours to decide; after that it expires and nothing moves. If it's held, you'll get a link to approve this one sandbox refund yourself, as the demo approver.</p>
-    <div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"></label>
+    <div id="photo-slot"></div><div class="row"><label style="flex:1 1 100%">Why you want it back (optional)<input id="refund-why" type="text" maxlength="200" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"></label>
     <button class="btn" id="refund-ask">Ask the support agent for a refund</button></div><div id="refund-out" aria-live="polite"></div>`;
+  photoSlot(r);
   $('#refund-ask').addEventListener('click', async (ev) => {
     ev.target.disabled = true; ev.target.textContent = 'The support agent is reading your purchase...';
     try {
@@ -284,9 +296,11 @@ function renderRefund() {
 }
 
 const read = () => fetch(`/api/incident/${encodeURIComponent(id)}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error?.message ?? r.status); return b; });
-const load = () => read().then((b) => { inc = b; render(); renderRefund(); watchDemo(); });
+const load = () => read().then((b) => { inc = b; render(); renderRefund(); watchDemo(); watchPhoto(); });
 // The phone decides, and this page then shows it. Only redrawn once the offer ends, so the what-if form keeps its state.
 const watchDemo = () => { if (inc.refund?.demo?.url) setTimeout(async () => { const b = await read().catch(() => null); if (!b || b.refund?.demo?.url) return watchDemo(); inc = b; render(); renderRefund(); }, 5000); };
+// The phone uploads, and this page shows it. Only the photo's slot and the timeline redraw, so a typed reason stays.
+const watchPhoto = () => { if (inc.refund?.can_ask && inc.refund.photo_offer?.url && !inc.photo) setTimeout(async () => { const b = await read().catch(() => null); if (!b?.photo) return b ? watchPhoto() : undefined; inc = b; render(); photoSlot(inc.refund); }, 5000); };
 load().catch((e) => { $('#title').textContent = `Could not load the incident: ${e.message}`; });
 </script>
 </body>

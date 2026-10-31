@@ -51,6 +51,7 @@ export interface Hold {
   id: string; status: string; method: string; reason: string; args?: any; asked_by?: string; paypal?: { id: string; status: string | null } | null; recheck?: { at: string; event: string; refund?: { id: string; at: string } };
   full_refund?: string; // a refund with no amount: "Full refund of $38.00" (or "Full refund" when the amount isn't on record)
   decided_by?: string; // only when it wasn't the owner: a visitor on their leased case
+  photo?: { thumb: string; visible: string; looks: string; limits: string }; // a photo sent with a refund ask, for the owner and that visitor
 }
 // T2: an approved hold isn't done until PayPal says so. Same wording as the case file.
 export const HOLD_STATUS: Record<string, string> = { pending: 'waiting for you', executing: 'approved, sending to PayPal now', completed: 'approved, and PayPal confirmed it ran', failed: 'approved, but PayPal refused it', unknown: 'approved, outcome unknown until PayPal is re-read', approved: 'approved (outcome not recorded)', rejected: 'rejected by owner', stale: 'approved but not run, the case had changed', expired: "expired: the owner didn't decide within 24 hours, nothing sent" };

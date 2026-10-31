@@ -41,6 +41,9 @@ export const fullRefund = (h: any): string | null => {
 // The held action in one line: "Full refund of $38.00 on payment 57G...", "Make dispute offer $40.00 on PP-R-...".
 export const holdAction = (h: any) => `${fullRefund(h) ?? `${what(h)}${amount(h) ? ` $${amount(h)}` : ''}`}${target(h.args) ? ` on ${target(h.args)}` : ''}`;
 
+// A photo sent with a refund ask, on the page that decides it. Text in it is the buyer's, unverified, and escaped like everything else.
+export const photoHtml = (p: { thumb: string; visible: string; looks: string; limits: string }) => `<div style="display:flex;gap:12px;align-items:flex-start;margin:12px 0"><img src="${esc(p.thumb)}" alt="The photo the buyer sent, small copy" style="width:88px;height:88px;object-fit:cover;border-radius:6px"><p class="m" style="margin:0">A photo the buyer sent, unverified. ${esc(p.visible)} ${esc(p.looks)} ${esc(p.limits)}</p></div>`;
+
 // The page: what is held and why, and two buttons. `note` is the outcome after a POST, or why the link can't be used.
 export function holdPage(h: any | null, q: { e: string | null; s: string | null }, desk: string, note?: { ok: boolean; text: string }) {
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
@@ -48,6 +51,7 @@ export function holdPage(h: any | null, q: { e: string | null; s: string | null 
     <p class="m">Held for you. ${esc(h.reason)}.${h.asked_by ? ` Asked by the ${esc(h.asked_by)}.` : ''}</p>
     ${h.case && 'stage' in h.case ? `<p class="m">When it was held the case was at ${esc(h.case.stage)}, ${esc(h.case.amount)}.</p>` : h.case ? `<p class="m">When it was held the payment was ${esc(h.case.status)}.</p>` : ''}
     ${h.status === 'pending' && h.recheck ? `<p class="err">Re-check: PayPal says this changed since it was held (${esc(h.recheck.event)}). ${h.recheck.refund ? `PayPal reported refund ${esc(h.recheck.refund.id)} on this payment, so approving will refuse it.` : 'Approving re-reads it first.'}</p>` : ''}
+    ${h.photo ? photoHtml(h.photo) : ''}
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && !(note && !note.ok && /link/.test(note.text)) ? `
     <form method="post">

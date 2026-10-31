@@ -46,7 +46,7 @@ export function threeRecords(inc: Incident): ThreeRecords | null {
   });
   return { agree: differ.length ? false : answered ? true : null, line, columns: [
     { title: 'What the AI believed', mode: 'recorded', rows: [{ label: 'Asked', value: inc.authority?.instruction ?? 'not in the records' }, { label: 'Budget', value: inc.authority?.budget ?? 'not in the records' },
-      { label: 'Bought', value: `${p.sku} for ${p.amount}` }, { label: 'Its reason', value: p.reason }] },
+      { label: 'Bought', value: `${p.sku} for ${p.amount}` }, { label: 'Its reason', value: p.reason }, ...(inc.photo ? [{ label: "The buyer's photo", value: 'Sent with the refund ask, unverified' }] : [])] },
     { title: 'What the gate recorded', mode: 'recorded', rows: [{ label: 'Proposed', value: String(c.proposed) }, { label: 'Approved', value: String(c.approved) }, ...(c.demo_approved ? [{ label: 'Approved by the demo approver', value: String(c.demo_approved) }] : []), ...(c.leased_approved ? [{ label: 'Approved by a visitor on their leased case', value: String(c.leased_approved) }] : []), { label: 'Executed', value: String(c.executed) },
       ...(c.outcome_unknown ? [{ label: 'Outcome unknown', value: String(c.outcome_unknown) }] : []), ...(holds.length ? holds : [{ label: 'Holds', value: 'None' }])] },
     { title: 'What PayPal says', mode: answered ? 'live' : 'recorded', rows: [{ label: 'Payment', value: read?.summary ?? 'Not read.' },

@@ -52,10 +52,22 @@ export const declineId = (at: string) => `decline-${at.replace(/\D/g, '')}`;
 // "Ask for your money back" (refund-ask.ts): a visitor's request to the support agent on their own agent buy, one per
 // purchase. Saved as 'asking' before Claude is called (it counts for the caps), then what the agent did and said.
 export type RefundAsk = { capture_id: string; session: string; at: string; reason: string; outcome: 'asking' | 'held' | 'no refund' | 'failed';
-  hold_id?: string; ai?: string; cost_usd?: number };
+  hold_id?: string; ai?: string; cost_usd?: number; photo?: string }; // photo: the sha256 of the photo sent with it
 const ASKS = '.junco/refund-asks.json';
 export const readRefundAsks = () => read<RefundAsk[]>(ASKS, []);
 export const saveRefundAsk = (a: RefundAsk) => write(ASKS, [...readRefundAsks().filter((x) => !(x.capture_id === a.capture_id && x.at === a.at)), a]);
+// Phone photo intake (photo.ts): a thumbnail, the sha256 and the description, never the full image, and at most one per purchase.
+// A try counts before Claude, and is what spends a phone link. Private to the visitor and the owner: nothing public reads this.
+export type PhotoVision = { visible: string; looks_like_listing: 'yes' | 'no' | "can't tell"; condition: string; text_in_image: string[]; cant_show: string[] };
+export type PhotoRecord = { capture_id: string; session: string; at: string; sha256: string; thumb: string; vision: PhotoVision; cost_usd: number };
+const PHOTOS = '.junco/photos.json', PHOTO_TRIES = '.junco/photo-tries.json';
+export const readPhotos = () => read<PhotoRecord[]>(PHOTOS, []);
+export const photoFor = (capture: string) => readPhotos().find((p) => p.capture_id === capture);
+export const savePhoto = (p: PhotoRecord) => write(PHOTOS, [...readPhotos().filter((x) => x.capture_id !== p.capture_id), p]);
+export const readPhotoTries = () => read<{ at: string; session: string; capture_id: string }[]>(PHOTO_TRIES, []);
+export const addPhotoTry = (t: { at: string; session: string; capture_id: string }) => write(PHOTO_TRIES, [...readPhotoTries().slice(-500), t]);
+// The photo a held refund was asked with, for whoever may decide it. The hold's own record, so another purchase's can't appear.
+export const photoForHold = (hold: string) => { const a = readRefundAsks().find((x) => x.hold_id === hold && x.photo), p = a && photoFor(a.capture_id); return p?.sha256 === a?.photo ? p : undefined; };
 // "Approve it yourself" (demo-approver.ts): a visitor's decision on the one hold from their own refund ask, saved before
 // PayPal is called. This is what spends the link and counts for the caps, and how every record tells it from the owner's.
 // leased: a visitor deciding a hold on the case they lease, through /api/holds. Spends no link and counts for no cap. A hold

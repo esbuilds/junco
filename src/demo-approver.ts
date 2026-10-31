@@ -9,9 +9,10 @@ import { readFileSync } from 'node:fs';
 import qrcode from 'qrcode-generator';
 import { readHolds, type Hold } from './gate.js';
 import { acceptedText } from './incident-view.js';
-import { holdAction } from './onetap.js';
+import { holdAction, photoHtml } from './onetap.js';
+import { LIMITS, looksLine } from './photo.js';
 import { ASKER } from './refund-ask.js';
-import { actor, decidedBy, decideRefusal, DEMO_APPROVER, dropDemoDecision, LEASE_VISITOR, PUBLIC_SESSION, readAgentBuys, readDemoDecisions, readRefundAsks, saveDemoDecision } from './store-dispute.js';
+import { actor, decidedBy, decideRefusal, DEMO_APPROVER, dropDemoDecision, LEASE_VISITOR, photoForHold, PUBLIC_SESSION, readAgentBuys, readDemoDecisions, readRefundAsks, saveDemoDecision } from './store-dispute.js';
 
 export const DEMO_PATH = '/demo-approve';
 export const YOU_ARE = "You are the demo approver for this one sandbox refund. You can't approve anything else.";
@@ -118,6 +119,7 @@ export function demoPage(h: Hold | null, q: Q, id: string, note?: { ok: boolean;
   const body = !h ? `<p class="err">${esc(note?.text ?? 'No such hold.')}</p>` : `
     <h1>${esc(holdAction(h))}</h1>
     <p>${esc(YOU_ARE)}</p>
+    ${(() => { const p = h && photoForHold(id); return p ? photoHtml({ thumb: p.thumb, visible: p.vision.visible, looks: looksLine(p.vision), limits: LIMITS }) : ''; })()}
     <p class="m">This is PayPal's sandbox, so no real money moves. This link proves you hold it, not who you are, and you aren't the store's owner: the record will say ${esc(DEMO_APPROVER)}.</p>
     ${note ? `<p class="${note.ok ? 'ok' : 'err'}">${esc(note.text)}</p>` : ''}
     ${h.status === 'pending' && h.recheck ? `<p class="err">PayPal says this changed since it was held (${esc(h.recheck.event)}). Approving re-reads it first.</p>` : ''}

@@ -5,6 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { dbOk, mirror } from './persist.js';
 import { fullRefund, holdPage, linkRefusal, signedLink } from './onetap.js';
 import { decideHoldAs, demoDecide, demoOffer, demoRows, demoShow, type DemoDeps } from './demo-approver.js';
+import { BODY_LIMIT, LIMITS, linkRefusal as photoRefusal, looksLine, phonePage, phoneUpload, PHOTO_PATH, photoOffer, takePhoto, withPhoto, type PhotoDeps } from './photo.js';
 import { bearer, challenge as signIn, connectorSessions, oauth, revokeAll } from './oauth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -40,7 +41,7 @@ import { capsLeft, escapeStats, makeChallenge, redTeamRealLeft, roomOutcome, roo
 import { isPublic, PUBLIC_SESSION } from './public.js';
 import { drillPage, drillRun, drillScore, startRun, type Deps as DrillDeps } from './drill.js';
 import { approveAll, correct, notify as whoElseNotify, plan as whoElsePlan, runFinder, setNote, whoElseHome, whoElseRun, whoElseScore, type Deps as WhoElseDeps } from './whoelse.js';
-import { actor, addDeclines, addToPool, decidedField, DEMO_APPROVER, isChallenge, LEASE_VISITOR, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
+import { actor, addDeclines, addToPool, decidedField, DEMO_APPROVER, isChallenge, LEASE_VISITOR, photoForHold, recordedRun, setPin, decideRefusal, extraFor, merchantRecords, isWaiting, keepReady, KINDS, lease, leaseRefusal, leaseUntil, liveLeft, readRuns, refusal as kindRefusal, type Kind } from './store-dispute.js';
 
 const ctx = await sandboxCtx();
 const STARTED = new Date().toISOString(); // owner's /api/status: shows the process has not restarted (token renewal, Oct 21)
@@ -209,6 +210,11 @@ async function decideHold(id: string, verb: 'approve' | 'reject' | 'settle', who
 // "Approve it yourself": the same decideHold, as the visitor who asked, never as the owner.
 const demoDeps: DemoDeps = { key: () => process.env.OWNER_TOKEN,
   decide: (id, verb, session) => actor.run({ owner: false, session, demo: true }, () => decideHold(id, verb, DEMO_APPROVER)) };
+
+const photoDeps: PhotoDeps = { key: () => process.env.OWNER_TOKEN, desk: DESK_URL };
+const photoFail = (res: ServerResponse, e: any) => json(res, e.code ?? 400, { error: { message: e.message === 'Body too large' ? 'That photo is too big: the limit is 1.5 MB after shrinking.' : e.code ? e.message : "That photo didn't go through." } });
+// A held refund's photo, for whoever may decide it: the owner, or the visitor it belongs to. /api/holds is open to every signed-in visitor.
+const photoOnHold = (id: string, viewer?: { owner: boolean; session: string }) => { const p = photoForHold(id); return p && (!viewer || viewer.owner || viewer.session === p.session) ? { photo: { thumb: p.thumb, visible: p.vision.visible, looks: looksLine(p.vision), limits: LIMITS } } : {}; };
 
 // The Gate record (v3.14): every money move proposed to the gate from every source, with its verdict and outcome.
 function gateRecordView() {
@@ -484,7 +490,7 @@ httpServer(async (req, res) => {
     const form = req.method === 'POST' ? new URLSearchParams(await readRaw(req, 10_000)) : null;
     const q = { e: form?.get('e') ?? u.searchParams.get('e'), s: form?.get('s') ?? u.searchParams.get('s') };
     const why = linkRefusal(process.env.OWNER_TOKEN, id, q.e, q.s);
-    const page = (note?: { ok: boolean; text: string }) => { res.writeHead(why ? 403 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); res.end(holdPage(why ? null : readHolds().find((h) => h.id === id) ?? null, q, DESK_URL, note)); };
+    const page = (note?: { ok: boolean; text: string }) => { res.writeHead(why ? 403 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); { const h = why ? null : readHolds().find((x) => x.id === id) ?? null; res.end(holdPage(h && { ...h, ...photoOnHold(id) }, q, DESK_URL, note)); } };
     if (why) return page({ ok: false, text: why });
     const verb = form?.get('verb');
     if (req.method !== 'POST' || (verb !== 'approve' && verb !== 'reject')) return page();
@@ -504,6 +510,16 @@ httpServer(async (req, res) => {
     res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
     res.end(out.html);
   })().catch((e) => json(res, 400, { error: { message: e.message } }));
+  // The signed phone link for a photo (photo.ts): like the demo link, it opens with no cookie and no password. GET only shows it.
+  const photoTap = req.url?.match(/^\/photo\/([\w-]+)(?:\?|$)/);
+  if (photoTap) return void (async () => {
+    const u = new URL(req.url!, 'http://x'), capture = photoTap[1];
+    if (req.method === 'POST') { try { return json(res, 200, await phoneUpload(photoDeps, capture, JSON.parse(await readRaw(req, BODY_LIMIT)))); } catch (e: any) { return photoFail(res, e); } }
+    const q = { e: u.searchParams.get('e'), n: u.searchParams.get('n'), s: u.searchParams.get('s') }, why = photoRefusal(process.env.OWNER_TOKEN, capture, q);
+    res.writeHead(why ? 403 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
+    res.end(phonePage(capture, q, why));
+  })().catch((e) => json(res, 400, { error: { message: e.message } }));
+  if (req.url === '/photo-client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' }); return res.end(readFileSync('public/photo-client.js')); }
   // S1: OAuth for Claude connectors (DCR, PKCE, a password page). An MCP path takes a bearer token or, as before, the
   // desk password (mcp-remote); with neither, the 401 points Claude at the sign-in metadata.
   try { if (await oauth(req, res, DESK_URL, readRaw, PASSWORD)) return; } catch (e: any) { return json(res, e.code === 413 ? 413 : 400, { error: 'invalid_request', error_description: e.message }); }
@@ -707,6 +723,11 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       const rec = recordedRun();
       return json(res, 200, { kinds, mine: mine && view(mine), recent: rec ? [view(rec)] : [] });
     }
+    if (req.method === 'POST' && url.pathname === '/api/photo') { // a photo on the visitor's own agent buy, behind the password like the ask
+      const { session, owner } = actor.getStore()!;
+      try { const b = JSON.parse(await readRaw(req, BODY_LIMIT)); return json(res, 200, await takePhoto(photoDeps, { session, owner, capture_id: String(b?.capture_id ?? ''), image: b?.image, thumb: b?.thumb })); }
+      catch (e: any) { return photoFail(res, e); }
+    }
     if (req.method === 'POST' && url.pathname === '/api/refund-ask') { // Ask for your money back: the visitor's own agent buy only
       const { session, owner } = actor.getStore()!, b = await readBody(req);
       try { return json(res, 200, await askRefund(refundDeps, { session, owner, capture_id: String(b?.capture_id ?? ''), reason: b?.reason })); }
@@ -800,8 +821,8 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
       if (req.method === 'GET' && p[0] === 'incident' && !tail) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync('public/incident.html')); }
       if (req.method === 'GET' && p[0] === 'incident' && tail === 'receipt') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(receiptPage(inc, `${DESK_URL}/incident/${encodeURIComponent(inc.id)}`)); }
       if (req.method === 'GET' && p[0] === 'api' && !tail) { // with PayPal's refunds lined up against the desk's
-        const r = (await reconciled(inc, (q) => paypal(ctx, 'GET', q)))!;
-        if (r.refund) r.refund.demo = demoOffer(process.env.OWNER_TOKEN, DESK_URL, r.refund.ask?.hold_id, actor.getStore()!); // this page's only: never in the connector's copy
+        const r = withPhoto((await reconciled(inc, (q) => paypal(ctx, 'GET', q)))!, actor.getStore()!); // the photo and both links are this page's only: never in the connector's copy
+        if (r.refund) { r.refund.demo = demoOffer(process.env.OWNER_TOKEN, DESK_URL, r.refund.ask?.hold_id, actor.getStore()!); r.refund.photo_offer = photoOffer(process.env.OWNER_TOKEN, DESK_URL, r.purchase?.capture_id, actor.getStore()!); }
         return json(res, 200, { ...r, records: threeRecords(r) });
       }
       if (req.method === 'POST' && p[0] === 'api' && tail === 'what-if') {
@@ -847,7 +868,7 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL, caller
     }
     // Pending holds plus any whose outcome is unknown: those need a re-read of PayPal, never a second run.
     if (req.method === 'GET' && url.pathname === '/api/holds') return json(res, 200, readHolds().filter((h) => ['pending', 'unknown', 'executing'].includes(h.status))
-      .map((h) => ({ ...tagged(h), ...(fullRefund(h) && { full_refund: fullRefund(h) }) }))); // a refund with no amount says so, with how much when known
+      .map((h) => ({ ...tagged(h), ...(fullRefund(h) && { full_refund: fullRefund(h) }), ...photoOnHold(h.id, actor.getStore()!) }))); // a refund with no amount says so, with how much when known
     if (req.method === 'POST' && p[0] === 'api' && p[1] === 'holds' && (p[3] === 'approve' || p[3] === 'reject' || p[3] === 'settle'))
       { const verb = p[3], h = await decideHoldAs(p[2], verb, (who) => decideHold(p[2], verb, who)); return json(res, 200, { ...h, ...decidedField(h.id), paypal: paypalRefund(h) }); }
     json(res, 404, { error: { message: 'Not found' } });

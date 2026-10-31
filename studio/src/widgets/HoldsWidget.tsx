@@ -54,7 +54,7 @@ export function HoldsWidget() {
           <tbody>
             {shown.map((h) => (
               <Fragment key={h.id}>
-                <tr className={h.recheck ? 'jd-has-note' : undefined}>
+                <tr className={h.recheck || h.photo ? 'jd-has-note' : undefined}>
                   <td>{human(h.method).replace(/^./, (c) => c.toUpperCase())}{h.asked_by && <div className="jd-sub">Asked by the {h.asked_by}</div>}</td>
                   <td>{target(h)}</td>
                   <td className={amount(h) === '-' ? 'jd-r jd-num jd-no-amount' : 'jd-r jd-num'}>{amount(h)}</td>
@@ -64,6 +64,7 @@ export function HoldsWidget() {
                     <button type="button" className="jd-btn jd-btn-sm jd-primary" disabled={busy === h.id} onClick={() => decide(h, 'approve')}>{approveLabel(h.method)}</button>
                   </div> : <span className="jd-muted jd-owner-decides" title="The store owner approves or rejects this. You decide holds on the case you take in Dispute this store, and a refund you asked for on your own purchase, from its incident page.">Owner decides</span>}</td>
                 </tr>
+                {h.photo && <tr className="jd-note-row"><td colSpan={5}><span className="jd-hold-photo"><img src={h.photo.thumb} alt="The photo the buyer sent, small copy" /><span>A photo the buyer sent, unverified. {h.photo.visible} {h.photo.looks} {h.photo.limits}</span></span></td></tr>}
                 {/* The re-check reason in full, on its own line under the row, so the buttons keep their place. */}
                 {h.recheck && <tr className="jd-note-row"><td colSpan={5}><span className="jd-attn">Re-check:</span> PayPal says this {h.args?.capture_id ? 'payment' : 'case'} changed since it was held ({h.recheck.event}). {h.recheck.refund ? `PayPal reported refund ${h.recheck.refund.id} on it, so approving will refuse this.` : 'Approving re-reads it first.'}</td></tr>}
               </Fragment>

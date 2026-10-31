@@ -6,7 +6,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { claude, claudeDown, isClaudeDown, pausedText } from './spend.js';
 import { decide, readBudgets, readHolds, setExpiry, type Policy } from './gate.js';
-import { PUBLIC_SESSION, readAgentBuys, readRefundAsks, saveRefundAsk, type RefundAsk } from './store-dispute.js';
+import { photoFor, PUBLIC_SESSION, readAgentBuys, readRefundAsks, saveRefundAsk, type RefundAsk } from './store-dispute.js';
+import { photoEvidence } from './photo.js';
 
 export const MODEL = 'claude-sonnet-5-5'; // fresh-agent's
 export const ASKER = "a visitor's support agent (simulated buyer)"; // the hold's "asked by" on the owner's desk
@@ -51,7 +52,8 @@ export async function askRefund(deps: Deps, v: { session: string; owner: boolean
   const status = await deps.captureStatus(b.capture_id).catch(() => 'unreadable');
   if (status !== 'COMPLETED') throw no(409, `Payment ${b.capture_id} is ${status} on PayPal, not a completed payment, so there is nothing to refund. Nothing was sent to Claude or PayPal.`);
 
-  const ask: RefundAsk = { capture_id: b.capture_id, session: v.session, at: new Date().toISOString(), reason, outcome: 'asking' };
+  const photo = photoFor(b.capture_id); // evidence, never entitlement: everything below this line treats it as words in the message
+  const ask: RefundAsk = { capture_id: b.capture_id, session: v.session, at: new Date().toISOString(), reason, outcome: 'asking', ...(photo && { photo: photo.sha256 }) };
   saveRefundAsk(ask); // counted before Claude is called
   const conn = await deps.connect();
   let usd = 0, proposal: any = null, refused = '', words = '';
@@ -60,7 +62,7 @@ export async function askRefund(deps: Deps, v: { session: string; owner: boolean
     const tools = offered.map((t) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Tool.InputSchema }));
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: `A customer asks for a refund on their order.\nTheir purchase: incident ${b.capture_id} `
       + `(capture ${b.capture_id}, order ${b.order_id}), ${b.agent.sku} for ${b.amount} USD, bought for them by a shopping agent.\n`
-      + `The customer's message, as they typed it: "${reason || '(no reason given)'}"` }];
+      + `The customer's message, as they typed it: "${reason || '(no reason given)'}"${photo ? photoEvidence(photo) : ''}` }];
     for (let turn = 0; turn < MAX_TURNS && !words; turn++) {
       const res = await claude().messages.create({ model: MODEL, max_tokens: 1500, system: SYSTEM, tools, messages });
       usd += ((res.usage.input_tokens + (res.usage.cache_creation_input_tokens ?? 0)) * 4 + (res.usage.cache_read_input_tokens ?? 0) * 0.4 + res.usage.output_tokens * 20) / 1e6;

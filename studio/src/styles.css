@@ -709,3 +709,6 @@ textarea { border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { .jd-wel-group i { transition: none; } }
 
 /* Approve it yourself: the visitor's one sandbox refund. */
+/* A photo sent with a refund ask, in view where the hold is decided. */
+.jd-hold-photo { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--jd-muted); overflow-wrap: anywhere; white-space: normal; }
+.jd-hold-photo img { flex: none; width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }

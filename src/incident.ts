@@ -128,9 +128,11 @@ function build(p: PoolEntry, desk?: AgentBuy): Incident {
   }
   // "Ask for your money back": the visitor's ask to the support agent, what it did, and its own words, labelled as the AI's.
   const asks = desk ? readRefundAsks().filter((x) => x.capture_id === desk.capture_id && x.outcome !== 'asking') : [];
+  // The agent's reply can quote a photo, so with one it stays with those who may see the photo (photo.ts), and out of a connector's copy.
+  const reader = actor.getStore(), mayRead = (x: { session: string; photo?: string }) => !x.photo || (!!reader && (reader.session === x.session || (reader.owner && !reader.session.startsWith('connector-'))));
   for (const x of asks) events.push({ id: `ask:${x.at}`, at: x.at, kind: 'agent', actor: 'support agent (Claude, for the visitor)', source: 'refund-asks',
     summary: `The visitor asked the support agent for a refund${x.reason ? `: "${x.reason.replace(/[.!?]+$/, '')}"` : ''}. ${x.outcome === 'held' ? `It proposed create_refund; the gate held it for the owner as ${x.hold_id}.`
-      : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? ` The AI's own words: "${aiText(x.ai)}"` : ''}`,
+      : x.outcome === 'failed' ? 'The support agent did not finish; nothing was proposed.' : 'It proposed no refund.'}${x.ai ? (mayRead(x) ? ` The AI's own words: "${aiText(x.ai)}"` : ' Its reply mentions a private photo, so it stays out of this copy.') : ''}`,
     ref: { ...(capture_id && { capture_id }), ...(x.hold_id && { hold_id: x.hold_id }) } });
   // A refund PayPal's webhook reported that reconciliation found the desk didn't make (outside-refund.ts).
   for (const x of readOutsideRefunds().filter((x) => x.capture_id === capture_id))
@@ -154,7 +156,7 @@ function refundView(b: AgentBuy): NonNullable<Incident['refund']> {
   const x = readRefundAsks().find((r) => r.capture_id === b.capture_id && r.outcome !== 'failed'), act = actor.getStore();
   const h = x?.hold_id ? readHolds().find((y) => y.id === x.hold_id) : undefined;
   return { can_ask: !x && !!act && act.session !== PUBLIC_SESSION && (act.owner || act.session === b.session),
-    ask: x ? { at: x.at, reason: x.reason, outcome: x.outcome, ai: x.ai ?? null, hold_id: x.hold_id ?? null, hold_status: h?.status ?? null, expires: h?.expires ?? null, decided_by: h ? decidedBy(h.id) : null } : null };
+    ask: x ? { at: x.at, reason: x.reason, outcome: x.outcome, ai: x.photo && !(act?.session === x.session || (act?.owner && !act.session.startsWith('connector-'))) ? null : x.ai ?? null, hold_id: x.hold_id ?? null, hold_status: h?.status ?? null, expires: h?.expires ?? null, decided_by: h ? decidedBy(h.id) : null } : null };
 }
 
 // The agent bought nothing: one RECORDED event, no order, no payment, nothing for the gate (counts stay 0, no what-if).
