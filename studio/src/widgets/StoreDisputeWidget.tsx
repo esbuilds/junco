@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Activity } from '../api';
 import { selectCase, usePoll } from '../store';
+import { Clip } from './Clip';
 import { Panel } from './Panel';
 
 // M1 "Dispute this store" (STRATEGY v3.12): a visitor takes a real sandbox dispute against the demo store, filed ahead
@@ -68,7 +69,7 @@ export function StoreDisputeWidget() {
           <ol className="jd-activity">
             {shown.steps.length === 0 && <li className="jd-muted">Opened {shown.at.slice(11, 16)} UTC. JUNCO is starting.</li>}
             {shown.steps.map((s, i) => (
-              <li key={i}><span className="jd-muted">{s.at.slice(11, 19)}</span> <strong>{s.step}</strong> {s.detail}</li>
+              <li key={i}><span className="jd-muted">{s.at.slice(11, 19)}</span> <strong>{s.step}</strong> <span><Clip text={s.detail} /></span></li>
             ))}
           </ol>
         </div>
