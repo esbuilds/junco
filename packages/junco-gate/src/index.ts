@@ -5,13 +5,11 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+// The rule shapes, decide() and the day total live in policy.ts (no MCP dependency) so the Claude Code plugin's hook can bundle them alone.
+import { amountOf, dayTotal, decide, usd, type DayTotal, type MoneyCall, type Policy, type TotalStore, type Verdict } from './policy.js';
+export { amountOf, dayTotal, decide, usd, utcDay } from './policy.js';
+export type { DayTotal, MoneyCall, Policy, Rule, TotalStore, Verdict } from './policy.js';
 
-export type Verdict = 'allow' | 'hold' | 'deny';
-// read: runs and changes nothing. hidden: not listed, and denied if called anyway. A limit allows a call that moves at
-// most max_amount (args.amount, args.amount.value or args.offer_amount.value) and applies `over` above it.
-export type Rule = Verdict | 'read' | 'hidden' | { max_amount: number; over: Verdict };
-// daily_total: what calls that go out without the owner's approval may add up to in a UTC day, in USD. Past it they hold.
-export type Policy = { default: Verdict; tools: Record<string, Rule>; daily_total?: { max: number; over: 'hold' } };
 // pending, then rejected or stale (refused at approval), or executing then completed, failed or unknown. expired: a hold
 // given an `expires` time that was still pending past it (the store that sets it marks it; it never runs).
 // 'approved' only appears on holds stored by older versions.
@@ -22,12 +20,6 @@ export type Store = { read(): Hold[]; write(holds: Hold[]): void };
 export type Guard = (method: string, args: any, phase: 'call' | 'decide') => string | null;
 // error: for an allowed call, the error the tool returned (logged after the call), so the log never shows a refused call as done.
 export type Decision = { at: string; method: string; args: any; verdict: Verdict; reason: string; hold_id?: string; error?: string };
-
-// Today's running total. An offer counts though no money moves until a buyer accepts, so this is what was approved in advance, never money out.
-export type DayTotal = { day: string; cents: number; calls: number };
-export type TotalStore = { read(): DayTotal | null; write(t: DayTotal): void };
-// null: not a money call. value null: a money call with no readable amount.
-export type MoneyCall = { value: number | null; currency?: string } | null;
 
 export type GateOptions = {
   store?: Store; // where holds live; default .junco/holds.json
@@ -54,28 +46,6 @@ export const jsonTotal = (path = '.junco/daily-total.json', onWrite?: (path: str
   read: () => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } },
   write: (t) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, JSON.stringify(t, null, 2)); onWrite?.(path, t); },
 });
-const utcDay = () => new Date().toISOString().slice(0, 10);
-const usd = (cents: number) => (cents / 100).toFixed(2);
-export const dayTotal = (t: DayTotal | null): DayTotal => (t?.day === utcDay() ? t : { day: utcDay(), cents: 0, calls: 0 }); // a new UTC day starts at zero
-
-const amountOf = (args: any): number | null => {
-  const v = args?.offer_amount?.value ?? args?.amount?.value ?? args?.amount;
-  return v == null ? null : Number(v);
-};
-
-export function decide(policy: Policy, method: string, args: any): { verdict: Verdict; reason: string } {
-  const rule = policy.tools[method];
-  if (rule === undefined) return { verdict: policy.default, reason: `${method} not in policy, default ${policy.default}` };
-  if (rule === 'read') return { verdict: 'allow', reason: `policy: ${method} only reads` };
-  if (rule === 'hidden') return { verdict: 'deny', reason: `policy: ${method} is not exposed` };
-  if (typeof rule === 'string') return { verdict: rule, reason: `policy: ${method} = ${rule}` };
-  const amt = amountOf(args);
-  if (amt === null || Number.isNaN(amt)) return { verdict: 'hold', reason: `${method} has an amount limit but no readable amount` };
-  return amt <= rule.max_amount
-    ? { verdict: 'allow', reason: `${amt} is within the ${rule.max_amount} limit for ${method}` }
-    : { verdict: rule.over, reason: `${amt} is over the ${rule.max_amount} limit for ${method}` };
-}
-
 type Handler = (args: any, extra: any) => Promise<any>;
 const text = (o: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(o) }] });
 const errorOf = (t?: string) => { try { return JSON.parse(t ?? '').error; } catch { return undefined; } };
