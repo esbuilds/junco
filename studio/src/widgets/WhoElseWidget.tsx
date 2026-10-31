@@ -254,7 +254,7 @@ export function WhoElseWidget() {
                 </div>}
                 {sum.settle.length > 0 && <div>
                   <h4>Settle the complaints</h4>
-                  <p>{sum.settle.length} purchase{sum.settle.length === 1 ? ' has' : 's have'} an open PayPal dispute over this. Accepting each claim waits for your approval too. PayPal then closes the dispute in the buyer's favour, pays the refund itself and charges its own dispute fee; what it moved shows on the row afterwards, in PayPal's words.</p>
+                  <p>{sum.settle.length} purchase{sum.settle.length === 1 ? ' has' : 's have'} an open PayPal dispute over this. Accepting each claim waits for your approval too. PayPal then closes the dispute in the buyer's favour and pays the refund itself; what it moved shows on the row afterwards, in PayPal's words.</p>
                   <div className="jd-wel-callout"><h4>What each buyer will read through PayPal</h4><p>PayPal's own notice that the claim was accepted. Your note doesn't travel with an accept.</p></div>
                 </div>}
                 {owner && <div><button type="button" className="jd-btn jd-primary" disabled={!!busy} onClick={planIt}>{busy === 'plan' ? 'Holding...' : `Plan ${planWords(sum.plan.length, sum.settle.length)}`}</button></div>}
@@ -321,7 +321,7 @@ export function WhoElseWidget() {
           <summary>How this works</summary>
           <p>The owner names the problem. Claude only says whether each other purchase shows it: same, not same or unsure. Code picks the group, and the amount is what PayPal shows left to refund.</p>
           <p>Tell their agents hands each purchase's own shopping agent a notice. It's a test buyer's agent run by this demo, in the same process as the desk, so both sides run here. It sees what its person asked, the budget, what it bought and why, and the notice, and nothing about any other purchase. It asks or declines. Code picks the capture and the amount, and an ask waits for the owner like any refund.</p>
-          <p>Settle the complaints accepts an open dispute through the same gate: PayPal closes it in the buyer's favour, pays the refund itself and charges its own fee, and the row shows PayPal's own record of what moved. The buyer gets PayPal's notice, not the owner's note, because the toolkit's accept takes no words.</p>
+          <p>Settle the complaints accepts an open dispute through the same gate: PayPal closes it in the buyer's favour and pays the refund itself, and the row shows PayPal's own record of what moved. The buyer gets PayPal's notice, not the owner's note, because the toolkit's accept takes no words.</p>
           {score && <p>{score.runs} run{score.runs === 1 ? '' : 's'} so far, {score.purchases_read} purchases read, {score.refunds_confirmed} of {score.refunds_proposed} proposed refunds confirmed by PayPal{score.claims_proposed ? `, ${score.claims_settled} of ${score.claims_proposed} accepted dispute${score.claims_proposed === 1 ? '' : 's'} settled by PayPal` : ''}. Agents told on {score.agents_told} purchase{score.agents_told === 1 ? '' : 's'}: {score.agents_asked} asked, {score.agents_declined} declined.</p>}
         </details>
         <p>Sandbox only, no real money. Every purchase is one sandbox test buyer, and our own script filed the disputes. The agent's mistake is real: its words are quoted as recorded when it bought. Airlines differ, so a bag may not fit. PayPal confirms payments and refunds. It doesn't confirm the mistake.</p>
@@ -333,7 +333,7 @@ export function WhoElseWidget() {
           <li className="jd-wel-confirm-total"><span>Total</span><b>{money(heldTotal)}</b></li>
         </ul>
         {heldNotes.map((n) => <div key={n} className="jd-wel-callout"><h4>What {heldRows.length - heldAccepts === 1 ? 'the refunded buyer' : 'each refunded buyer'} will read through PayPal</h4><p>{n}</p></div>)}
-        {heldAccepts > 0 && <p>An accepted claim is settled by PayPal: it closes the dispute in the buyer's favour, refunds the disputed amount itself and charges its own dispute fee. The amounts above are the disputed amounts; PayPal's own record of what moved shows on each row afterwards.</p>}
+        {heldAccepts > 0 && <p>An accepted claim is settled by PayPal: it closes the dispute in the buyer's favour and refunds the disputed amount itself. The amounts above are the disputed amounts; PayPal's own record of what moved shows on each row afterwards.</p>}
         <p>They run one at a time with the usual re-checks. It can finish part way, and each row shows how it ended.</p>
       </ConfirmDialog>}
     </section>

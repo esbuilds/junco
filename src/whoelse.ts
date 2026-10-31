@@ -8,7 +8,7 @@
 // from JUNCO, sees only what a buyer's agent could know, and decides. It runs in this process because this is a demo.
 // Settle the complaints (Oct 31): the purchases that did complain are open PayPal disputes, and the owner can plan those too: one
 // held accept_dispute_claim each, through the same gate and the same Approve all. PayPal closes the dispute in the buyer's favour,
-// pays the refund itself and charges its own fee, and the row shows what PayPal says it did. The owner's record on the product
+// pays the refund itself, and the row shows what PayPal says it did. The owner's record on the product
 // (the note, the correction, what was settled) also goes to the dispute desk as evidence, so a dispute on a mistake the owner
 // already named isn't worked as if the store had never heard of it.
 import type Anthropic from '@anthropic-ai/sdk';
