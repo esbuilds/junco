@@ -32,7 +32,7 @@ import { forget } from './reconcile.js';
 import { outsideRefund } from './outside-refund.js';
 import { boundsFrom, makeNegotiations, readNegotiations } from './negotiate.js';
 import { makeWatch, readOrders, SELLER_PROTECTION_PAGE, trackingTool } from './watch.js';
-import { STUDIO_AI, studioAiTurn } from './studio-ai.js';
+import { STUDIO_AI, studioAiTurn, assistantFailure } from './studio-ai.js';
 import { redTeamRun } from './redteam.js';
 import { claude, claudeDown, isClaudeDown, pausedText, readSpend } from './spend.js';
 import { SHOP_MAX_BUDGET, shopLeft, visitorShop } from './shopper.js';
@@ -926,6 +926,7 @@ async function selfCheck() {
     await claude().messages.create({ model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'ok' }] });
     return `ok, $${readSpend().usd.toFixed(2)} of $${process.env.DESK_DAILY_USD ?? 15} used today`;
   });
+  await t('Ask JUNCO', async () => { if (!STUDIO_AI) return 'off'; const why = assistantFailure(); if (why) throw new Error(`the last question failed: ${why}`); });
   await t('Ready cases for judges', async () => { const n = KINDS.reduce((a, k) => a + liveLeft(k), 0); if (n < 2) throw new Error(`${n} ready, want at least 2`); return `${n} ready`; });
   await t('Postgres', async () => { const ok = await dbOk(); if (ok === null && process.env.RENDER) throw new Error('no DATABASE_URL'); return ok ? 'ok' : 'not configured (local)'; });
   const failed = Object.entries(checks).filter(([, v]) => v.startsWith('FAILED')).map(([k]) => k);

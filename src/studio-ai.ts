@@ -27,6 +27,12 @@ export function allowTurn(visitor: string, trace: any): string | null {
   return null;
 }
 
+// For the self-check: why the latest real question failed, cleared by the next one that works. Passive on purpose: the tool
+// list comes from the browser, and a real question costs about $0.17, so a probe every 30 minutes can't stand in for it.
+// ponytail: it hears nothing until someone asks; a paused AI is reported by the Claude check instead.
+let lastFailure: string | null = null;
+export const assistantFailure = () => lastFailure;
+
 const text = (c: any[]) => (c ?? []).map((p) => p.text ?? p.refusal ?? '').join('');
 
 // Studio's conversation items (Responses-style) to Anthropic messages. Reasoning items are dropped; thinking stays off.
@@ -77,8 +83,9 @@ export async function studioAiTurn(body: any, res: ServerResponse, visitor: stri
   const forced = toolChoice(body?.toolChoice);
   if (forced.note) system.push(forced.note);
   if (body?.responseFormat?.type === 'json') system.push(`Reply with only a JSON object matching this schema, no prose:\n${JSON.stringify(body.responseFormat.schema)}`);
-  const tools: any[] = (body?.tools ?? []).filter((t: any) => !t.kind || t.kind === 'client')
-    .map((t: any) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+  // Claude refuses a turn with two tools of one name (Oct 30: every question failed), so one name, one tool.
+  const tools: any[] = [...new Map((body?.tools ?? []).filter((t: any) => !t.kind || t.kind === 'client')
+    .map((t: any) => [t.name, { name: t.name, description: t.description, input_schema: t.parameters }])).values()];
   // Studio resends the same instructions and tool schemas every round, so cache them and the conversation so far.
   const cache = { cache_control: { type: 'ephemeral' } };
   if (tools.length) Object.assign(tools[tools.length - 1], cache);
@@ -108,6 +115,7 @@ export async function studioAiTurn(body: any, res: ServerResponse, visitor: stri
       }
     }
     const msg = await stream.finalMessage();
+    lastFailure = null;
     msg.content.forEach((b: any, i: number) => {
       if (b.type === 'text') output.push({ id: `${id}_${i}`, kind: 'output', type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'text', text: b.text, annotations: [] }] });
       if (b.type === 'tool_use') output.push({ id: b.id, kind: 'output', type: 'function_call', callId: b.id, name: b.name, arguments: JSON.stringify(b.input ?? {}), status: 'completed' });
@@ -124,6 +132,7 @@ export async function studioAiTurn(body: any, res: ServerResponse, visitor: stri
     } });
   } catch (e: any) {
     console.error('[studio-ai]', e.message);
+    if (!isClaudeDown(e)) lastFailure = String(e.message);
     send({ done: { id, createdAt: Date.now(), output, status: 'failed', error: { code: 'provider_error', message: isClaudeDown(e) ? pausedText() : 'The assistant could not answer just now. Try again in a moment.' } } });
   }
   res.end();

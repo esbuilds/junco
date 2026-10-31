@@ -28,6 +28,19 @@ assert.equal(calls, before); // refused without a network call, and not retried
 console.log('cap: metered from usage, past $1 the next call fails at once, no request sent');
 
 process.env.DESK_DAILY_USD = '100';
+// The assistant: one name, one tool, and a failed question shows in the self-check until one works.
+const { studioAiTurn, assistantFailure } = await import('./studio-ai.js');
+const res = { writeHead() {}, write() {}, end() {} } as any, dup = { input: [], tools: ['a', 'a', 'b'].map((name) => ({ name, parameters: {} })) };
+let sent: any;
+const fake = (fail?: string): any => ({ messages: { stream: (b: any) => { sent = b; if (fail) throw new Error(fail);
+  return { async *[Symbol.asyncIterator]() {}, finalMessage: async () => ({ content: [], usage: {}, model: 'm', stop_reason: 'end_turn' }) }; } } });
+await studioAiTurn(dup, res, 'v', fake('400 Tool names must be unique'));
+assert.deepEqual(sent.tools.map((t: any) => t.name), ['a', 'b']);
+assert.equal(assistantFailure(), '400 Tool names must be unique');
+await studioAiTurn(dup, res, 'v', fake());
+assert.equal(assistantFailure(), null);
+console.log('assistant: duplicate tool names dropped, a failed question reported until one works');
+
 reply = () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } }), { status: 400, headers: { 'content-type': 'application/json' } });
 await assert.rejects(ask(), (e: any) => isClaudeDown(e)); await settle();
 assert.match(claudeDown()!, /out of credit/);
