@@ -25,7 +25,7 @@ export function MatchingWidget({ widgetApi }: { widgetApi: any }) {
   });
   const val = (r: Record<string, any>, c: string) => { const k = Object.keys(r).find((x) => x.endsWith(`.${c}`) || x === c); return k ? r[k] : ''; };
   return (
-    <Panel title="Matching disputes" subtitle={rows ? `${rows.length} ${rows.length === 1 ? "matches" : "match"} the filters on this page; click a chart or a filter to narrow it` : "Loading"}>
+    <Panel title="Matching disputes" subtitle={rows ? `${rows.length} ${rows.length === 1 ? "matches" : "match"}` : "Loading"}>
       {err && <div className="jd-result jd-err">{err}</div>}
       <div className="jd-table-wrap">
         <table className="jd-table">
