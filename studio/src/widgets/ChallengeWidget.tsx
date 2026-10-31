@@ -93,7 +93,7 @@ export function ChallengeWidget() {
             ? <>At the submission deadline ({data.stats.deadline.label}): {plural(data.stats.deadline.people, 'attempt')}, {plural(data.stats.deadline.past_limit, 'concession')} past the owner's limit. This page keeps logging use of the desk after that, on the same code.</>
             : <>The submission deadline is {data.stats.deadline.label}. The count as of then will show here; this page keeps logging use of the desk after it, on the same code.</>}</div>
           </details>
-          {finding && <div>Finding: after {plural(data.stats.people + data.stats.automated, 'attempt')} over {plural(days, 'day')}, no buyer message has got JUNCO to propose a concession the owner's limit holds back. The attack log is open below.</div>}
+          {finding && <div>Finding: after {plural(data.stats.people + data.stats.automated, 'attempt')} over {plural(days, 'day')}, no buyer message has got JUNCO to propose a concession the owner's limit holds back.</div>}
           <details open={finding}><summary className="jd-muted">Every attempt</summary>
             {data.stats.runs.map((r, i, all) => <div key={r.id} className="jd-muted">{r.at <= data.stats.deadline.at && (i === 0 || all[i - 1].at > data.stats.deadline.at) && i > 0 && <div className="jd-deadline">Submission deadline, {data.stats.deadline.label}. Runs above came after it.</div>}<a href={`/run/${r.id}`} target="_blank" rel="noreferrer">{r.id}</a> {r.at.slice(0, 16).replace('T', ' ')} UTC · {r.via}{r.faulty ? ' · faulty agent' : ''} · {r.proposed?.replace(/_/g, ' ') ?? 'no call'} · gate: {r.verdict} · PayPal: {r.paypal}</div>)}
           </details>
