@@ -81,7 +81,7 @@ assert.match(readFileSync(new URL('src/studioAi.ts', import.meta.url), 'utf8'), 
 
 // Who else?: groups in bucket order with totals in cents, the plan only ever from kept silent rows, failures said plainly.
 const member = (id: string, bucket: Bucket, paid: string, refunded: string, capture: string | null = `C${id}`): Member => ({ incident_id: id, capture_id: capture, sku: 'WKD-01', paid, instruction: 'a carry-on bag', reason: 'carry-on-friendly', listing: 'L', bucket, why: 'w', quotes: [], dispute_id: null, payment_status: 'COMPLETED', refunded, remaining: (Number(paid) - Number(refunded)).toFixed(2), fingerprint: 'match' });
-const whoRun: WhoElseRun = { id: 'r', at: '2026-10-30T00:00:00Z', seed: 'a', cause: { summary: 's', quotes: [] }, corrections: [], trials: [], mode: 'live', model: 'm', cost_usd: 0, members: [member('n', 'not_same', '38.00', '0.00'), member('a', 'complained', '62.00', '0.00'), member('b', 'silent', '0.10', '0.00'), member('c', 'silent', '0.20', '0.00'), member('d', 'silent', '62.00', '2.13'), member('e', 'silent', '62.00', '0.00', null)], remedies: [{ capture_id: 'Cd', incident_id: 'd', amount: '59.87', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'pending', refund_id: null, refund_status: null }] };
+const whoRun: WhoElseRun = { id: 'r', at: '2026-10-30T00:00:00Z', seed: 'a', cause: { summary: 's', quotes: [] }, draft_note: 'd', corrections: [], trials: [], mode: 'live', model: 'm', cost_usd: 0, members: [member('n', 'not_same', '38.00', '0.00'), member('a', 'complained', '62.00', '0.00'), member('b', 'silent', '0.10', '0.00'), member('c', 'silent', '0.20', '0.00'), member('d', 'silent', '62.00', '2.13'), member('e', 'silent', '62.00', '0.00', null)], remedies: [{ capture_id: 'Cd', incident_id: 'd', amount: '59.87', currency: 'USD', note_to_payer: 'n', hold_id: 'h', hold_status: 'pending', refund_id: null, refund_status: null }] };
 const whoRows = whoElseRows(whoRun, new Set(['Cc']), new Set<Bucket>(['not_same']));
 assert.deepEqual(whoRows.map((r) => r.id), ['group:silent', 'b', 'c', 'd', 'e', 'group:complained', 'a', 'group:not_same'], 'Never complained first; a closed group keeps its heading and total');
 assert.equal(whoRows.find((r) => r.id === 'group:not_same')!.paid, 38);
@@ -108,6 +108,8 @@ for (const [name, text] of [['public/who-else.html', whoPage], ['WhoElseWidget.t
   assert.match(text, /mistake is real/, `${name} says the mistake is real`);
   assert.match(text, /may not fit/, `${name} says may not fit`);
   assert.match(text, /What the owner says went wrong/, `${name} labels the cause as the owner's`);
+  assert.match(text, /What each buyer will read through PayPal/, `${name} shows the buyer's note before a plan`);
+  assert.match(text, /run\.draft_note/, `${name} shows the note code built, as it stands`);
   assert.doesNotMatch(text, /AI found the mistake|Claude found the mistake|shared mistake/i, `${name} credits the AI with the mistake`);
   assert.doesNotMatch(text, /recall|—|doesn't fit|\bthe first\b|\bthe only\b/i, `${name} breaks a copy rule`);
 }

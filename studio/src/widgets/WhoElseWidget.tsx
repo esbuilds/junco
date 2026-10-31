@@ -183,6 +183,10 @@ export function WhoElseWidget() {
           {run.cause.quotes.map((q, i) => <p key={i} className="jd-muted">{FIELD[q.field]}: <mark>{q.text}</mark></p>)}
         </div>
         <p className="jd-muted">The owner named the problem. Claude only says whether each other purchase shows it: same, not same or unsure. Code picks the group, and the amount is what PayPal shows left to refund. Click a row for the agent's words.</p>
+        {!none && run.members.some((m) => m.bucket === 'silent') && <div className="jd-whoelse-draft">
+          <h3>What each buyer will read through PayPal</h3>
+          <p>{run.draft_note}</p>
+        </div>}
         {owner && !none && <>
           <div className="jd-row">
             <button type="button" className="jd-btn jd-primary" disabled={!plan.length || !!busy} onClick={planIt}>{busy === 'plan' ? 'Holding...' : `Plan refunds (${plan.length})`}</button>

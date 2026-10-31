@@ -41,8 +41,8 @@ export function startProgress(opened: string[], titles: string[]) {
 }
 
 // Who else?: the grid's rows. Bucket groups and their money totals are built here, in cents, because grouping is an AG Grid
-// Enterprise module and the desk uses Community.
-// ponytail: a collapsed group just leaves its members out of rowData; move to rowGroup if the grid ever goes Enterprise.
+// Enterprise module and the desk stays on Community, which needs no licence question.
+// ponytail: a collapsed group just leaves its members out of rowData, so a group can't be filtered as a group.
 export const BUCKETS: [Bucket, string][] = [['silent', 'Never complained'], ['complained', 'Complained'], ['repaired', 'Already repaired'], ['unclear', 'Unclear'], ['not_same', 'Not the same']];
 export type WhoElseRow = { id: string; kind: 'group' | 'member' | 'total'; bucket: Bucket; label: string; open?: boolean; keep?: boolean; can_keep?: boolean; paid: number; refunded: number; remaining: number; member?: Member; remedy?: Remedy };
 const cents = (s: string) => Math.round(Number(s) * 100);

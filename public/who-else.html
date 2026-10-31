@@ -22,7 +22,7 @@ dl{display:grid;grid-template-columns:128px minmax(0,1fr);gap:4px 16px;margin:8p
 /* Never complained is who this page is for: the one group with a heavy edge. */
 .focus .box{border-left:3px solid #1f5c4a}.focus .group-h h2{font-size:17px}
 details{margin-top:28px}summary{cursor:pointer;font-size:15px;font-weight:600}details .box{margin-top:8px}details.more{margin-top:6px}.more summary{font-size:13px;font-weight:500;color:#52525b}
-.cause + .cause{margin-top:8px}[hidden]{display:none!important}#none{font-weight:600}.note{margin:0;padding:6px 10px;background:#f4f4f5;border-radius:6px}
+.cause + .cause{margin-top:8px}[hidden]{display:none!important}#none{font-weight:600}.draft{margin:8px 0 12px}.note{margin:0;padding:6px 10px;background:#f4f4f5;border-radius:6px}
 @media (max-width:560px){body{padding:24px 16px}dl{grid-template-columns:minmax(0,1fr);gap:0}dt{margin-top:6px;font-size:13px}.pick{grid-template-columns:minmax(0,1fr)}.pick button{width:100%}}
 </style></head><body>
 <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 32V9M32 32L51.92 43.5M32 32V55M32 32L12.08 43.5M32 32L12.08 20.5" fill="none" stroke="#18181b" stroke-width="6.4" stroke-linecap="round"/><circle cx="50.19" cy="21.5" r="4.6" fill="#1f5c4a"/></svg><strong>JUNCO</strong><span>· who else?</span></p>
@@ -124,7 +124,13 @@ function group([bucket, name, blurb], run) {
   }
   const sec = el('section', bucket === 'silent' ? 'focus' : ''), h = el('div', 'group-h');
   h.append(el('h2', '', title), el('span', 'num m', sum));
-  sec.append(h, el('p', 'm', members.length ? blurb : 'The finder found no purchase like this on this run.'), ...members.map((m) => row(m, run)));
+  sec.append(h, el('p', 'm', members.length ? blurb : 'The finder found no purchase like this on this run.'));
+  if (bucket === 'silent' && members.length) {
+    const draft = el('div', 'draft');
+    draft.append(el('div', 'm', 'What each buyer will read through PayPal'), el('p', 'note', run.draft_note));
+    sec.append(draft);
+  }
+  sec.append(...members.map((m) => row(m, run)));
   return sec;
 }
 
