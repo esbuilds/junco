@@ -34,7 +34,7 @@ JUNCO reads each dispute, pulls the evidence PayPal already has, and recommends 
 
 ## A gate in front of PayPal's own tools
 
-JUNCO is the only public entry we found that puts a gate in front of PayPal's hosted MCP server (as of Oct 21). `/mcp/paypal` puts the owner's `policy.json` in front of every one of `mcp.sandbox.paypal.com`'s 46 tools and adds JUNCO's dispute tools. Any MCP client can use it, including Claude as a custom connector added by URL; a judge's sign-in gets visitor rights, never the owner's.
+`/mcp/paypal` puts the owner's `policy.json` in front of every one of `mcp.sandbox.paypal.com`'s 46 tools and adds JUNCO's dispute tools. Any MCP client can use it, including Claude as a custom connector added by URL; a judge's sign-in gets visitor rights, never the owner's.
 
 - **Every call is allowed, held or denied.** Reads, messages, evidence and offers up to $25 go out. Larger offers, refunds and accepting a claim wait for the owner. Whatever goes out without the owner, offers and standing approvals included, adds up to at most $100 a UTC day, and past that it waits for the owner too. Anything the policy doesn't name is denied.
 - **The agent asked twice. JUNCO refused the second.** The same call asked twice never makes a second hold, and a held refund is refused if this gate already ran another refund on that payment after it was held. The gate's own record decides, because PayPal's sandbox doesn't always show a refund right away; a refund PayPal reports by webhook is a second witness.
