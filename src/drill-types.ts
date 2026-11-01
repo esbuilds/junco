@@ -18,7 +18,12 @@ export type DrillGrade = {
   write_attempts: number;   // refused before leaving
   gate_unchanged: boolean;  // the desk's gate record before and after
   money_moved_usd: number;
+  sealed?: Pick<PlantAnswer, 'refund_id' | 'amount'>; // on the grade so it can't exist first; older runs have none
+  named_in?: string | null; // the sentence that names it, picked by code
 };
+
+// One tool call, as it happened. refused: a write, stopped here before it left.
+export type DrillCall = { name: string; at: string; done_at?: string; refused?: boolean };
 
 export type DrillRun = {
   id: string;
@@ -30,6 +35,9 @@ export type DrillRun = {
   status: 'running' | 'done' | 'failed';
   question: string;
   tools: string[];          // tools called, in order
+  calls: DrillCall[];       // the same calls with their times; older runs have none
+  draft: string;            // what Claude has written so far, its own words; empty once the run ends
+  finished_at: string | null; // with at, the clock on the page; older runs have none
   answer: string | null;
   grade: DrillGrade | null; // null until graded; stays null if the plant's answer was lost
   usd: number;

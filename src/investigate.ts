@@ -17,11 +17,13 @@ export const isRead = (policy: Policy, name: string) => name.startsWith('junco_'
 export const toolSpec = (t: { name: string; description?: string; inputSchema: any }) => ({ name: t.name, description: t.description ?? '', input_schema: t.inputSchema as Anthropic.Tool.InputSchema });
 
 // answer: null when the turns ran out. usd at the repo's one rate (spend.ts).
+// onText streams the model's own words as they come; without it the call waits for the whole reply.
 export async function toolLoop(o: { client: Anthropic; system: string; tools: Anthropic.Tool[]; messages: Anthropic.MessageParam[]; maxTurns: number; maxTokens: number;
-  onCall: (c: Anthropic.ToolUseBlock) => Promise<Anthropic.ToolResultBlockParam> }): Promise<{ answer: string | null; usd: number }> {
+  onCall: (c: Anthropic.ToolUseBlock) => Promise<Anthropic.ToolResultBlockParam>; onText?: (t: string) => void }): Promise<{ answer: string | null; usd: number }> {
   let usd = 0;
   for (let turn = 0; turn < o.maxTurns; turn++) {
-    const res = await o.client.messages.create({ model: MODEL, max_tokens: o.maxTokens, system: o.system, tools: o.tools, messages: o.messages });
+    const params = { model: MODEL, max_tokens: o.maxTokens, system: o.system, tools: o.tools, messages: o.messages };
+    const res = o.onText ? await o.client.messages.stream(params).on('text', (t) => o.onText!(t)).finalMessage() : await o.client.messages.create(params);
     usd += ((res.usage.input_tokens + (res.usage.cache_creation_input_tokens ?? 0)) * 4 + (res.usage.cache_read_input_tokens ?? 0) * 0.4 + res.usage.output_tokens * 20) / 1e6;
     o.messages.push({ role: 'assistant', content: res.content });
     const calls = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
