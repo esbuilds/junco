@@ -104,6 +104,8 @@ ${d.drill ? `<h2>The drill</h2>
 ${d.whoElse ? `<h2>Who else?</h2>
 <p class="m">Claude finds other purchases with the owner's problem, code sorts them, the owner decides. Sandbox only, one test buyer.</p>
 <div class="box"><span class="count">${plural(d.whoElse.runs, 'run')}, ${d.whoElse.silent_found} never complained, found.</span><div>${d.whoElse.refunds_confirmed} of ${plural(d.whoElse.refunds_proposed, 'proposed refund')} confirmed by PayPal.${d.whoElse.claims_proposed ? ` ${d.whoElse.claims_settled} of ${plural(d.whoElse.claims_proposed, 'open dispute')} the owner accepted, settled by PayPal.` : ''}</div><div><a href="/who-else">Run Who else?</a></div></div>` : ''}
+<h2>In the editor</h2>
+<p class="m">PayPal's plugin asks for a refund and gets a hold id. Claude tries to approve it and the gate refuses. A person types the id. <a href="https://github.com/esbuilds/junco/blob/main/docs/media/held-in-your-editor.mp4">Watch, 44 seconds</a>. Recorded in the sandbox, waits cut.</p>
 <h2>Sign in to act</h2>
 <div class="box act">The password is in the Devpost testing instructions.
 <ul><li>Send your own shopping agent</li><li>Try the Escape room</li><li>Get a sandbox dispute and decide what JUNCO holds</li><li>Connect your own Claude (<a href="${DOCS}">how</a>)</li></ul>
