@@ -47,7 +47,7 @@ export function makeAgent(ctx: Ctx, callTool: CallTool, opts: { unlockWaitMs?: n
     const d = await getDispute(id);
     if (rec.decision === 'offer')
       return call('make_dispute_offer', { dispute_id: id, offer_type: 'REFUND', offer_amount: { currency_code: d.dispute_amount.currency_code, value: rec.offer_amount }, note: message ?? rec.message_to_buyer ?? rec.summary });
-    // ponytail: stock accept_dispute_claim rejects notes with spaces (toolkit 1.11 bug, see PLAN.md), so the note is one token
+    // ponytail: stock accept_dispute_claim rejects notes with spaces (toolkit 1.11 bug), so the note is one token
     if (rec.decision === 'accept') return call('accept_dispute_claim', { dispute_id: id, note: `accepted_via_junco_${actor}` });
     if (!allowedOf(d).includes('provide_evidence')) // under PayPal review: supporting info is the only way to make the case
       return call('provide_dispute_supporting_info', { dispute_id: id, notes: [rec.summary, ...rec.claims.map((c) => c.text)].join(' ').slice(0, 2000) });

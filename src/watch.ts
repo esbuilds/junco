@@ -35,7 +35,7 @@ export function assess(o: Pick<Watched, 'captured_at' | 'trackers' | 'ship_posta
   return { flags, status, ship_by: shipBy };
 }
 
-// The gated tool the desk uses to add tracking (Orders v2 track; the v1 shipping API is closed to this app, see PLAN.md).
+// The gated tool the desk uses to add tracking (Orders v2 track; the v1 shipping API is closed to this app).
 export const trackingTool = {
   method: 'add_order_tracking',
   description: 'Add carrier tracking to a captured PayPal order, so the payment has proof of shipment.',
