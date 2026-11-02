@@ -187,7 +187,7 @@ Creating sandbox disputes, agent mode, Slack, carrier lookups, the checks, secur
 - **Anthropic:** Claude Opus 5.5 for recommendations; Claude Sonnet 5.5 for the support check, the shopping agent and the Studio assistant.
 - **Model Context Protocol** TypeScript SDK, and Claude custom connectors (OAuth with dynamic client registration).
 - **AG Grid:** AG Studio for the desk (layout, widgets, Insights and the AI assistant) and AG Grid for the dispute queue and Who else?.
-- **Render:** one web service and one Postgres.
+- **Render:** two web services, the desk (`junco-desk`) and the drill's planter (`junco-planter`), and one Postgres.
 - **Slack:** an incoming webhook for holds and one-tap links.
 
 *The name:* the junco is a small gray bird you've probably seen a hundred times without knowing what it's called. They spend the day on the ground picking through the details everyone else walks past, and when something's wrong they flash the white feathers in their tail so the rest of the flock knows.
